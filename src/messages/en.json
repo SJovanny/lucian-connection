@@ -1,0 +1,150 @@
+{
+  "common": {
+    "appName": "Lucian Connection",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "search": "Search",
+    "seeAll": "See all",
+    "seeMore": "See more",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "close": "Close",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "header": {
+    "searchPlaceholder": "Search for products, vegetables, meat...",
+    "deliveryBadge": "Order now and get it within 15 min!",
+    "cart": "Cart",
+    "login": "Login",
+    "register": "Sign up",
+    "myAccount": "My account",
+    "myOrders": "My orders",
+    "logout": "Logout"
+  },
+  "home": {
+    "hero": {
+      "title": "We bring the store to your door",
+      "subtitle": "Fresh and local Caribbean products delivered to you. Discover the flavors of Saint Lucia.",
+      "cta": "Shop now"
+    },
+    "categories": {
+      "title": "Categories",
+      "vegetables": "Vegetables",
+      "snacks": "Snacks & Breads",
+      "fruits": "Fruits",
+      "meat": "Meat",
+      "dairy": "Milk & Dairy",
+      "drinks": "Drinks",
+      "localMarket": "Local market",
+      "inStoreDelivery": "In store delivery",
+      "comicalFree": "Additive free",
+      "frozenMeal": "Frozen meals",
+      "processFood": "Processed food"
+    },
+    "featured": {
+      "title": "You might need",
+      "seeMore": "See more"
+    }
+  },
+  "products": {
+    "title": "Our products",
+    "addToCart": "Add to cart",
+    "outOfStock": "Out of stock",
+    "inStock": "In stock",
+    "unit": {
+      "each": "each",
+      "kg": "kg",
+      "lb": "lb",
+      "bunch": "bunch",
+      "pack": "pack"
+    },
+    "filters": {
+      "all": "All",
+      "category": "Category",
+      "priceRange": "Price",
+      "availability": "Availability"
+    }
+  },
+  "cart": {
+    "title": "Your cart",
+    "empty": "Your cart is empty",
+    "continueShopping": "Continue shopping",
+    "subtotal": "Subtotal",
+    "deliveryFee": "Delivery fee",
+    "total": "Total",
+    "checkout": "Checkout",
+    "quantity": "Quantity",
+    "remove": "Remove"
+  },
+  "checkout": {
+    "title": "Checkout",
+    "deliveryAddress": "Delivery address",
+    "contactInfo": "Contact information",
+    "orderSummary": "Order summary",
+    "placeOrder": "Place order",
+    "orderSuccess": "Order confirmed!",
+    "orderSuccessMessage": "Your order has been placed. You will receive a confirmation email.",
+    "form": {
+      "fullName": "Full name",
+      "email": "Email",
+      "phone": "Phone",
+      "address": "Address",
+      "city": "City",
+      "notes": "Delivery notes (optional)"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Login",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Sign in",
+      "forgotPassword": "Forgot password?",
+      "noAccount": "Don't have an account?",
+      "register": "Create account"
+    },
+    "register": {
+      "title": "Create account",
+      "fullName": "Full name",
+      "email": "Email",
+      "password": "Password",
+      "confirmPassword": "Confirm password",
+      "submit": "Sign up",
+      "hasAccount": "Already have an account?",
+      "login": "Sign in"
+    }
+  },
+  "orders": {
+    "title": "My orders",
+    "orderNumber": "Order #",
+    "date": "Date",
+    "status": "Status",
+    "total": "Total",
+    "details": "Details",
+    "statuses": {
+      "pending": "Pending",
+      "confirmed": "Confirmed",
+      "preparing": "Preparing",
+      "ready": "Ready",
+      "delivered": "Delivered",
+      "cancelled": "Cancelled"
+    }
+  },
+  "footer": {
+    "tagline": "Your Caribbean grocery store online",
+    "contact": "Contact",
+    "followUs": "Follow us",
+    "quickLinks": "Quick links",
+    "about": "About",
+    "terms": "Terms of service",
+    "privacy": "Privacy policy",
+    "copyright": "© {year} Lucian Connection. All rights reserved."
+  }
+}

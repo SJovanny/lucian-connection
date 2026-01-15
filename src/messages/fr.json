@@ -1,0 +1,150 @@
+{
+  "common": {
+    "appName": "Lucian Connection",
+    "loading": "Chargement...",
+    "error": "Une erreur est survenue",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "add": "Ajouter",
+    "search": "Rechercher",
+    "seeAll": "Voir tout",
+    "seeMore": "Voir plus",
+    "back": "Retour",
+    "next": "Suivant",
+    "previous": "Précédent",
+    "close": "Fermer",
+    "yes": "Oui",
+    "no": "Non"
+  },
+  "header": {
+    "searchPlaceholder": "Rechercher produits, légumes, viandes...",
+    "deliveryBadge": "Commandez maintenant et recevez en 15 min!",
+    "cart": "Panier",
+    "login": "Connexion",
+    "register": "Inscription",
+    "myAccount": "Mon compte",
+    "myOrders": "Mes commandes",
+    "logout": "Déconnexion"
+  },
+  "home": {
+    "hero": {
+      "title": "On vous livre l'épicerie à domicile",
+      "subtitle": "Produits frais et locaux des Caraïbes livrés chez vous. Découvrez les saveurs de Sainte-Lucie.",
+      "cta": "Commander maintenant"
+    },
+    "categories": {
+      "title": "Catégories",
+      "vegetables": "Légumes",
+      "snacks": "Snacks & Pains",
+      "fruits": "Fruits",
+      "meat": "Viandes",
+      "dairy": "Produits laitiers",
+      "drinks": "Boissons",
+      "localMarket": "Marché local",
+      "inStoreDelivery": "Livraison en magasin",
+      "comicalFree": "Sans additifs",
+      "frozenMeal": "Surgelés",
+      "processFood": "Produits transformés"
+    },
+    "featured": {
+      "title": "Vous pourriez avoir besoin de",
+      "seeMore": "Voir plus"
+    }
+  },
+  "products": {
+    "title": "Nos produits",
+    "addToCart": "Ajouter au panier",
+    "outOfStock": "Rupture de stock",
+    "inStock": "En stock",
+    "unit": {
+      "each": "pièce",
+      "kg": "kg",
+      "lb": "lb",
+      "bunch": "botte",
+      "pack": "paquet"
+    },
+    "filters": {
+      "all": "Tous",
+      "category": "Catégorie",
+      "priceRange": "Prix",
+      "availability": "Disponibilité"
+    }
+  },
+  "cart": {
+    "title": "Votre panier",
+    "empty": "Votre panier est vide",
+    "continueShopping": "Continuer vos achats",
+    "subtotal": "Sous-total",
+    "deliveryFee": "Frais de livraison",
+    "total": "Total",
+    "checkout": "Passer la commande",
+    "quantity": "Quantité",
+    "remove": "Retirer"
+  },
+  "checkout": {
+    "title": "Finaliser la commande",
+    "deliveryAddress": "Adresse de livraison",
+    "contactInfo": "Informations de contact",
+    "orderSummary": "Récapitulatif de la commande",
+    "placeOrder": "Confirmer la commande",
+    "orderSuccess": "Commande confirmée!",
+    "orderSuccessMessage": "Votre commande a été enregistrée. Vous recevrez une confirmation par email.",
+    "form": {
+      "fullName": "Nom complet",
+      "email": "Email",
+      "phone": "Téléphone",
+      "address": "Adresse",
+      "city": "Ville",
+      "notes": "Notes pour la livraison (optionnel)"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Connexion",
+      "email": "Email",
+      "password": "Mot de passe",
+      "submit": "Se connecter",
+      "forgotPassword": "Mot de passe oublié?",
+      "noAccount": "Pas de compte?",
+      "register": "Créer un compte"
+    },
+    "register": {
+      "title": "Créer un compte",
+      "fullName": "Nom complet",
+      "email": "Email",
+      "password": "Mot de passe",
+      "confirmPassword": "Confirmer le mot de passe",
+      "submit": "S'inscrire",
+      "hasAccount": "Déjà un compte?",
+      "login": "Se connecter"
+    }
+  },
+  "orders": {
+    "title": "Mes commandes",
+    "orderNumber": "Commande n°",
+    "date": "Date",
+    "status": "Statut",
+    "total": "Total",
+    "details": "Détails",
+    "statuses": {
+      "pending": "En attente",
+      "confirmed": "Confirmée",
+      "preparing": "En préparation",
+      "ready": "Prête",
+      "delivered": "Livrée",
+      "cancelled": "Annulée"
+    }
+  },
+  "footer": {
+    "tagline": "Votre épicerie caribéenne en ligne",
+    "contact": "Contact",
+    "followUs": "Suivez-nous",
+    "quickLinks": "Liens rapides",
+    "about": "À propos",
+    "terms": "Conditions générales",
+    "privacy": "Politique de confidentialité",
+    "copyright": "© {year} Lucian Connection. Tous droits réservés."
+  }
+}
