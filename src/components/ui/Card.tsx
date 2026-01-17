@@ -25,7 +25,7 @@ const Card = forwardRef<HTMLDivElement, CardProps>(
       <div
         ref={ref}
         className={cn(
-          "rounded-xl transition-all duration-200",
+          "rounded-xl transition-all duration-200 card-organic",
           variants[variant],
           paddings[padding],
           className

@@ -8,24 +8,25 @@ export function HeroBanner() {
   const t = useTranslations("home.hero");
 
   return (
-    <section className="relative bg-primary-600 rounded-2xl overflow-hidden mb-8">
-      {/* Background pattern */}
+    <section className="relative bg-primary-600 rounded-2xl overflow-hidden mb-8 grain-overlay">
+      {/* Background pattern - organic dots with slight variation */}
       <div className="absolute inset-0 opacity-10">
         <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
           <pattern id="grocery-pattern" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
             <circle cx="10" cy="10" r="2" fill="currentColor" />
+            <circle cx="5" cy="15" r="1" fill="currentColor" opacity="0.5" />
           </pattern>
           <rect width="100%" height="100%" fill="url(#grocery-pattern)" />
         </svg>
       </div>
 
-      <div className="relative grid lg:grid-cols-2 gap-8 p-8 lg:p-12">
+      <div className="relative grid lg:grid-cols-2 gap-8 p-8 lg:p-12 z-10">
         {/* Left content */}
         <div className="flex flex-col justify-center">
-          <h1 className="text-4xl lg:text-5xl font-bold text-white font-display leading-tight mb-4">
+          <h1 className="text-4xl lg:text-5xl font-bold text-white font-display leading-tight mb-4 heading-display">
             {t("title")}
           </h1>
-          <p className="text-white/90 text-lg mb-8 max-w-md">
+          <p className="text-white/90 text-lg mb-8 max-w-md leading-relaxed">
             {t("subtitle")}
           </p>
           <div>

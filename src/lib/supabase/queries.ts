@@ -12,6 +12,7 @@ export type ProductWithCategory = Product & {
  */
 export async function getProducts(options?: {
   categorySlug?: string;
+  categorySlugs?: string[];
   search?: string;
   featured?: boolean;
   limit?: number;
@@ -27,9 +28,8 @@ export async function getProducts(options?: {
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
-  // Filtre par catégorie
+  // Filtre par catégorie unique
   if (options?.categorySlug && options.categorySlug !== "all") {
-    // Récupérer l'ID de la catégorie d'abord
     const { data: categoryData } = await supabase
       .from("categories")
       .select("id")
@@ -39,6 +39,18 @@ export async function getProducts(options?: {
     if (categoryData) {
       const categoryId = (categoryData as { id: string }).id;
       query = query.eq("category_id", categoryId);
+    }
+  }
+  // Filtre par plusieurs catégories (groupe)
+  else if (options?.categorySlugs && options.categorySlugs.length > 0) {
+    const { data: categoriesData } = await supabase
+      .from("categories")
+      .select("id")
+      .in("slug", options.categorySlugs);
+      
+    if (categoriesData && categoriesData.length > 0) {
+      const categoryIds = categoriesData.map(c => c.id);
+      query = query.in("category_id", categoryIds);
     }
   }
 
@@ -123,4 +135,66 @@ export async function getFeaturedProducts(limit: number = 10): Promise<ProductWi
  */
 export async function searchProducts(searchTerm: string): Promise<ProductWithCategory[]> {
   return getProducts({ search: searchTerm });
+}
+
+/**
+ * Récupère les commandes récentes
+ */
+export async function getRecentOrders(limit: number = 10) {
+  const supabase = createAdminClient();
+  
+  const { data, error } = await supabase
+    .from("orders")
+    .select(`
+      *,
+      order_items (*)
+    `)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error("Error fetching orders:", error);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
+ * Récupère les statistiques des commandes
+ */
+export async function getOrderStats() {
+  const supabase = createAdminClient();
+  
+  // Commandes du jour
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const { data: todayOrders, error: todayError } = await supabase
+    .from("orders")
+    .select("id, total_amount, status")
+    .gte("created_at", today.toISOString());
+
+  if (todayError) {
+    console.error("Error fetching today orders:", todayError);
+  }
+
+  const { count: totalOrders } = await supabase
+    .from("orders")
+    .select("*", { count: "exact", head: true });
+
+  const { count: pendingOrders } = await supabase
+    .from("orders")
+    .select("*", { count: "exact", head: true })
+    .in("status", ["pending", "confirmed", "preparing"]);
+
+  const todayRevenue = (todayOrders || []).reduce((acc, o) => acc + (o.total_amount || 0), 0);
+  const todayCount = todayOrders?.length || 0;
+
+  return {
+    todayOrders: todayCount,
+    todayRevenue,
+    totalOrders: totalOrders || 0,
+    pendingOrders: pendingOrders || 0,
+  };
 }

@@ -4,23 +4,35 @@ import { Footer } from "@/components/layout/Footer";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { ProductsContent } from "./ProductsContent";
 import { getProducts, getCategories } from "@/lib/supabase/queries";
+import { getCategoriesInGroup } from "@/lib/categoryGroups";
 
 type Props = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ category?: string; search?: string }>;
+  searchParams: Promise<{ 
+    category?: string; 
+    search?: string;
+    group?: string;
+  }>;
 };
 
 export default async function ProductsPage({ params, searchParams }: Props) {
   const { locale } = await params;
   setRequestLocale(locale);
-  const { category, search } = await searchParams;
+  const { category, search, group } = await searchParams;
   const t = await getTranslations("products");
+
+  // Déterminer les slugs de catégories à filtrer si un groupe est sélectionné
+  let categorySlugs: string[] | undefined;
+  if (!category && group) {
+    categorySlugs = getCategoriesInGroup(group);
+  }
 
   // Récupérer les catégories et les produits
   const [categories, products] = await Promise.all([
     getCategories(),
     getProducts({ 
-      categorySlug: category, 
+      categorySlug: category,
+      categorySlugs: categorySlugs,
       search: search 
     }),
   ]);

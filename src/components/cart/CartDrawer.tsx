@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/routing";
 import { useCartStore, CartItem } from "@/store/cartStore";
-import { X, Minus, Plus, ShoppingBag } from "lucide-react";
+import { X, Minus, Plus, ShoppingBag, Package } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { formatPrice } from "@/lib/utils";
 
@@ -22,13 +22,13 @@ export function CartDrawer() {
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/50 z-40"
+        className="fixed inset-0 bg-black/50 z-40 animate-fade-in"
         onClick={closeCart}
         aria-hidden="true"
       />
 
       {/* Drawer */}
-      <div className="fixed right-0 top-0 h-full w-full sm:w-[400px] bg-white z-50 shadow-xl flex flex-col">
+      <div className="fixed right-0 top-0 h-full w-full sm:w-[400px] bg-white z-50 shadow-xl flex flex-col animate-slide-in">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">{t("title")}</h2>
@@ -113,7 +113,7 @@ function CartItemRow({ item, onUpdateQuantity, onRemove }: CartItemRowProps) {
             className="w-full h-full object-contain p-2"
           />
         ) : (
-          <span className="text-2xl opacity-50">🛒</span>
+          <Package className="w-6 h-6 text-gray-400" />
         )}
       </div>
 

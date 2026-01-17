@@ -180,7 +180,7 @@ export function SearchBar({ placeholder, className = "", onClose }: SearchBarPro
                   {/* Prix */}
                   <div className="text-right flex-shrink-0">
                     <p className="font-bold text-gray-900">
-                      {product.price.toFixed(2)}$
+                      {product.price.toFixed(2)}€
                     </p>
                   </div>
                 </button>

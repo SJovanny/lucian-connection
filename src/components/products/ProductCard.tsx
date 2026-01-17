@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Card } from "@/components/ui/Card";
 import { useCartStore } from "@/store/cartStore";
-import { Plus, Minus } from "lucide-react";
+import { Plus, Minus, Package } from "lucide-react";
 import { formatPriceParts } from "@/lib/utils";
 import { Locale } from "@/i18n/routing";
 import type { ProductWithCategory } from "@/lib/supabase/queries";
@@ -64,7 +64,7 @@ export function ProductCard({ product }: ProductCardProps) {
       className="group hover:shadow-lg transition-all duration-200 flex flex-col"
     >
       {/* Image container */}
-      <div className="relative h-32 sm:h-40 bg-gray-50 rounded-xl mb-3 flex items-center justify-center overflow-hidden">
+      <div className="relative h-32 sm:h-40 bg-white rounded-xl mb-3 flex items-center justify-center overflow-hidden">
         {product.image_url ? (
           <img
             src={product.image_url}
@@ -72,7 +72,9 @@ export function ProductCard({ product }: ProductCardProps) {
             className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-200"
           />
         ) : (
-          <div className="text-5xl opacity-50">🛒</div>
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+            <Package className="w-8 h-8 text-gray-400" />
+          </div>
         )}
         {isOutOfStock && (
           <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
@@ -101,7 +103,7 @@ export function ProductCard({ product }: ProductCardProps) {
             {whole}
           </span>
           <span className="text-base sm:text-lg font-bold text-gray-900">
-            .{decimal}$
+            .{decimal}€
           </span>
         </div>
 
@@ -111,7 +113,7 @@ export function ProductCard({ product }: ProductCardProps) {
             <button
               onClick={handleAddToCart}
               disabled={isOutOfStock}
-              className="w-full h-12 bg-gray-100 hover:bg-primary-100 rounded-xl flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-12 bg-gray-100 hover:bg-primary-100 rounded-xl flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed btn-press active:bg-primary-200"
             >
               <Plus className="w-6 h-6 text-gray-700" />
             </button>
