@@ -6,9 +6,22 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+// Type for simple translated field (key: string)
 export type TranslatedField = {
   fr: string;
   en: string;
+};
+
+// Type for category translations
+export type CategoryTranslations = {
+  fr: { name: string };
+  en: { name: string };
+};
+
+// Type for product translations
+export type ProductTranslations = {
+  fr: { name: string; description: string };
+  en: { name: string; description: string };
 };
 
 export type Database = {
@@ -20,7 +33,7 @@ export type Database = {
           slug: string;
           image_url: string | null;
           display_order: number;
-          translations: TranslatedField;
+          translations: CategoryTranslations;
           created_at: string;
         };
         Insert: {
@@ -28,7 +41,7 @@ export type Database = {
           slug: string;
           image_url?: string | null;
           display_order?: number;
-          translations: TranslatedField;
+          translations: CategoryTranslations;
           created_at?: string;
         };
         Update: {
@@ -36,7 +49,7 @@ export type Database = {
           slug?: string;
           image_url?: string | null;
           display_order?: number;
-          translations?: TranslatedField;
+          translations?: CategoryTranslations;
           created_at?: string;
         };
       };
@@ -48,10 +61,7 @@ export type Database = {
           compare_at_price: number | null;
           category_id: string | null;
           image_url: string | null;
-          translations: {
-            fr: { name: string; description: string };
-            en: { name: string; description: string };
-          };
+          translations: ProductTranslations;
           stock: number;
           low_stock_threshold: number;
           track_stock: boolean;
@@ -68,10 +78,7 @@ export type Database = {
           compare_at_price?: number | null;
           category_id?: string | null;
           image_url?: string | null;
-          translations: {
-            fr: { name: string; description: string };
-            en: { name: string; description: string };
-          };
+          translations: ProductTranslations;
           stock?: number;
           low_stock_threshold?: number;
           track_stock?: boolean;
@@ -88,10 +95,7 @@ export type Database = {
           compare_at_price?: number | null;
           category_id?: string | null;
           image_url?: string | null;
-          translations?: {
-            fr: { name: string; description: string };
-            en: { name: string; description: string };
-          };
+          translations?: ProductTranslations;
           stock?: number;
           low_stock_threshold?: number;
           track_stock?: boolean;

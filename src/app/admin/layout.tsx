@@ -4,6 +4,10 @@ import "@/app/globals.css";
 export const metadata = {
   title: "Admin - Lucian Connection",
   description: "Dashboard d'administration Lucian Connection",
+  icons: {
+    icon: "/logo_lc.svg",
+    apple: "/logo_lc.svg",
+  },
 };
 
 export default function AdminLayout({

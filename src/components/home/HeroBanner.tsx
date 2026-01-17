@@ -40,22 +40,15 @@ export function HeroBanner() {
         {/* Right content - Illustration */}
         <div className="hidden lg:flex items-center justify-center">
           <div className="relative w-80 h-80">
-            {/* Shopping bag illustration */}
+            {/* Background shape */}
             <div className="absolute inset-0 bg-primary-500 rounded-3xl transform rotate-6" />
-            <div className="absolute inset-0 bg-accent-400 rounded-3xl flex items-center justify-center">
-              <div className="text-center">
-                <div className="text-6xl mb-4">🛒</div>
-                <div className="flex gap-2 justify-center text-4xl">
-                  <span>🥕</span>
-                  <span>🍎</span>
-                  <span>🥬</span>
-                </div>
-                <div className="flex gap-2 justify-center text-4xl mt-2">
-                  <span>🥛</span>
-                  <span>🍞</span>
-                  <span>🥩</span>
-                </div>
-              </div>
+            {/* Image container */}
+            <div className="absolute inset-0 rounded-3xl overflow-hidden">
+              <img
+                src="/hero_section.png"
+                alt="Produits frais"
+                className="w-full h-full object-cover"
+              />
             </div>
           </div>
         </div>

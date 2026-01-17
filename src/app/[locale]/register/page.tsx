@@ -146,7 +146,6 @@ export default function RegisterPage() {
                     required
                     className="w-4 h-4 mt-0.5 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
                   />
-            )}
                   <span className="text-gray-600">
                     {locale === "fr"
                       ? "J'accepte les conditions générales et la politique de confidentialité"
@@ -164,6 +163,7 @@ export default function RegisterPage() {
                 {t("submit")}
               </Button>
             </form>
+            )}
 
             <div className="mt-6 text-center text-sm text-gray-600">
               {t("hasAccount")}{" "}

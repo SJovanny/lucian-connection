@@ -20,15 +20,24 @@ export const metadata: Metadata = {
   description:
     "Votre épicerie caribéenne en ligne. Produits frais de Sainte-Lucie livrés chez vous.",
   keywords: ["épicerie", "caribéen", "sainte-lucie", "livraison", "produits frais"],
+  icons: {
+    icon: "/logo_lc.svg",
+    apple: "/logo_lc.svg",
+  },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
+  params,
 }: Readonly<{
   children: React.ReactNode;
+  params?: Promise<{ locale?: string }>;
 }>) {
+  const resolvedParams = params ? await params : {};
+  const locale = resolvedParams.locale || "fr";
+
   return (
-    <html suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body className={`${inter.variable} ${poppins.variable} antialiased`}>
         {children}
       </body>

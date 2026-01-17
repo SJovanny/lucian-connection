@@ -7,11 +7,36 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ============================================
+-- DROP EXISTING OBJECTS (Clean Slate)
+-- ============================================
+
+-- Drop triggers first
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP TRIGGER IF EXISTS on_order_cancelled ON orders;
+DROP TRIGGER IF EXISTS on_order_item_insert ON order_items;
+DROP TRIGGER IF EXISTS orders_updated_at ON orders;
+DROP TRIGGER IF EXISTS profiles_updated_at ON profiles;
+DROP TRIGGER IF EXISTS products_updated_at ON products;
+
+-- Drop functions
+DROP FUNCTION IF EXISTS handle_new_user();
+DROP FUNCTION IF EXISTS restore_stock_on_cancel();
+DROP FUNCTION IF EXISTS decrement_stock();
+DROP FUNCTION IF EXISTS update_updated_at();
+
+-- Drop tables (in correct order due to foreign keys)
+DROP TABLE IF EXISTS order_items CASCADE;
+DROP TABLE IF EXISTS orders CASCADE;
+DROP TABLE IF EXISTS profiles CASCADE;
+DROP TABLE IF EXISTS products CASCADE;
+DROP TABLE IF EXISTS categories CASCADE;
+
+-- ============================================
 -- TABLES
 -- ============================================
 
 -- Categories table with translations
-CREATE TABLE IF NOT EXISTS categories (
+CREATE TABLE categories (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   slug TEXT UNIQUE NOT NULL,
   image_url TEXT,
@@ -21,7 +46,7 @@ CREATE TABLE IF NOT EXISTS categories (
 );
 
 -- Products table with translations and stock management
-CREATE TABLE IF NOT EXISTS products (
+CREATE TABLE products (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   slug TEXT UNIQUE NOT NULL,
   price DECIMAL(10,2) NOT NULL,
@@ -43,7 +68,7 @@ CREATE TABLE IF NOT EXISTS products (
 );
 
 -- Profiles table (extends auth.users)
-CREATE TABLE IF NOT EXISTS profiles (
+CREATE TABLE profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   full_name TEXT,
   phone TEXT,
@@ -54,7 +79,7 @@ CREATE TABLE IF NOT EXISTS profiles (
 );
 
 -- Orders table
-CREATE TABLE IF NOT EXISTS orders (
+CREATE TABLE orders (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
   status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'preparing', 'ready', 'delivered', 'cancelled')),
@@ -70,7 +95,7 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 
 -- Order Items table
-CREATE TABLE IF NOT EXISTS order_items (
+CREATE TABLE order_items (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
   product_id UUID REFERENCES products(id) ON DELETE SET NULL,
@@ -153,18 +178,21 @@ CREATE TRIGGER on_order_cancelled
   FOR EACH ROW EXECUTE FUNCTION restore_stock_on_cancel();
 
 -- Create profile on user signup
-CREATE OR REPLACE FUNCTION handle_new_user()
+CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO profiles (id, full_name, role)
+  INSERT INTO public.profiles (id, full_name, role)
   VALUES (NEW.id, NEW.raw_user_meta_data->>'full_name', 'customer');
   RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'Failed to create profile: %', SQLERRM;
+  RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- ============================================
 -- ROW LEVEL SECURITY (RLS)

@@ -7,19 +7,11 @@ import { useCartStore } from "@/store/cartStore";
 import { Plus, Minus } from "lucide-react";
 import { formatPriceParts } from "@/lib/utils";
 import { Locale } from "@/i18n/routing";
+import type { ProductWithCategory } from "@/lib/supabase/queries";
+import type { CategoryTranslations } from "@/types/database.types";
 
 interface ProductCardProps {
-  product: {
-    id: string;
-    slug: string;
-    name: { fr: string; en: string };
-    description: { fr: string; en: string };
-    price: number;
-    image_url: string | null;
-    category: { fr: string; en: string };
-    stock: number;
-    unit: string;
-  };
+  product: ProductWithCategory;
 }
 
 export function ProductCard({ product }: ProductCardProps) {
@@ -27,16 +19,27 @@ export function ProductCard({ product }: ProductCardProps) {
   const t = useTranslations("products");
   const { items, addItem, updateQuantity, removeItem } = useCartStore();
   
+  // Récupérer les traductions du produit
+  const translations = product.translations;
+  const productName = translations?.[locale]?.name || product.slug;
+  const productDescription = translations?.[locale]?.description || "";
+  
+  // Récupérer les traductions de la catégorie
+  const categoryTranslations = product.categories?.translations as CategoryTranslations | undefined;
+  const categoryName = categoryTranslations?.[locale]?.name || product.categories?.slug || "";
+  
   const cartItem = items.find((item) => item.id === product.id);
   const quantity = cartItem?.quantity || 0;
   const { whole, decimal } = formatPriceParts(product.price);
-  const isOutOfStock = product.stock === 0;
+  // TODO: Réactiver quand on aura les données de stock
+  // const isOutOfStock = product.stock === 0;
+  const isOutOfStock = false;
 
   const handleAddToCart = () => {
     if (isOutOfStock) return;
     addItem({
       id: product.id,
-      name: product.name[locale],
+      name: productName,
       price: product.price,
       image_url: product.image_url,
       unit: product.unit,
@@ -44,9 +47,10 @@ export function ProductCard({ product }: ProductCardProps) {
   };
 
   const handleIncrement = () => {
-    if (quantity < product.stock) {
-      updateQuantity(product.id, quantity + 1);
-    }
+    // TODO: Réactiver la limite de stock quand disponible
+    // if (quantity < product.stock) {
+    updateQuantity(product.id, quantity + 1);
+    // }
   };
 
   const handleDecrement = () => {
@@ -64,7 +68,7 @@ export function ProductCard({ product }: ProductCardProps) {
         {product.image_url ? (
           <img
             src={product.image_url}
-            alt={product.name[locale]}
+            alt={productName}
             className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-200"
           />
         ) : (
@@ -82,10 +86,10 @@ export function ProductCard({ product }: ProductCardProps) {
       {/* Content */}
       <div className="flex-1 flex flex-col">
         <h3 className="font-semibold text-gray-900 text-center text-sm sm:text-base line-clamp-1">
-          {product.name[locale]}
+          {productName}
         </h3>
         <p className="text-xs sm:text-sm text-gray-500 text-center mt-0.5">
-          ({product.category[locale]})
+          ({categoryName})
         </p>
         <p className="text-xs text-gray-400 text-center mt-1">
           {product.unit}
@@ -122,7 +126,8 @@ export function ProductCard({ product }: ProductCardProps) {
               <span className="text-white font-bold text-lg">{quantity}</span>
               <button
                 onClick={handleIncrement}
-                disabled={quantity >= product.stock}
+                // TODO: Réactiver la limite de stock quand disponible
+                // disabled={quantity >= product.stock}
                 className="w-8 h-8 border-2 border-white rounded-full flex items-center justify-center text-white hover:bg-primary-400 transition-colors disabled:opacity-50"
               >
                 <Plus className="w-4 h-4" />
