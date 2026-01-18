@@ -114,6 +114,19 @@ body {
   transform: translateY(-2px) rotate(0.3deg);
 }
 
+/* Admin: Disable motion/animations */
+.admin-no-motion *,
+.admin-no-motion *::before,
+.admin-no-motion *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+.admin-no-motion .card-organic:hover,
+.admin-no-motion .btn-press:active {
+  transform: none !important;
+}
+
 /* Anti-AI: Success bounce animation */
 @keyframes success-bounce {
   0%, 100% { transform: scale(1); }

@@ -1,65 +1,12 @@
-import { Card, CardContent } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { Card } from "@/components/ui/Card";
 import { Search, Eye, ChevronDown } from "lucide-react";
+import { getAllOrders, getOrderStatusCounts } from "@/lib/supabase/queries";
+import type { Order, OrderItem, Profile } from "@/types/database.types";
 
-// Mock data
-const orders = [
-  {
-    id: "ORD-001",
-    customer: "Marie Dupont",
-    email: "marie@email.com",
-    phone: "+1 758 555 1234",
-    total: 145.99,
-    items: 5,
-    status: "pending" as const,
-    date: "15 Jan 2026, 14:30",
-    address: "123 Main St, Castries",
-  },
-  {
-    id: "ORD-002",
-    customer: "Jean Martin",
-    email: "jean@email.com",
-    phone: "+1 758 555 5678",
-    total: 78.5,
-    items: 3,
-    status: "confirmed" as const,
-    date: "15 Jan 2026, 13:15",
-    address: "456 Beach Rd, Gros Islet",
-  },
-  {
-    id: "ORD-003",
-    customer: "Sophie Bernard",
-    email: "sophie@email.com",
-    phone: "+1 758 555 9012",
-    total: 232.0,
-    items: 8,
-    status: "preparing" as const,
-    date: "15 Jan 2026, 11:45",
-    address: "789 Hill View, Vieux Fort",
-  },
-  {
-    id: "ORD-004",
-    customer: "Pierre Dubois",
-    email: "pierre@email.com",
-    phone: "+1 758 555 3456",
-    total: 56.75,
-    items: 2,
-    status: "ready" as const,
-    date: "15 Jan 2026, 10:00",
-    address: "321 Palm Ave, Soufriere",
-  },
-  {
-    id: "ORD-005",
-    customer: "Claire Leroy",
-    email: "claire@email.com",
-    phone: "+1 758 555 7890",
-    total: 189.25,
-    items: 6,
-    status: "delivered" as const,
-    date: "14 Jan 2026, 16:20",
-    address: "654 Ocean Dr, Rodney Bay",
-  },
-];
+type OrderWithDetails = Order & {
+  order_items: OrderItem[];
+  profiles: Pick<Profile, "full_name" | "phone"> | null;
+};
 
 const statusConfig = {
   pending: { label: "En attente", color: "bg-yellow-100 text-yellow-800" },
@@ -70,7 +17,20 @@ const statusConfig = {
   cancelled: { label: "Annulée", color: "bg-red-100 text-red-800" },
 };
 
-export default function OrdersPage() {
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+export default async function OrdersPage() {
+  const orders = (await getAllOrders()) as OrderWithDetails[];
+  const statusCounts = await getOrderStatusCounts();
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -85,12 +45,7 @@ export default function OrdersPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {Object.entries({
-          pending: 5,
-          confirmed: 3,
-          preparing: 2,
-          ready: 1,
-        }).map(([status, count]) => (
+        {Object.entries(statusCounts).map(([status, count]) => (
           <Card key={status} padding="md">
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-600">
@@ -156,45 +111,60 @@ export default function OrdersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {orders.map((order) => (
-                <tr key={order.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <p className="font-medium text-gray-900">{order.id}</p>
-                    <p className="text-sm text-gray-500">{order.items} articles</p>
-                  </td>
-                  <td className="px-6 py-4">
-                    <p className="font-medium text-gray-900">{order.customer}</p>
-                    <p className="text-sm text-gray-500">{order.phone}</p>
-                  </td>
-                  <td className="px-6 py-4">
-                    <p className="font-semibold text-gray-900">
-                      ${order.total.toFixed(2)}
-                    </p>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="relative inline-block">
-                      <button
-                        className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${
-                          statusConfig[order.status].color
-                        }`}
-                      >
-                        {statusConfig[order.status].label}
-                        <ChevronDown className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-gray-600 text-sm">
-                    {order.date}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center justify-end">
-                      <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                        <Eye className="w-4 h-4 text-gray-500" />
-                      </button>
-                    </div>
+              {orders.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                    Aucune commande trouvée
                   </td>
                 </tr>
-              ))}
+              ) : (
+                orders.map((order) => {
+                  const itemCount = order.order_items?.length || 0;
+                  const customerName = order.profiles?.full_name || "Client inconnu";
+                  const customerPhone = order.profiles?.phone || order.phone || "N/A";
+                  
+                  return (
+                    <tr key={order.id}>
+                      <td className="px-6 py-4">
+                        <p className="font-medium text-gray-900 text-xs">
+                          {order.id.substring(0, 8)}
+                        </p>
+                        <p className="text-sm text-gray-500">{itemCount} articles</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="font-medium text-gray-900">{customerName}</p>
+                        <p className="text-sm text-gray-500">{customerPhone}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="font-semibold text-gray-900">
+                          ${order.total_amount.toFixed(2)}
+                        </p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="relative inline-block">
+                          <span
+                            className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${
+                              statusConfig[order.status].color
+                            }`}
+                          >
+                            {statusConfig[order.status].label}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-gray-600 text-sm">
+                        {formatDate(order.created_at)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end">
+                          <button className="p-2 rounded-lg">
+                            <Eye className="w-4 h-4 text-gray-500" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { checkAdmin } from "@/lib/admin-auth";
 
 // Admin client avec service role pour bypasser RLS
 const supabaseAdmin = createClient(
@@ -10,6 +11,11 @@ const supabaseAdmin = createClient(
 // GET - Récupérer tous les produits
 export async function GET() {
   try {
+    const isAdmin = await checkAdmin();
+    if (!isAdmin) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { data, error } = await supabaseAdmin
       .from("products")
       .select("*, categories(*)")
@@ -30,6 +36,11 @@ export async function GET() {
 // POST - Créer un nouveau produit
 export async function POST(request: NextRequest) {
   try {
+    const isAdmin = await checkAdmin();
+    if (!isAdmin) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
 
     const {

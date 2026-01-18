@@ -337,13 +337,13 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
                   setImagePreview(null);
                   setFormData((prev) => ({ ...prev, image_url: "" }));
                 }}
-                className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
           ) : (
-            <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-primary-400 hover:bg-primary-50 transition-colors">
+            <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer">
               <Upload className="w-10 h-10 text-gray-400 mb-2" />
               <span className="text-sm text-gray-500">
                 Cliquez pour uploader une image
@@ -402,7 +402,7 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
               variant="secondary"
               onClick={handleDelete}
               isLoading={isDeleting}
-              className="!bg-red-50 !text-red-600 hover:!bg-red-100"
+              className="!bg-red-50 !text-red-600"
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Supprimer

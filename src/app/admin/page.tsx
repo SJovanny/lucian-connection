@@ -113,14 +113,14 @@ export default async function AdminDashboard() {
         <div className="flex flex-wrap gap-2">
           <Link
             href="/admin/products/new"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg text-sm font-medium"
           >
             <Plus className="w-4 h-4" />
             Nouveau produit
           </Link>
           <Link
             href="/admin/orders"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium"
           >
             <Eye className="w-4 h-4" />
             Voir commandes
@@ -176,7 +176,7 @@ export default async function AdminDashboard() {
                 <p className="text-3xl font-bold text-gray-900 mt-1">
                   {stats.featuredCount}
                 </p>
-                <Link href="/admin/products?filter=featured" className="text-xs text-primary-500 mt-1 hover:underline">
+                <Link href="/admin/products?filter=featured" className="text-xs text-primary-500 mt-1">
                   Gérer →
                 </Link>
               </div>
@@ -219,7 +219,7 @@ export default async function AdminDashboard() {
               </CardTitle>
               <Link 
                 href="/admin/orders" 
-                className="text-sm text-primary-500 hover:underline flex items-center gap-1"
+                className="text-sm text-primary-500 flex items-center gap-1"
               >
                 Tout voir <ArrowRight className="w-4 h-4" />
               </Link>
@@ -238,7 +238,7 @@ export default async function AdminDashboard() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {orders.map((order) => (
-                    <tr key={order.id} className="hover:bg-gray-50">
+                    <tr key={order.id}>
                       <td className="py-3">
                         <span className="font-medium text-gray-900">#{order.id.slice(0, 8)}</span>
                         <p className="text-xs text-gray-400">{formatTimeAgo(order.created_at)}</p>
@@ -276,7 +276,7 @@ export default async function AdminDashboard() {
               </CardTitle>
               <Link 
                 href="/admin/inventory" 
-                className="text-sm text-primary-500 hover:underline"
+                className="text-sm text-primary-500"
               >
                 Inventaire
               </Link>
@@ -338,7 +338,7 @@ export default async function AdminDashboard() {
               </CardTitle>
               <Link 
                 href="/admin/products" 
-                className="text-sm text-primary-500 hover:underline flex items-center gap-1"
+                className="text-sm text-primary-500 flex items-center gap-1"
               >
                 Gérer <ArrowRight className="w-4 h-4" />
               </Link>
@@ -370,7 +370,7 @@ export default async function AdminDashboard() {
                 <div className="col-span-5 text-center py-6 text-gray-500">
                   <Star className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                   <p className="text-sm">Aucun produit vedette</p>
-                  <Link href="/admin/products" className="text-primary-500 text-sm hover:underline">
+                  <Link href="/admin/products" className="text-primary-500 text-sm">
                     Ajouter des produits vedettes
                   </Link>
                 </div>

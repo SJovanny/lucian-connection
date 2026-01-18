@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Package,
@@ -12,9 +12,11 @@ import {
   LogOut,
   Menu,
   X,
+  Home,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 const navItems = [
   {
@@ -51,7 +53,17 @@ const navItems = [
 
 export function AdminSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/admin/login");
+    router.refresh();
+  };
 
   return (
     <>
@@ -88,7 +100,7 @@ export function AdminSidebar() {
           </Link>
           <button
             onClick={() => setIsMobileOpen(false)}
-            className="lg:hidden p-1 hover:bg-primary-700 rounded"
+            className="lg:hidden p-1 rounded"
           >
             <X className="w-5 h-5" />
           </button>
@@ -108,10 +120,10 @@ export function AdminSidebar() {
                 href={item.href}
                 onClick={() => setIsMobileOpen(false)}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors",
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg",
                   isActive
                     ? "bg-primary-600 text-white"
-                    : "text-primary-200 hover:bg-primary-700 hover:text-white"
+                    : "text-primary-200"
                 )}
               >
                 <Icon className="w-5 h-5" />
@@ -122,14 +134,22 @@ export function AdminSidebar() {
         </nav>
 
         {/* Footer */}
-        <div className="p-4 border-t border-primary-700">
+        <div className="p-4 border-t border-primary-700 space-y-1">
           <Link
             href="/fr"
-            className="flex items-center gap-3 px-3 py-2.5 text-primary-200 hover:bg-primary-700 hover:text-white rounded-lg transition-colors"
+            className="flex items-center gap-3 px-3 py-2.5 text-primary-200 rounded-lg"
           >
-            <LogOut className="w-5 h-5" />
+            <Home className="w-5 h-5" />
             <span>Retour au site</span>
           </Link>
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="w-full flex items-center gap-3 px-3 py-2.5 text-red-300 rounded-lg disabled:opacity-50"
+          >
+            <LogOut className="w-5 h-5" />
+            <span>{isLoggingOut ? "Déconnexion..." : "Se déconnecter"}</span>
+          </button>
         </div>
       </aside>
     </>

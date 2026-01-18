@@ -130,7 +130,7 @@ export function FeaturedProductsManager({ initialProducts }: FeaturedProductsMan
                 <button
                   onClick={() => toggleFeatured(product.id, true)}
                   disabled={loading === product.id}
-                  className="text-gray-400 hover:text-red-500 transition-colors"
+                  className="text-gray-400"
                 >
                   ×
                 </button>
@@ -167,7 +167,7 @@ export function FeaturedProductsManager({ initialProducts }: FeaturedProductsMan
               {filteredProducts.map((product) => (
                 <tr
                   key={product.id}
-                  className={`hover:bg-gray-50 transition-colors ${
+                  className={`${
                     product.is_featured ? "bg-yellow-50/50" : ""
                   }`}
                 >
@@ -226,10 +226,10 @@ export function FeaturedProductsManager({ initialProducts }: FeaturedProductsMan
                     <button
                       onClick={() => toggleFeatured(product.id, product.is_featured)}
                       disabled={loading === product.id}
-                      className={`relative inline-flex h-8 w-8 items-center justify-center rounded-lg transition-all ${
+                      className={`relative inline-flex h-8 w-8 items-center justify-center rounded-lg ${
                         product.is_featured
-                          ? "bg-yellow-100 text-yellow-600 hover:bg-yellow-200"
-                          : "bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
+                          ? "bg-yellow-100 text-yellow-600"
+                          : "bg-gray-100 text-gray-400"
                       }`}
                     >
                       {loading === product.id ? (

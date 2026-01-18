@@ -124,6 +124,69 @@ export async function getCategories(): Promise<Category[]> {
 }
 
 /**
+ * Récupère une catégorie par son ID
+ */
+export async function getCategoryById(id: string): Promise<Category | null> {
+  const supabase = createAdminClient();
+  
+  const { data, error } = await supabase
+    .from("categories")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    console.error("Error fetching category:", error);
+    return null;
+  }
+
+  return data as Category;
+}
+
+/**
+ * Récupère tous les produits pour la gestion d'inventaire
+ */
+export async function getAllProductsForInventory(): Promise<ProductWithCategory[]> {
+  const supabase = createAdminClient();
+  
+  const { data, error } = await supabase
+    .from("products")
+    .select(`
+      *,
+      categories (*)
+    `)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching products for inventory:", error);
+    return [];
+  }
+
+  return (data || []) as ProductWithCategory[];
+}
+
+/**
+ * Met à jour le stock d'un produit
+ */
+export async function updateProductStock(productId: string, newStock: number) {
+  const supabase = createAdminClient();
+  
+  const { data, error } = await supabase
+    .from("products")
+    .update({ stock: newStock })
+    .eq("id", productId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error updating product stock:", error);
+    return null;
+  }
+
+  return data;
+}
+
+/**
  * Récupère les produits vedettes pour la page d'accueil
  */
 export async function getFeaturedProducts(limit: number = 10): Promise<ProductWithCategory[]> {
@@ -135,6 +198,61 @@ export async function getFeaturedProducts(limit: number = 10): Promise<ProductWi
  */
 export async function searchProducts(searchTerm: string): Promise<ProductWithCategory[]> {
   return getProducts({ search: searchTerm });
+}
+
+/**
+ * Récupère toutes les commandes avec leurs détails
+ */
+export async function getAllOrders(options?: {
+  status?: string;
+  search?: string;
+  date?: string;
+}) {
+  const supabase = createAdminClient();
+  
+  let query = supabase
+    .from("orders")
+    .select(`
+      *,
+      order_items (*),
+      profiles (full_name, phone)
+    `)
+    .order("created_at", { ascending: false });
+
+  // Filter by status
+  if (options?.status && options.status !== "") {
+    query = query.eq("status", options.status);
+  }
+
+  // Filter by date
+  if (options?.date) {
+    const startDate = new Date(options.date);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(options.date);
+    endDate.setHours(23, 59, 59, 999);
+    
+    query = query.gte("created_at", startDate.toISOString()).lte("created_at", endDate.toISOString());
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("Error fetching orders:", error);
+    return [];
+  }
+
+  // Filter by search term (order ID or customer name)
+  let results = data || [];
+  if (options?.search) {
+    const searchLower = options.search.toLowerCase();
+    results = results.filter(order => {
+      const customerName = (order.profiles as any)?.full_name?.toLowerCase() || "";
+      const orderId = order.id.toLowerCase();
+      return orderId.includes(searchLower) || customerName.includes(searchLower);
+    });
+  }
+
+  return results;
 }
 
 /**
@@ -158,6 +276,29 @@ export async function getRecentOrders(limit: number = 10) {
   }
 
   return data || [];
+}
+
+/**
+ * Récupère les statistiques des commandes par statut
+ */
+export async function getOrderStatusCounts() {
+  const supabase = createAdminClient();
+  
+  const statuses = ['pending', 'confirmed', 'preparing', 'ready'];
+  const counts: Record<string, number> = {};
+
+  for (const status of statuses) {
+    const { count, error } = await supabase
+      .from("orders")
+      .select("*", { count: "exact", head: true })
+      .eq("status", status);
+
+    if (!error) {
+      counts[status] = count || 0;
+    }
+  }
+
+  return counts;
 }
 
 /**

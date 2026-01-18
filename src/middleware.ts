@@ -8,10 +8,13 @@ const intlMiddleware = createMiddleware(routing);
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
-  // Create a response to modify
+  // Create a response to modify with pathname header
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-pathname', pathname);
+
   let response = NextResponse.next({
     request: {
-      headers: request.headers,
+      headers: requestHeaders,
     },
   });
 
@@ -35,10 +38,47 @@ export async function middleware(request: NextRequest) {
   );
 
   // Refresh session if expired - required for Server Components
-  await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  // Skip i18n middleware for admin routes and API routes
-  if (pathname.startsWith('/admin') || pathname.startsWith('/api')) {
+  // Handle admin routes protection
+  if (pathname.startsWith('/admin')) {
+    // Allow access to login page
+    if (pathname === '/admin/login') {
+      // If already logged in as admin, redirect to dashboard
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        if (String(profile?.role) === 'admin') {
+          return NextResponse.redirect(new URL('/admin', request.url));
+        }
+      }
+      return response;
+    }
+
+    // For all other admin routes, check if user is admin
+    if (!user) {
+      return NextResponse.redirect(new URL('/admin/login', request.url));
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (String(profile?.role) !== 'admin') {
+      return NextResponse.redirect(new URL('/admin/login', request.url));
+    }
+
+    return response;
+  }
+
+  // Skip i18n middleware for API routes
+  if (pathname.startsWith('/api')) {
     return response;
   }
 
@@ -58,11 +98,11 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     // Match all pathnames except for
-    // - /api (API routes)
     // - /_next (Next.js internals)
     // - /_vercel (Vercel internals)
-    // - /admin (Admin dashboard - French only)
     // - Static files (favicon, images, etc.)
-    '/((?!api|_next|_vercel|admin|.*\\..*).*)',
+    '/((?!_next|_vercel|.*\\..*).*)',
+    // Also match admin routes
+    '/admin/:path*',
   ],
 };

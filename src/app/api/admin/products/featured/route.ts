@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { checkAdmin } from "@/lib/admin-auth";
 
 // Create admin client for this route (without strict types to allow updates)
 function getAdminClient() {
@@ -18,6 +19,11 @@ function getAdminClient() {
 // POST /api/admin/products/featured - Toggle featured status
 export async function POST(request: NextRequest) {
   try {
+    const isAdmin = await checkAdmin();
+    if (!isAdmin) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { productId, isFeatured } = await request.json();
 
     if (!productId || typeof isFeatured !== "boolean") {
@@ -60,6 +66,11 @@ export async function POST(request: NextRequest) {
 // GET /api/admin/products/featured - Get all products with featured status
 export async function GET() {
   try {
+    const isAdmin = await checkAdmin();
+    if (!isAdmin) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const supabase = getAdminClient();
 
     const { data, error } = await supabase

@@ -4,9 +4,19 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Badge, StockBadge } from "@/components/ui/Badge";
-import { Edit, Trash2, Eye, Star, Loader2, Package, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Edit,
+  Trash2,
+  Star,
+  Loader2,
+  Package,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import type { ProductWithCategory } from "@/lib/supabase/queries";
 import type { Category } from "@/types/database.types";
+import { ConfirmModal } from "@/components/ui/Modal";
 
 interface ProductsTableProps {
   initialProducts: ProductWithCategory[];
@@ -21,6 +31,8 @@ export function ProductsTable({ initialProducts, categories }: ProductsTableProp
   const [categoryFilter, setCategoryFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [loading, setLoading] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ProductWithCategory | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
   // Filtrer les produits
@@ -58,6 +70,28 @@ export function ProductsTable({ initialProducts, categories }: ProductsTableProp
   const handleStatusChange = (value: string) => {
     setStatusFilter(value);
     setCurrentPage(1);
+  };
+
+  const handleDelete = async (productId: string) => {
+    setDeletingId(productId);
+
+    try {
+      const response = await fetch(`/api/admin/products/${productId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (response.ok) {
+        setProducts((prev) => prev.filter((p) => p.id !== productId));
+      } else {
+        const errorBody = await response.json().catch(() => null);
+        console.error("Error deleting product:", errorBody || response.status);
+      }
+    } catch (error) {
+      console.error("Error deleting product:", error);
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   // Toggle featured status
@@ -176,7 +210,7 @@ export function ProductsTable({ initialProducts, categories }: ProductsTableProp
               {paginatedProducts.map((product) => (
                 <tr
                   key={product.id}
-                  className={`hover:bg-gray-50 ${product.is_featured ? "bg-yellow-50/30" : ""}`}
+                  className={`${product.is_featured ? "bg-yellow-50/30" : ""}`}
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -231,10 +265,10 @@ export function ProductsTable({ initialProducts, categories }: ProductsTableProp
                     <button
                       onClick={() => toggleFeatured(product.id, product.is_featured)}
                       disabled={loading === product.id}
-                      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition-all ${
+                      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${
                         product.is_featured
-                          ? "bg-yellow-100 text-yellow-600 hover:bg-yellow-200"
-                          : "bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
+                          ? "bg-yellow-100 text-yellow-600"
+                          : "bg-gray-100 text-gray-400"
                       }`}
                       title={product.is_featured ? "Retirer de la une" : "Mettre à la une"}
                     >
@@ -249,17 +283,23 @@ export function ProductsTable({ initialProducts, categories }: ProductsTableProp
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end gap-2">
-                      <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                        <Eye className="w-4 h-4 text-gray-500" />
-                      </button>
                       <Link
                         href={`/admin/products/${product.id}`}
-                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                        className="p-2 rounded-lg hover:bg-gray-100"
                       >
                         <Edit className="w-4 h-4 text-gray-500" />
                       </Link>
-                      <button className="p-2 hover:bg-red-50 rounded-lg transition-colors">
-                        <Trash2 className="w-4 h-4 text-red-500" />
+                      <button
+                        className="p-2 rounded-lg hover:bg-error-50"
+                        onClick={() => setDeleteTarget(product)}
+                        disabled={deletingId === product.id}
+                        title="Supprimer"
+                      >
+                        {deletingId === product.id ? (
+                          <Loader2 className="w-4 h-4 text-gray-300 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4 text-error-500" />
+                        )}
                       </button>
                     </div>
                   </td>
@@ -286,7 +326,7 @@ export function ProductsTable({ initialProducts, categories }: ProductsTableProp
               <button
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Précédent
@@ -312,10 +352,10 @@ export function ProductsTable({ initialProducts, categories }: ProductsTableProp
                         )}
                         <button
                           onClick={() => setCurrentPage(page)}
-                          className={`w-10 h-10 flex items-center justify-center text-sm font-medium rounded-lg transition-colors ${
+                          className={`w-10 h-10 flex items-center justify-center text-sm font-medium rounded-lg ${
                             currentPage === page
                               ? "bg-primary-500 text-white"
-                              : "text-gray-700 hover:bg-gray-100"
+                              : "text-gray-700"
                           }`}
                         >
                           {page}
@@ -328,7 +368,7 @@ export function ProductsTable({ initialProducts, categories }: ProductsTableProp
               <button
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Suivant
                 <ChevronRight className="w-4 h-4" />
@@ -337,6 +377,25 @@ export function ProductsTable({ initialProducts, categories }: ProductsTableProp
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) {
+            handleDelete(deleteTarget.id);
+          }
+        }}
+        title="Supprimer le produit"
+        message={
+          deleteTarget
+            ? `Êtes-vous sûr de vouloir supprimer “${deleteTarget.translations.fr.name}” ? Cette action est irréversible.`
+            : ""
+        }
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="danger"
+      />
     </div>
   );
 }
