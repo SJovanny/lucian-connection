@@ -20,7 +20,7 @@
   },
   "header": {
     "searchPlaceholder": "Search for products, vegetables, meat...",
-    "deliveryBadge": "Order now and get it within 15 min!",
+    "deliveryBadge": "Order now and pick up in 15 min!",
     "cart": "Cart",
     "login": "Login",
     "register": "Sign up",
@@ -30,8 +30,8 @@
   },
   "home": {
     "hero": {
-      "title": "We bring the store to your door",
-      "subtitle": "Fresh and local Caribbean products delivered to you. Discover the flavors of Saint Lucia.",
+      "title": "Click & Collect your groceries",
+      "subtitle": "Order online and pick up your fresh local Caribbean products in store.",
       "cta": "Shop now"
     },
     "categories": {
@@ -77,7 +77,7 @@
     "empty": "Your cart is empty",
     "continueShopping": "Continue shopping",
     "subtotal": "Subtotal",
-    "deliveryFee": "Delivery fee",
+    "deliveryFee": "Preparation fee",
     "total": "Total",
     "checkout": "Checkout",
     "quantity": "Quantity",
@@ -85,19 +85,19 @@
   },
   "checkout": {
     "title": "Checkout",
-    "deliveryAddress": "Delivery address",
+    "deliveryAddress": "Billing address",
     "contactInfo": "Contact information",
     "orderSummary": "Order summary",
     "placeOrder": "Place order",
     "orderSuccess": "Order confirmed!",
-    "orderSuccessMessage": "Your order has been placed. You will receive a confirmation email.",
+    "orderSuccessMessage": "Your order is being prepared. You will receive a confirmation email.",
     "form": {
       "fullName": "Full name",
       "email": "Email",
       "phone": "Phone",
       "address": "Address",
       "city": "City",
-      "notes": "Delivery notes (optional)"
+      "notes": "Order notes (optional)"
     }
   },
   "auth": {

@@ -112,6 +112,7 @@ export type Database = {
           full_name: string | null;
           phone: string | null;
           address: string | null;
+          dashboard_locale: string | null;
           role: "customer" | "admin";
           created_at: string;
           updated_at: string;
@@ -121,6 +122,7 @@ export type Database = {
           full_name?: string | null;
           phone?: string | null;
           address?: string | null;
+          dashboard_locale?: string | null;
           role?: "customer" | "admin";
           created_at?: string;
           updated_at?: string;
@@ -130,6 +132,7 @@ export type Database = {
           full_name?: string | null;
           phone?: string | null;
           address?: string | null;
+          dashboard_locale?: string | null;
           role?: "customer" | "admin";
           created_at?: string;
           updated_at?: string;
@@ -208,10 +211,140 @@ export type Database = {
           total_price?: number;
         };
       };
+      store_settings: {
+        Row: {
+          id: string;
+          preparation_fee: number;
+          min_order_amount: number;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          preparation_fee?: number;
+          min_order_amount?: number;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          preparation_fee?: number;
+          min_order_amount?: number;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+      };
+      coupons: {
+        Row: {
+          id: string;
+          code: string;
+          description: string | null;
+          discount_type: "percentage" | "fixed";
+          discount_value: number;
+          min_order_amount: number;
+          max_discount_amount: number | null;
+          starts_at: string | null;
+          expires_at: string | null;
+          usage_limit: number | null;
+          used_count: number;
+          is_first_order_only: boolean;
+          is_active: boolean;
+          created_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          code: string;
+          description?: string | null;
+          discount_type: "percentage" | "fixed";
+          discount_value: number;
+          min_order_amount?: number;
+          max_discount_amount?: number | null;
+          starts_at?: string | null;
+          expires_at?: string | null;
+          usage_limit?: number | null;
+          used_count?: number;
+          is_first_order_only?: boolean;
+          is_active?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          code?: string;
+          description?: string | null;
+          discount_type?: "percentage" | "fixed";
+          discount_value?: number;
+          min_order_amount?: number;
+          max_discount_amount?: number | null;
+          starts_at?: string | null;
+          expires_at?: string | null;
+          usage_limit?: number | null;
+          used_count?: number;
+          is_first_order_only?: boolean;
+          is_active?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+        };
+      };
+      reductions: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          discount_type: "percentage" | "fixed";
+          discount_value: number;
+          applies_to: "all" | "categories" | "products";
+          category_ids: string[];
+          product_ids: string[];
+          starts_at: string | null;
+          expires_at: string | null;
+          is_active: boolean;
+          priority: number;
+          created_at: string;
+          created_by: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          discount_type: "percentage" | "fixed";
+          discount_value: number;
+          applies_to: "all" | "categories" | "products";
+          category_ids?: string[];
+          product_ids?: string[];
+          starts_at?: string | null;
+          expires_at?: string | null;
+          is_active?: boolean;
+          priority?: number;
+          created_at?: string;
+          created_by?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          description?: string | null;
+          discount_type?: "percentage" | "fixed";
+          discount_value?: number;
+          applies_to?: "all" | "categories" | "products";
+          category_ids?: string[];
+          product_ids?: string[];
+          starts_at?: string | null;
+          expires_at?: string | null;
+          is_active?: boolean;
+          priority?: number;
+          created_at?: string;
+          created_by?: string | null;
+          updated_at?: string;
+        };
+      };
     };
     Views: {};
     Functions: {};
     Enums: {};
+    CompositeTypes: {};
   };
 };
 

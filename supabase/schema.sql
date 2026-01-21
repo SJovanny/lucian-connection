@@ -73,6 +73,7 @@ CREATE TABLE profiles (
   full_name TEXT,
   phone TEXT,
   address TEXT,
+  dashboard_locale TEXT DEFAULT 'fr',
   role TEXT DEFAULT 'customer' CHECK (role IN ('customer', 'admin')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()

@@ -20,7 +20,7 @@
   },
   "header": {
     "searchPlaceholder": "Rechercher produits, légumes, viandes...",
-    "deliveryBadge": "Commandez maintenant et recevez en 15 min!",
+    "deliveryBadge": "Commandez et récupérez en magasin en 15 min!",
     "cart": "Panier",
     "login": "Connexion",
     "register": "Inscription",
@@ -30,8 +30,8 @@
   },
   "home": {
     "hero": {
-      "title": "On vous livre l'épicerie à domicile",
-      "subtitle": "Produits frais et locaux des Caraïbes livrés chez vous. Découvrez les saveurs de Sainte-Lucie.",
+      "title": "Vos courses prêtes en un clic",
+      "subtitle": "Commandez en ligne et récupérez vos produits frais et locaux en magasin.",
       "cta": "Commander maintenant"
     },
     "categories": {
@@ -77,7 +77,7 @@
     "empty": "Votre panier est vide",
     "continueShopping": "Continuer vos achats",
     "subtotal": "Sous-total",
-    "deliveryFee": "Frais de livraison",
+    "deliveryFee": "Frais de préparation",
     "total": "Total",
     "checkout": "Passer la commande",
     "quantity": "Quantité",
@@ -85,19 +85,19 @@
   },
   "checkout": {
     "title": "Finaliser la commande",
-    "deliveryAddress": "Adresse de livraison",
+    "deliveryAddress": "Adresse de facturation",
     "contactInfo": "Informations de contact",
     "orderSummary": "Récapitulatif de la commande",
     "placeOrder": "Confirmer la commande",
     "orderSuccess": "Commande confirmée!",
-    "orderSuccessMessage": "Votre commande a été enregistrée. Vous recevrez une confirmation par email.",
+    "orderSuccessMessage": "Votre commande est prête à être préparée. Vous recevrez une confirmation par email.",
     "form": {
       "fullName": "Nom complet",
       "email": "Email",
       "phone": "Téléphone",
       "address": "Adresse",
       "city": "Ville",
-      "notes": "Notes pour la livraison (optionnel)"
+      "notes": "Notes pour la commande (optionnel)"
     }
   },
   "auth": {

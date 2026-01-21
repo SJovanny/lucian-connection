@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Card } from "@/components/ui/Card";
 import { useCartStore } from "@/store/cartStore";
@@ -18,6 +18,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const locale = useLocale() as Locale;
   const t = useTranslations("products");
   const { items, addItem, updateQuantity, removeItem } = useCartStore();
+  const imageRef = useRef<HTMLImageElement>(null);
   
   // Récupérer les traductions du produit
   const translations = product.translations;
@@ -35,8 +36,57 @@ export function ProductCard({ product }: ProductCardProps) {
   // const isOutOfStock = product.stock === 0;
   const isOutOfStock = false;
 
+  const animateToCart = () => {
+    const cartIcon = document.getElementById("cart-icon-container");
+    const image = imageRef.current;
+
+    if (!cartIcon || !image) return;
+
+    const imageRect = image.getBoundingClientRect();
+    const cartRect = cartIcon.getBoundingClientRect();
+
+    const flyingImage = image.cloneNode() as HTMLImageElement;
+    
+    // Style de départ (sur l'image actuelle)
+    flyingImage.style.position = "fixed";
+    flyingImage.style.left = `${imageRect.left}px`;
+    flyingImage.style.top = `${imageRect.top}px`;
+    flyingImage.style.width = `${imageRect.width}px`;
+    flyingImage.style.height = `${imageRect.height}px`;
+    flyingImage.style.zIndex = "9999";
+    flyingImage.style.pointerEvents = "none";
+    flyingImage.style.transition = "all 1.5s cubic-bezier(0.2, 1, 0.2, 1)";
+    flyingImage.style.borderRadius = "12px";
+    flyingImage.style.objectFit = "contain";
+
+    document.body.appendChild(flyingImage);
+
+    // Force reflow
+    void flyingImage.offsetWidth;
+
+    // Calculer la position cible (centre du panier)
+    const targetSize = 30; // Taille finale de l'image
+    const targetX = cartRect.left + (cartRect.width / 2) - (targetSize / 2);
+    const targetY = cartRect.top + (cartRect.height / 2) - (targetSize / 2);
+
+    // Style de destination
+    flyingImage.style.left = `${targetX}px`;
+    flyingImage.style.top = `${targetY}px`;
+    flyingImage.style.width = `${targetSize}px`;
+    flyingImage.style.height = `${targetSize}px`;
+    flyingImage.style.opacity = "0";
+
+    // Nettoyage après l'animation
+    flyingImage.addEventListener("transitionend", () => {
+      if (document.body.contains(flyingImage)) {
+        document.body.removeChild(flyingImage);
+      }
+    }, { once: true });
+  };
+
   const handleAddToCart = () => {
     if (isOutOfStock) return;
+    animateToCart();
     addItem({
       id: product.id,
       name: productName,
@@ -67,6 +117,7 @@ export function ProductCard({ product }: ProductCardProps) {
       <div className="relative h-32 sm:h-40 bg-white rounded-xl mb-3 flex items-center justify-center overflow-hidden">
         {product.image_url ? (
           <img
+            ref={imageRef}
             src={product.image_url}
             alt={productName}
             className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-200"

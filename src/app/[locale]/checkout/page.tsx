@@ -10,9 +10,9 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useCartStore } from "@/store/cartStore";
 import { formatPrice } from "@/lib/utils";
-import { ShoppingBag, ArrowLeft, Check } from "lucide-react";
+import { ShoppingBag, ArrowLeft, Check, X } from "lucide-react";
 import { Link } from "@/i18n/routing";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Locale } from "@/i18n/routing";
 
 export default function CheckoutPage() {
@@ -20,12 +20,80 @@ export default function CheckoutPage() {
   const t = useTranslations("checkout");
   const router = useRouter();
   const { items, getSubtotal, clearCart } = useCartStore();
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  
+  // Settings & Fees
+  const [preparationFee, setPreparationFee] = useState(0);
+  const [minOrderAmount, setMinOrderAmount] = useState(0);
+  
+  // Coupon State
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    discount_amount: number;
+    id: string;
+  } | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
+
+  // Fetch settings on mount
+  useEffect(() => {
+    fetch("/api/store-settings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.preparation_fee) setPreparationFee(Number(data.preparation_fee));
+        if (data.min_order_amount) setMinOrderAmount(Number(data.min_order_amount));
+      })
+      .catch((err) => console.error("Failed to fetch settings", err));
+  }, []);
 
   const subtotal = getSubtotal();
-  const deliveryFee = 5.0;
-  const total = subtotal + deliveryFee;
+  const totalBeforeDiscount = subtotal + preparationFee;
+  const discount = appliedCoupon ? appliedCoupon.discount_amount : 0;
+  const total = Math.max(0, totalBeforeDiscount - discount);
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    
+    setIsValidatingCoupon(true);
+    setCouponError(null);
+    setAppliedCoupon(null);
+
+    try {
+      const res = await fetch("/api/validate-coupon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: couponCode,
+          orderTotal: subtotal // Discount usually applies to subtotal
+        }),
+      });
+      
+      const data = await res.json();
+      
+      if (!data.valid) {
+        setCouponError(data.message);
+      } else {
+        setAppliedCoupon({
+          id: data.coupon.id,
+          code: data.coupon.code,
+          discount_amount: data.discountAmount
+        });
+        setCouponCode(""); // Clear input on success
+      }
+    } catch (error) {
+      setCouponError("Error validating coupon");
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode("");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +102,7 @@ export default function CheckoutPage() {
     // Simulate order submission
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
-    // TODO: Implement Supabase order creation
+    // TODO: Implement Supabase order creation with coupon_id and discount_amount
     setIsSubmitting(false);
     setIsSuccess(true);
     clearCart();
@@ -150,7 +218,8 @@ export default function CheckoutPage() {
                   </CardContent>
                 </Card>
 
-                {/* Delivery Address */}
+                {/* Delivery Address - Removed for Click & Collect */}
+                {/* 
                 <Card>
                   <CardContent className="p-6">
                     <h2 className="text-lg font-semibold text-gray-900 mb-4">
@@ -186,6 +255,29 @@ export default function CheckoutPage() {
                       </div>
                     </div>
                   </CardContent>
+                </Card> 
+                */}
+                <Card>
+                  <CardContent className="p-6">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                      {locale === "fr" ? "Notes" : "Notes"}
+                    </h2>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {t("form.notes")}
+                        </label>
+                        <textarea
+                          name="notes"
+                          rows={3}
+                          className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
+                          placeholder={
+                            locale === "fr"
+                              ? "Notes pour la commande..."
+                              : "Order notes..."
+                          }
+                        />
+                      </div>
+                  </CardContent>
                 </Card>
               </div>
 
@@ -214,19 +306,81 @@ export default function CheckoutPage() {
                       ))}
                     </div>
 
-                    <div className="border-t border-gray-200 pt-4 space-y-2">
+                    {/* Coupon Code */}
+                    <div className="mt-4 pt-4 border-t border-gray-100">
+                      {!appliedCoupon ? (
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-700 block">
+                            {locale === "fr" ? "Code promo" : "Promo code"}
+                          </label>
+                          <div className="flex gap-2">
+                            <Input
+                              name="coupon"
+                              value={couponCode}
+                              onChange={(e) => setCouponCode(e.target.value)}
+                              placeholder="CODE123"
+                            />
+                            <Button
+                              type="button"
+                              onClick={handleApplyCoupon}
+                              variant="secondary"
+                              isLoading={isValidatingCoupon}
+                              disabled={!couponCode.trim()}
+                            >
+                              {locale === "fr" ? "Appliquer" : "Apply"}
+                            </Button>
+                          </div>
+                          {couponError && (
+                            <p className="text-red-500 text-xs mt-1">{couponError}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex justify-between items-center">
+                          <div>
+                            <p className="text-green-700 font-medium text-sm">
+                              {appliedCoupon.code}
+                            </p>
+                            <p className="text-green-600 text-xs">
+                              -{formatPrice(appliedCoupon.discount_amount)}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={removeCoupon}
+                            className="text-green-600 hover:text-green-800"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t border-gray-200 pt-4 space-y-2 mt-4">
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600">{t("subtotal")}</span>
                         <span className="font-medium">
                           {formatPrice(subtotal)}
                         </span>
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">{t("deliveryFee")}</span>
-                        <span className="font-medium">
-                          {formatPrice(deliveryFee)}
-                        </span>
-                      </div>
+                      
+                      {preparationFee > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">
+                             {t("deliveryFee")}
+                          </span>
+                          <span className="font-medium">
+                            {formatPrice(preparationFee)}
+                          </span>
+                        </div>
+                      )}
+
+                      {appliedCoupon && (
+                        <div className="flex justify-between text-sm text-green-600">
+                          <span>Reduction</span>
+                          <span>-{formatPrice(appliedCoupon.discount_amount)}</span>
+                        </div>
+                      )}
+                      
                       <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-200">
                         <span>{t("total")}</span>
                         <span className="text-primary-600">

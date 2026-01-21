@@ -10,9 +10,11 @@ import {
   BarChart3,
   Settings,
   LogOut,
+  Ticket,
   Menu,
   X,
   Home,
+  Percent,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -38,6 +40,16 @@ const navItems = [
     label: "Commandes",
     href: "/admin/orders",
     icon: ShoppingCart,
+  },
+  {
+    label: "Coupons",
+    href: "/admin/coupons",
+    icon: Ticket,
+  },
+  {
+    label: "Réductions",
+    href: "/admin/reductions",
+    icon: Percent,
   },
   {
     label: "Inventaire",

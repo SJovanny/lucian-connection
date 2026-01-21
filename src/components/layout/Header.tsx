@@ -13,7 +13,7 @@ import Image from "next/image";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { SearchBar } from "./SearchBar";
 import { useCartStore } from "@/store/cartStore";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
@@ -25,8 +25,19 @@ export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCartAnimating, setIsCartAnimating] = useState(false);
+  const prevItemCountRef = useRef(0);
 
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+
+  useEffect(() => {
+    if (itemCount > prevItemCountRef.current) {
+      setIsCartAnimating(true);
+      const timer = setTimeout(() => setIsCartAnimating(false), 300);
+      return () => clearTimeout(timer);
+    }
+    prevItemCountRef.current = itemCount;
+  }, [itemCount]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -94,10 +105,13 @@ export function Header() {
 
             {/* Cart */}
             <button
+              id="cart-icon-container"
               onClick={toggleCart}
-              className="relative p-2 bg-primary-600 hover:bg-primary-500 rounded-lg text-white transition-colors"
+              className={`relative p-2 bg-primary-600 hover:bg-primary-500 rounded-lg text-white transition-all duration-300 ${
+                isCartAnimating ? "scale-110 bg-primary-500 ring-2 ring-accent-400" : ""
+              }`}
             >
-              <ShoppingCart className="w-6 h-6" />
+              <ShoppingCart className={`w-6 h-6 ${isCartAnimating ? "animate-pulse" : ""}`} />
               {itemCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-accent-400 text-primary-900 text-xs font-bold rounded-full flex items-center justify-center">
                   {itemCount}
