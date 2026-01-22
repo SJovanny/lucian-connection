@@ -12,6 +12,29 @@ import { createClient } from "@/lib/supabase/client";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
+const toLocalInputValue = (iso?: string | null) => {
+  if (!iso) return "";
+  const date = new Date(iso);
+  const tzOffset = date.getTimezoneOffset() * 60000;
+  const local = new Date(date.getTime() - tzOffset);
+  return local.toISOString().slice(0, 16);
+};
+
+const toIsoWithOffset = (value?: string) => {
+  if (!value) return null;
+  const [datePart, timePart] = value.split("T");
+  if (!datePart || !timePart) return null;
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hour, minute] = timePart.split(":").map(Number);
+  const localDate = new Date(year, month - 1, day, hour, minute, 0);
+  const offsetMinutes = -localDate.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const pad = (n: number) => String(Math.abs(Math.trunc(n))).padStart(2, "0");
+  const offsetH = pad(offsetMinutes / 60);
+  const offsetM = pad(offsetMinutes % 60);
+  return `${datePart}T${timePart}:00${sign}${offsetH}:${offsetM}`;
+};
+
 const couponSchema = z
   .object({
     code: z.string().min(3, "Le code doit faire au moins 3 caractères").toUpperCase(),
@@ -66,8 +89,8 @@ export function CouponForm({ initialData, isEdit = false }: CouponFormProps) {
       min_order_amount: initialData?.min_order_amount || 0,
       max_discount_amount: initialData?.max_discount_amount || null,
       usage_limit: initialData?.usage_limit || null,
-      starts_at: initialData?.starts_at ? new Date(initialData.starts_at).toISOString().slice(0, 16) : "",
-      expires_at: initialData?.expires_at ? new Date(initialData.expires_at).toISOString().slice(0, 16) : "",
+      starts_at: toLocalInputValue(initialData?.starts_at),
+      expires_at: toLocalInputValue(initialData?.expires_at),
       is_first_order_only: initialData?.is_first_order_only || false,
       is_active: initialData?.is_active ?? true,
     },
@@ -84,8 +107,8 @@ export function CouponForm({ initialData, isEdit = false }: CouponFormProps) {
       
       const payload = {
         ...data,
-        starts_at: data.starts_at ? new Date(data.starts_at).toISOString() : null,
-        expires_at: data.expires_at ? new Date(data.expires_at).toISOString() : null,
+        starts_at: toIsoWithOffset(data.starts_at),
+        expires_at: toIsoWithOffset(data.expires_at),
         max_discount_amount: data.max_discount_amount || null,
         usage_limit: data.usage_limit || null,
       };

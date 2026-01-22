@@ -10,6 +10,7 @@ type SearchResult = {
   id: string;
   slug: string;
   price: number;
+  discounted_price?: number | null;
   image_url: string | null;
   translations: {
     fr: { name: string; description: string };
@@ -103,6 +104,14 @@ export function SearchBar({ placeholder, className = "", onClose }: SearchBarPro
     return product.categories?.translations?.[locale]?.name || product.categories?.slug || "";
   };
 
+  const getDisplayPrice = (product: SearchResult) => {
+    const discounted = product.discounted_price ?? null;
+    if (discounted !== null && discounted < product.price) {
+      return discounted;
+    }
+    return product.price;
+  };
+
   const clearSearch = () => {
     setQuery("");
     setResults([]);
@@ -180,7 +189,7 @@ export function SearchBar({ placeholder, className = "", onClose }: SearchBarPro
                   {/* Prix */}
                   <div className="text-right flex-shrink-0">
                     <p className="font-bold text-gray-900">
-                      {product.price.toFixed(2)}€
+                      {getDisplayPrice(product).toFixed(2)}€
                     </p>
                   </div>
                 </button>

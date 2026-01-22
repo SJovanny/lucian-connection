@@ -4,6 +4,7 @@ import type { Product, Category } from "@/types/database.types";
 // Type pour les produits avec catégorie jointe
 export type ProductWithCategory = Product & {
   categories: Category | null;
+  discounted_price?: number | null;
 };
 
 /**
@@ -20,9 +21,10 @@ export async function getProducts(options?: {
   const supabase = createAdminClient();
   
   let query = supabase
-    .from("products")
+    .from("products_with_discount")
     .select(`
       *,
+      discounted_price,
       categories (*)
     `)
     .eq("is_active", true)
@@ -87,9 +89,10 @@ export async function getProductBySlug(slug: string): Promise<ProductWithCategor
   const supabase = createAdminClient();
   
   const { data, error } = await supabase
-    .from("products")
+    .from("products_with_discount")
     .select(`
       *,
+      discounted_price,
       categories (*)
     `)
     .eq("slug", slug)
