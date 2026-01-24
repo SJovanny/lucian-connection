@@ -58,6 +58,7 @@
     "addToCart": "Ajouter au panier",
     "outOfStock": "Rupture de stock",
     "inStock": "En stock",
+    "allergens": "Allergènes",
     "unit": {
       "each": "pièce",
       "kg": "kg",

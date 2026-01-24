@@ -58,6 +58,7 @@
     "addToCart": "Add to cart",
     "outOfStock": "Out of stock",
     "inStock": "In stock",
+    "allergens": "Allergens",
     "unit": {
       "each": "each",
       "kg": "kg",

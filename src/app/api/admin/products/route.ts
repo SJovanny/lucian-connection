@@ -8,6 +8,21 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+const parseAllergens = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item).trim())
+      .filter(Boolean);
+  }
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+};
+
 // GET - Récupérer tous les produits
 export async function GET() {
   try {
@@ -49,6 +64,8 @@ export async function POST(request: NextRequest) {
       name_en,
       description_fr,
       description_en,
+      allergens_fr,
+      allergens_en,
       category_id,
       price,
       compare_at_price,
@@ -88,6 +105,10 @@ export async function POST(request: NextRequest) {
       translations: {
         fr: { name: name_fr, description: description_fr || "" },
         en: { name: name_en, description: description_en || "" },
+      },
+      allergens: {
+        fr: parseAllergens(allergens_fr),
+        en: parseAllergens(allergens_en),
       },
       category_id: category_id || null,
       price: parseFloat(price),

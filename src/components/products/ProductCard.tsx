@@ -24,6 +24,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const translations = product.translations;
   const productName = translations?.[locale]?.name || product.slug;
   const productDescription = translations?.[locale]?.description || "";
+  const productAllergens = product.allergens?.[locale] || [];
   
   // Récupérer les traductions de la catégorie
   const categoryTranslations = product.categories?.translations as CategoryTranslations | undefined;
@@ -147,6 +148,16 @@ export function ProductCard({ product }: ProductCardProps) {
         <p className="text-xs text-gray-400 text-center mt-1">
           {product.unit}
         </p>
+        {productDescription && (
+          <p className="text-xs text-gray-500 text-center mt-2 line-clamp-2">
+            {productDescription}
+          </p>
+        )}
+        {productAllergens.length > 0 && (
+          <p className="text-[11px] text-gray-400 text-center mt-1">
+            {t("allergens")}: {productAllergens.join(", ")}
+          </p>
+        )}
 
         {/* Price */}
         <div className="flex items-baseline justify-center mt-3 mb-3">

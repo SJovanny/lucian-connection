@@ -8,6 +8,21 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+const parseAllergens = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item).trim())
+      .filter(Boolean);
+  }
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+};
+
 // GET - Récupérer un produit par ID
 export async function GET(
   request: NextRequest,
@@ -67,6 +82,8 @@ export async function PUT(
       name_en,
       description_fr,
       description_en,
+      allergens_fr,
+      allergens_en,
       category_id,
       price,
       compare_at_price,
@@ -112,6 +129,18 @@ export async function PUT(
 
     // Construire l'objet de mise à jour
     const updateData: Record<string, unknown> = {};
+    let currentProductCache: { translations?: { fr?: { name?: string; description?: string }; en?: { name?: string; description?: string } }; allergens?: { fr?: string[]; en?: string[] } } | null = null;
+
+    const getCurrentProduct = async () => {
+      if (currentProductCache) return currentProductCache;
+      const { data } = await supabaseAdmin
+        .from("products")
+        .select("translations, allergens")
+        .eq("id", id)
+        .single();
+      currentProductCache = data || null;
+      return currentProductCache;
+    };
 
     if (slug !== undefined) updateData.slug = slug;
     if (category_id !== undefined) updateData.category_id = category_id || null;
@@ -129,15 +158,18 @@ export async function PUT(
     if (is_featured !== undefined) updateData.is_featured = is_featured;
     if (image_url !== undefined) updateData.image_url = image_url || null;
 
+    if (allergens_fr !== undefined || allergens_en !== undefined) {
+      const currentProduct = await getCurrentProduct();
+      const currentAllergens = currentProduct?.allergens || { fr: [], en: [] };
+      updateData.allergens = {
+        fr: allergens_fr !== undefined ? parseAllergens(allergens_fr) : currentAllergens.fr || [],
+        en: allergens_en !== undefined ? parseAllergens(allergens_en) : currentAllergens.en || [],
+      };
+    }
+
     // Gérer les traductions
     if (name_fr !== undefined || name_en !== undefined || description_fr !== undefined || description_en !== undefined) {
-      // Récupérer les traductions existantes
-      const { data: currentProduct } = await supabaseAdmin
-        .from("products")
-        .select("translations")
-        .eq("id", id)
-        .single();
-
+      const currentProduct = await getCurrentProduct();
       const currentTranslations = currentProduct?.translations || {
         fr: { name: "", description: "" },
         en: { name: "", description: "" },

@@ -54,6 +54,7 @@ CREATE TABLE products (
   category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
   image_url TEXT,
   translations JSONB NOT NULL DEFAULT '{"fr": {"name": "", "description": ""}, "en": {"name": "", "description": ""}}',
+  allergens JSONB NOT NULL DEFAULT '{"fr": [], "en": []}',
   
   -- Stock Management
   stock INT DEFAULT 0,

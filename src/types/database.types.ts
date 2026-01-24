@@ -24,6 +24,11 @@ export type ProductTranslations = {
   en: { name: string; description: string };
 };
 
+export type ProductAllergens = {
+  fr: string[];
+  en: string[];
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -62,6 +67,7 @@ export type Database = {
           category_id: string | null;
           image_url: string | null;
           translations: ProductTranslations;
+          allergens: ProductAllergens;
           stock: number;
           low_stock_threshold: number;
           track_stock: boolean;
@@ -79,6 +85,7 @@ export type Database = {
           category_id?: string | null;
           image_url?: string | null;
           translations: ProductTranslations;
+          allergens?: ProductAllergens;
           stock?: number;
           low_stock_threshold?: number;
           track_stock?: boolean;
@@ -96,6 +103,7 @@ export type Database = {
           category_id?: string | null;
           image_url?: string | null;
           translations?: ProductTranslations;
+          allergens?: ProductAllergens;
           stock?: number;
           low_stock_threshold?: number;
           track_stock?: boolean;

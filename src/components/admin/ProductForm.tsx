@@ -28,6 +28,8 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
     name_en: product?.translations?.en?.name || "",
     description_fr: product?.translations?.fr?.description || "",
     description_en: product?.translations?.en?.description || "",
+    allergens_fr: product?.allergens?.fr?.join(", ") || "",
+    allergens_en: product?.allergens?.en?.join(", ") || "",
     category_id: product?.category_id || "",
     price: product?.price?.toString() || "",
     compare_at_price: product?.compare_at_price?.toString() || "",
@@ -201,6 +203,36 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
                 className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
                 placeholder="Product description in English..."
               />
+            </div>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Allergènes (Français)
+              </label>
+              <textarea
+                name="allergens_fr"
+                value={formData.allergens_fr}
+                onChange={handleChange}
+                rows={2}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
+                placeholder="Ex: lait, soja, gluten"
+              />
+              <p className="mt-1 text-xs text-gray-500">Séparer les allergènes par des virgules.</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Allergens (English)
+              </label>
+              <textarea
+                name="allergens_en"
+                value={formData.allergens_en}
+                onChange={handleChange}
+                rows={2}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
+                placeholder="Ex: milk, soy, gluten"
+              />
+              <p className="mt-1 text-xs text-gray-500">Separate allergens with commas.</p>
             </div>
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
