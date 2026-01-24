@@ -12,7 +12,7 @@ export async function POST(request: Request) {
 
     // 1. Fetch coupon
     const { data: coupon, error } = await supabase
-      .from("coupons")
+      .from("coupons_active")
       .select("*")
       .eq("code", code)
       .single<Coupon>();
@@ -25,27 +25,7 @@ export async function POST(request: Request) {
     }
 
     // 2. Validate basic status
-    if (!coupon.is_active) {
-      return NextResponse.json(
-        { valid: false, message: "Coupon inactive" },
-        { status: 400 }
-      );
-    }
-
-    const now = new Date();
-    if (coupon.starts_at && new Date(coupon.starts_at) > now) {
-      return NextResponse.json(
-        { valid: false, message: "Coupon not yet active" },
-        { status: 400 }
-      );
-    }
-
-    if (coupon.expires_at && new Date(coupon.expires_at) < now) {
-      return NextResponse.json(
-        { valid: false, message: "Coupon expired" },
-        { status: 400 }
-      );
-    }
+    // Time window is enforced by coupons_active view (DB clock)
 
     if (coupon.usage_limit && coupon.used_count >= coupon.usage_limit) {
       return NextResponse.json(

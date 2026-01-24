@@ -32,7 +32,12 @@ export function ProductCard({ product }: ProductCardProps) {
   
   const cartItem = items.find((item) => item.id === product.id);
   const quantity = cartItem?.quantity || 0;
-  const { whole, decimal } = formatPriceParts(product.price);
+  const discountedPrice = product.discounted_price ?? null;
+  const displayPrice = discountedPrice !== null && discountedPrice < product.price
+    ? discountedPrice
+    : product.price;
+  const hasDiscount = discountedPrice !== null && discountedPrice < product.price;
+  const { whole, decimal } = formatPriceParts(displayPrice);
   // TODO: Réactiver quand on aura les données de stock
   // const isOutOfStock = product.stock === 0;
   const isOutOfStock = false;
@@ -91,7 +96,7 @@ export function ProductCard({ product }: ProductCardProps) {
     addItem({
       id: product.id,
       name: productName,
-      price: product.price,
+      price: displayPrice,
       image_url: product.image_url,
       unit: product.unit,
     });
@@ -160,13 +165,20 @@ export function ProductCard({ product }: ProductCardProps) {
         )}
 
         {/* Price */}
-        <div className="flex items-baseline justify-center mt-3 mb-3">
+        <div className="flex flex-col items-center justify-center mt-3 mb-3">
+          {hasDiscount && (
+            <span className="text-xs text-gray-400 line-through">
+              {product.price.toFixed(2)}€
+            </span>
+          )}
+          <div className="flex items-baseline justify-center">
           <span className="text-2xl sm:text-3xl font-bold text-gray-900">
             {whole}
           </span>
           <span className="text-base sm:text-lg font-bold text-gray-900">
             .{decimal}€
           </span>
+          </div>
         </div>
 
         {/* Add to cart button */}

@@ -13,11 +13,12 @@ export async function GET(request: NextRequest) {
   const searchTerm = `%${query}%`;
 
   const { data, error } = await supabase
-    .from("products")
+    .from("products_with_discount")
     .select(`
       id,
       slug,
       price,
+      discounted_price,
       image_url,
       translations,
       categories (

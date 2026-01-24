@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/Button";
@@ -12,18 +12,41 @@ import { createClient } from "@/lib/supabase/client";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
+const toLocalInputValue = (iso?: string | null) => {
+  if (!iso) return "";
+  const date = new Date(iso);
+  const tzOffset = date.getTimezoneOffset() * 60000;
+  const local = new Date(date.getTime() - tzOffset);
+  return local.toISOString().slice(0, 16);
+};
+
+const toIsoWithOffset = (value?: string) => {
+  if (!value) return null;
+  const [datePart, timePart] = value.split("T");
+  if (!datePart || !timePart) return null;
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hour, minute] = timePart.split(":").map(Number);
+  const localDate = new Date(year, month - 1, day, hour, minute, 0);
+  const offsetMinutes = -localDate.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const pad = (n: number) => String(Math.abs(Math.trunc(n))).padStart(2, "0");
+  const offsetH = pad(offsetMinutes / 60);
+  const offsetM = pad(offsetMinutes % 60);
+  return `${datePart}T${timePart}:00${sign}${offsetH}:${offsetM}`;
+};
+
 const reductionSchema = z
   .object({
     name: z.string().min(3, "Le nom doit faire au moins 3 caractères"),
     description: z.string().optional(),
     discount_type: z.enum(["percentage", "fixed"]),
-    discount_value: z.number().min(0, "La valeur doit être positive"),
+    discount_value: z.coerce.number().min(0, "La valeur doit être positive"),
     applies_to: z.enum(["all", "categories", "products"]),
     category_ids: z.array(z.string()),
     product_ids: z.array(z.string()),
     starts_at: z.string().optional(),
     expires_at: z.string().optional(),
-    priority: z.number().min(0),
+    priority: z.coerce.number().min(1).max(5, "La priorité doit être entre 1 et 5"),
     is_active: z.boolean(),
   })
   .refine(
@@ -84,7 +107,7 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
     setValue,
     formState: { errors },
   } = useForm<ReductionFormData>({
-    resolver: zodResolver(reductionSchema),
+    resolver: zodResolver(reductionSchema) as Resolver<ReductionFormData>,
     defaultValues: {
       name: initialData?.name || "",
       description: initialData?.description || "",
@@ -93,8 +116,8 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
       applies_to: initialData?.applies_to || "all",
       category_ids: initialData?.category_ids || [],
       product_ids: initialData?.product_ids || [],
-      starts_at: initialData?.starts_at ? new Date(initialData.starts_at).toISOString().slice(0, 16) : "",
-      expires_at: initialData?.expires_at ? new Date(initialData.expires_at).toISOString().slice(0, 16) : "",
+      starts_at: toLocalInputValue(initialData?.starts_at),
+      expires_at: toLocalInputValue(initialData?.expires_at),
       priority: initialData?.priority || 0,
       is_active: initialData?.is_active ?? true,
     },
@@ -147,8 +170,8 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
       
       const payload = {
         ...data,
-        starts_at: data.starts_at ? new Date(data.starts_at).toISOString() : null,
-        expires_at: data.expires_at ? new Date(data.expires_at).toISOString() : null,
+        starts_at: toIsoWithOffset(data.starts_at),
+        expires_at: toIsoWithOffset(data.expires_at),
         category_ids: data.applies_to === "categories" ? data.category_ids : [],
         product_ids: data.applies_to === "products" ? data.product_ids : [],
         updated_at: new Date().toISOString(),
@@ -234,7 +257,7 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
                 label="Valeur de la réduction"
                 type="number"
                 step="0.01"
-                {...register("discount_value")}
+                {...register("discount_value", { valueAsNumber: true })}
                 error={errors.discount_value?.message}
               />
             </div>
@@ -243,10 +266,12 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
               <Input
                 label="Priorité"
                 type="number"
-                {...register("priority")}
+                min={1}
+                max={5}
+                {...register("priority", { valueAsNumber: true })}
                 error={errors.priority?.message}
               />
-              <p className="mt-1 text-sm text-gray-500">Plus le nombre est élevé, plus la réduction est prioritaire</p>
+              <p className="mt-1 text-sm text-gray-500">Fourchette fixe de 1 à 5</p>
             </div>
           </div>
         </Card>
@@ -366,7 +391,7 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
 
         <div className="flex justify-end gap-3">
           <Link href="/admin/reductions">
-            <Button variant="outline" type="button">
+            <Button variant="secondary" type="button">
               Annuler
             </Button>
           </Link>
