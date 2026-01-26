@@ -49,7 +49,7 @@ Badge.displayName = "Badge";
 
 // Status badge for orders
 export interface StatusBadgeProps {
-  status: "pending" | "confirmed" | "preparing" | "ready" | "delivered" | "cancelled";
+  status: "pending" | "confirmed" | "preparing" | "ready" | "delivered" | "cancelled" | "refunded";
 }
 
 const statusConfig = {
@@ -59,6 +59,7 @@ const statusConfig = {
   ready: { variant: "success" as const, label: { fr: "Prête", en: "Ready" } },
   delivered: { variant: "success" as const, label: { fr: "Livrée", en: "Delivered" } },
   cancelled: { variant: "error" as const, label: { fr: "Annulée", en: "Cancelled" } },
+  refunded: { variant: "warning" as const, label: { fr: "Remboursement", en: "Refunded" } },
 };
 
 export function StatusBadge({ status }: StatusBadgeProps) {

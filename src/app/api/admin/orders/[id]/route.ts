@@ -12,7 +12,7 @@ export async function PATCH(
     const adminClient = createAdminClient();
 
     // Validate status
-    const validStatuses = ["pending", "confirmed", "preparing", "ready", "delivered", "cancelled"];
+    const validStatuses = ["pending", "confirmed", "preparing", "ready", "delivered", "cancelled", "refunded"];
     if (!validStatuses.includes(status)) {
       return NextResponse.json(
         { error: "Invalid status" },

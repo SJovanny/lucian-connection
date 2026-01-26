@@ -18,6 +18,7 @@ const statusConfig = {
   ready: { label: "Prête", color: "bg-green-100 text-green-800" },
   delivered: { label: "Livrée", color: "bg-green-200 text-green-900" },
   cancelled: { label: "Annulée", color: "bg-red-100 text-red-800" },
+  refunded: { label: "Remboursement", color: "bg-orange-100 text-orange-800" },
 };
 
 const statusOptions: Array<keyof typeof statusConfig> = [
@@ -27,6 +28,7 @@ const statusOptions: Array<keyof typeof statusConfig> = [
   "ready",
   "delivered",
   "cancelled",
+  "refunded",
 ];
 
 function formatDate(dateString: string): string {
@@ -49,6 +51,7 @@ export default function OrdersPage() {
     ready: 0,
     delivered: 0,
     cancelled: 0,
+    refunded: 0,
   });
   const [selectedOrder, setSelectedOrder] = useState<OrderWithDetails | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -196,6 +199,7 @@ export default function OrdersPage() {
             <option value="ready">Prête</option>
             <option value="delivered">Livrée</option>
             <option value="cancelled">Annulée</option>
+            <option value="refunded">Remboursement</option>
           </select>
           <input
             type="date"

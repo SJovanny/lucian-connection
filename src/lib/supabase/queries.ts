@@ -287,7 +287,7 @@ export async function getRecentOrders(limit: number = 10) {
 export async function getOrderStatusCounts() {
   const supabase = createAdminClient();
   
-  const statuses = ['pending', 'confirmed', 'preparing', 'ready', 'delivered', 'cancelled'];
+  const statuses = ['pending', 'confirmed', 'preparing', 'ready', 'delivered', 'cancelled', 'refunded'];
   const counts: Record<string, number> = {};
 
   for (const status of statuses) {
@@ -337,8 +337,13 @@ export async function getOrderStats() {
     .select("*", { count: "exact", head: true })
     .eq("status", "cancelled");
 
+  const { count: refundedOrders } = await supabase
+    .from("orders")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "refunded");
+
   const todayRevenue = (todayOrders || [])
-    .filter((order) => order.status !== "cancelled")
+    .filter((order) => order.status !== "cancelled" && order.status !== "refunded")
     .reduce((acc, o) => acc + (o.total_amount || 0), 0);
   const todayCount = todayOrders?.length || 0;
 
@@ -348,5 +353,6 @@ export async function getOrderStats() {
     totalOrders: totalOrders || 0,
     pendingOrders: pendingOrders || 0,
     cancelledOrders: cancelledOrders || 0,
+    refundedOrders: refundedOrders || 0,
   };
 }

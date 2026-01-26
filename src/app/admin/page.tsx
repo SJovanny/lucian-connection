@@ -79,6 +79,7 @@ const statusColors = {
   ready: "bg-green-100 text-green-800",
   delivered: "bg-green-200 text-green-900",
   cancelled: "bg-red-100 text-red-800",
+  refunded: "bg-orange-100 text-orange-800",
 };
 
 const statusLabels = {
@@ -88,6 +89,7 @@ const statusLabels = {
   ready: "Prête",
   delivered: "Livrée",
   cancelled: "Annulée",
+  refunded: "Remboursement",
 };
 
 export default async function AdminDashboard() {

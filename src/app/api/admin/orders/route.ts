@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
       ready: 0,
       delivered: 0,
       cancelled: 0,
+      refunded: 0,
     };
 
     orders?.forEach((order: any) => {

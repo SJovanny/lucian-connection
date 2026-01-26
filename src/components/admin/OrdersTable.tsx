@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
 import { updateOrderStatus } from "@/lib/admin-actions";
 
-type OrderStatus = "pending" | "confirmed" | "preparing" | "ready" | "delivered" | "cancelled";
+type OrderStatus = "pending" | "confirmed" | "preparing" | "ready" | "delivered" | "cancelled" | "refunded";
 
 interface OrderItem {
   id: string;
@@ -57,6 +57,7 @@ const statusConfig: Record<OrderStatus, { label: string; color: string }> = {
   ready: { label: "Prête", color: "bg-green-100 text-green-800" },
   delivered: { label: "Livrée", color: "bg-green-200 text-green-900" },
   cancelled: { label: "Annulée", color: "bg-red-100 text-red-800" },
+  refunded: { label: "Remboursement", color: "bg-orange-100 text-orange-800" },
 };
 
 function formatDate(dateString: string): string {
@@ -369,6 +370,13 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
                   className="px-3 py-2 text-sm bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
                 >
                   Annulée
+                </button>
+                <button
+                  onClick={() => handleStatusChange("refunded")}
+                  disabled={isUpdating || selectedOrder.status === "refunded"}
+                  className="px-3 py-2 text-sm bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 transition-colors disabled:opacity-50"
+                >
+                  Remboursement
                 </button>
               </div>
               <button
