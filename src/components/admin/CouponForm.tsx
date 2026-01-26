@@ -42,8 +42,8 @@ const couponSchema = z
     discount_type: z.enum(["percentage", "fixed"]),
     discount_value: z.coerce.number().min(0, "La valeur doit être positive"),
     min_order_amount: z.coerce.number().min(0).default(0),
-    max_discount_amount: z.coerce.number().nullable().optional(),
-    usage_limit: z.coerce.number().nullable().optional(),
+    max_discount_amount: z.coerce.number().optional().nullable(),
+    usage_limit: z.coerce.number().optional().nullable(),
     starts_at: z.string().optional(),
     expires_at: z.string().optional(),
     is_first_order_only: z.boolean().default(false),
@@ -62,10 +62,10 @@ const couponSchema = z
     }
   );
 
-type CouponFormData = z.infer<typeof couponSchema>;
+type CouponFormData = z.output<typeof couponSchema>;
 
 interface CouponFormProps {
-  initialData?: any;
+  initialData?: CouponFormData & { id?: string };
   isEdit?: boolean;
 }
 
@@ -79,7 +79,7 @@ export function CouponForm({ initialData, isEdit = false }: CouponFormProps) {
     handleSubmit,
     watch,
     formState: { errors },
-  } = useForm<CouponFormData>({
+  } = useForm({
     resolver: zodResolver(couponSchema),
     defaultValues: {
       code: initialData?.code || "",
@@ -93,7 +93,7 @@ export function CouponForm({ initialData, isEdit = false }: CouponFormProps) {
       expires_at: toLocalInputValue(initialData?.expires_at),
       is_first_order_only: initialData?.is_first_order_only || false,
       is_active: initialData?.is_active ?? true,
-    },
+    } as CouponFormData,
   });
 
   const discountType = watch("discount_type");
@@ -113,7 +113,7 @@ export function CouponForm({ initialData, isEdit = false }: CouponFormProps) {
         usage_limit: data.usage_limit || null,
       };
 
-      if (isEdit) {
+      if (isEdit && initialData?.id) {
         const { error } = await supabase
           .from("coupons")
           .update(payload)
@@ -288,7 +288,7 @@ export function CouponForm({ initialData, isEdit = false }: CouponFormProps) {
 
         <div className="flex justify-end gap-3">
           <Link href="/admin/coupons">
-            <Button variant="outline" type="button">
+            <Button variant="ghost" type="button">
               Annuler
             </Button>
           </Link>

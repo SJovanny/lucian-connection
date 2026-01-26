@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 
 export async function signOutAdmin() {
@@ -32,4 +33,21 @@ export async function getAdminUser() {
     user,
     profile,
   };
+}
+
+export async function updateOrderStatus(orderId: string, status: string) {
+  const admin = createAdminClient();
+
+  const { data, error } = await admin
+    .from("orders")
+    .update({ status })
+    .eq("id", orderId)
+    .select("id, status")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
 }

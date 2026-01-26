@@ -1,7 +1,10 @@
+"use client";
+
 import { Card } from "@/components/ui/Card";
-import { Search, Eye, ChevronDown } from "lucide-react";
-import { getAllOrders, getOrderStatusCounts } from "@/lib/supabase/queries";
+import { Modal } from "@/components/ui/Modal";
+import { Search, Eye } from "lucide-react";
 import type { Order, OrderItem, Profile } from "@/types/database.types";
+import { useState, useEffect } from "react";
 
 type OrderWithDetails = Order & {
   order_items: OrderItem[];
@@ -17,6 +20,15 @@ const statusConfig = {
   cancelled: { label: "Annulée", color: "bg-red-100 text-red-800" },
 };
 
+const statusOptions: Array<keyof typeof statusConfig> = [
+  "pending",
+  "confirmed",
+  "preparing",
+  "ready",
+  "delivered",
+  "cancelled",
+];
+
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
   return new Intl.DateTimeFormat("fr-FR", {
@@ -28,9 +40,109 @@ function formatDate(dateString: string): string {
   }).format(date);
 }
 
-export default async function OrdersPage() {
-  const orders = (await getAllOrders()) as OrderWithDetails[];
-  const statusCounts = await getOrderStatusCounts();
+export default function OrdersPage() {
+  const [orders, setOrders] = useState<OrderWithDetails[]>([]);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({
+    pending: 0,
+    confirmed: 0,
+    preparing: 0,
+    ready: 0,
+    delivered: 0,
+    cancelled: 0,
+  });
+  const [selectedOrder, setSelectedOrder] = useState<OrderWithDetails | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load orders on mount
+  useEffect(() => {
+    const loadOrders = async () => {
+      try {
+        const res = await fetch("/api/admin/orders");
+        if (!res.ok) throw new Error("Failed to load orders");
+        const data = await res.json();
+        setOrders(data.orders);
+        setStatusCounts(data.statusCounts);
+      } catch (error) {
+        console.error("Error loading orders:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadOrders();
+  }, []);
+
+  const filteredOrders = orders.filter((order) => {
+    const matchesSearch = 
+      order.id.includes(searchTerm) ||
+      order.profiles?.full_name?.includes(searchTerm) ||
+      order.phone?.includes(searchTerm);
+    const matchesStatus = !filterStatus || order.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
+
+  const handleViewOrder = (order: OrderWithDetails) => {
+    setSelectedOrder(order);
+    setIsModalOpen(true);
+  };
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!selectedOrder) return;
+
+    setIsLoadingStatus(true);
+    try {
+      const res = await fetch(`/api/admin/orders/${selectedOrder.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to update order status");
+      }
+
+      const { order: updatedOrder } = await res.json();
+
+      // Update orders list
+      setOrders((prevOrders) =>
+        prevOrders.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
+      );
+
+      // Update selected order
+      setSelectedOrder(updatedOrder);
+
+      // Update status counts
+      const oldStatus = selectedOrder.status;
+      setStatusCounts((prev) => ({
+        ...prev,
+        [oldStatus]: prev[oldStatus] - 1,
+        [newStatus]: prev[newStatus] + 1,
+      }));
+    } catch (error) {
+      console.error("Error updating order status:", error);
+      alert("Erreur lors de la mise à jour du statut");
+    } finally {
+      setIsLoadingStatus(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 font-display">
+            Commandes
+          </h1>
+          <p className="text-gray-500 mt-1">Chargement...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -45,13 +157,15 @@ export default async function OrdersPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {Object.entries(statusCounts).map(([status, count]) => (
+        {statusOptions.map((status) => (
           <Card key={status} padding="md">
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-600">
-                {statusConfig[status as keyof typeof statusConfig].label}
+                {statusConfig[status].label}
               </span>
-              <span className="text-2xl font-bold text-gray-900">{count}</span>
+              <span className="text-2xl font-bold text-gray-900">
+                {statusCounts[status] || 0}
+              </span>
             </div>
           </Card>
         ))}
@@ -65,10 +179,16 @@ export default async function OrdersPage() {
             <input
               type="text"
               placeholder="Rechercher une commande..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full h-11 pl-10 pr-4 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
             />
           </div>
-          <select className="h-11 px-4 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500">
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="h-11 px-4 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
+          >
             <option value="">Tous les statuts</option>
             <option value="pending">En attente</option>
             <option value="confirmed">Confirmée</option>
@@ -111,18 +231,18 @@ export default async function OrdersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {orders.length === 0 ? (
+              {filteredOrders.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                     Aucune commande trouvée
                   </td>
                 </tr>
               ) : (
-                orders.map((order) => {
+                filteredOrders.map((order) => {
                   const itemCount = order.order_items?.length || 0;
                   const customerName = order.profiles?.full_name || "Client inconnu";
                   const customerPhone = order.profiles?.phone || order.phone || "N/A";
-                  
+
                   return (
                     <tr key={order.id}>
                       <td className="px-6 py-4">
@@ -156,7 +276,10 @@ export default async function OrdersPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end">
-                          <button className="p-2 rounded-lg">
+                          <button
+                            onClick={() => handleViewOrder(order)}
+                            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                          >
                             <Eye className="w-4 h-4 text-gray-500" />
                           </button>
                         </div>
@@ -169,6 +292,94 @@ export default async function OrdersPage() {
           </table>
         </div>
       </Card>
+
+      {/* Order Details Modal */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={`Commande ${selectedOrder?.id.substring(0, 8)}`}
+        size="lg"
+      >
+        {selectedOrder && (
+          <div className="space-y-6">
+            {/* Order Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-500">Client</p>
+                <p className="font-medium text-gray-900">
+                  {selectedOrder.profiles?.full_name || "Client inconnu"}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Téléphone</p>
+                <p className="font-medium text-gray-900">
+                  {selectedOrder.phone || "N/A"}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Total</p>
+                <p className="font-medium text-gray-900">
+                  ${selectedOrder.total_amount.toFixed(2)}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Date</p>
+                <p className="font-medium text-gray-900">
+                  {formatDate(selectedOrder.created_at)}
+                </p>
+              </div>
+            </div>
+
+            {/* Order Items */}
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-3">Articles</h3>
+              <div className="space-y-2 bg-gray-50 rounded-lg p-4">
+                {selectedOrder.order_items?.map((item) => (
+                  <div key={item.id} className="flex justify-between text-sm">
+                    <span className="text-gray-600">
+                      {item.product_name} × {item.quantity}
+                    </span>
+                    <span className="font-medium text-gray-900">
+                      ${(item.total_price as number).toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Order Summary */}
+            {selectedOrder.notes && (
+              <div>
+                <p className="text-sm text-gray-500">Notes</p>
+                <p className="text-gray-900">{selectedOrder.notes}</p>
+              </div>
+            )}
+
+            {/* Status Change */}
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-3">Changer le statut</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {statusOptions.map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => handleStatusChange(status)}
+                    disabled={
+                      isLoadingStatus || status === selectedOrder.status
+                    }
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      status === selectedOrder.status
+                        ? `${statusConfig[status].color} opacity-100 cursor-default`
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+                    }`}
+                  >
+                    {statusConfig[status].label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

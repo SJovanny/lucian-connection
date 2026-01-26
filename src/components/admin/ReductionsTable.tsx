@@ -141,24 +141,24 @@ export function ReductionsTable({ reductions, onDelete }: ReductionsTableProps) 
                     <div className="text-gray-400">→ {formatDate(reduction.expires_at)}</div>
                   </td>
                   <td className="px-6 py-4">
-                    <Badge variant={reduction.priority > 0 ? "default" : "secondary"}>
+                    <Badge variant={reduction.priority > 0 ? "primary" : "default"}>
                       {reduction.priority}
                     </Badge>
                   </td>
                   <td className="px-6 py-4">
-                    <Badge variant={isActive(reduction) ? "success" : "secondary"}>
+                    <Badge variant={isActive(reduction) ? "success" : "default"}>
                       {isActive(reduction) ? "Actif" : "Inactif"}
                     </Badge>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end gap-2">
                       <Link href={`/admin/reductions/${reduction.id}`}>
-                        <Button variant="outline" size="sm">
+                        <Button variant="ghost" size="sm">
                           <Edit className="w-4 h-4" />
                         </Button>
                       </Link>
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
                         onClick={() => onDelete(reduction.id)}
                       >

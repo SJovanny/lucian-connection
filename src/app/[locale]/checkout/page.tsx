@@ -13,6 +13,7 @@ import { formatPrice } from "@/lib/utils";
 import { ShoppingBag, ArrowLeft, Check, X } from "lucide-react";
 import { Link } from "@/i18n/routing";
 import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { Locale } from "@/i18n/routing";
 
 export default function CheckoutPage() {
@@ -23,6 +24,7 @@ export default function CheckoutPage() {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   
   // Settings & Fees
   const [preparationFee, setPreparationFee] = useState(0);
@@ -95,17 +97,76 @@ export default function CheckoutPage() {
     setCouponCode("");
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    console.log("[checkout] 1) submit clicked");
     e.preventDefault();
     setIsSubmitting(true);
+    setFormError(null);
 
-    // Simulate order submission
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const supabase = createClient();
+      console.log("[checkout] 2) fetching user session");
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      console.log("[checkout] 3) user:", user, "authError:", authError);
 
-    // TODO: Implement Supabase order creation with coupon_id and discount_amount
-    setIsSubmitting(false);
-    setIsSuccess(true);
-    clearCart();
+      if (!user) {
+        console.log("[checkout] 4) no user -> redirect /login");
+        router.push("/login");
+        return;
+      }
+
+      const form = e.target as HTMLFormElement;
+      console.log("[checkout] 4.5) form element:", form);
+      const formData = new FormData(form);
+      const full_name = String(formData.get("fullName") || "").trim();
+      const email = String(formData.get("email") || "").trim();
+      const phone = String(formData.get("phone") || "").trim();
+      const notes = String(formData.get("notes") || "").trim();
+
+      const payload = {
+        items,
+        subtotal,
+        delivery_fee: preparationFee,
+        total_amount: total,
+        phone,
+        notes,
+        locale,
+        coupon_id: appliedCoupon?.id || null,
+        discount_amount: appliedCoupon?.discount_amount || 0,
+        full_name,
+        email,
+      };
+
+      console.log("[checkout] 5) posting /api/orders with payload:", payload);
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      console.log("[checkout] 6) response status:", res.status);
+      if (!res.ok) {
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch (jsonErr) {
+          console.error("[checkout] failed to parse error response", jsonErr);
+        }
+        console.error("[checkout] Order creation failed:", data);
+        setFormError(data?.details || data?.error || "Erreur lors de la création de la commande");
+        return;
+      }
+
+      setIsSuccess(true);
+      clearCart();
+      console.log("[checkout] 7) order success, cart cleared");
+    } catch (error) {
+      console.error("[checkout] unexpected error:", error);
+      setFormError("Erreur lors de la création de la commande");
+    } finally {
+      setIsSubmitting(false);
+      console.log("[checkout] 8) submit finished");
+    }
   };
 
   if (isSuccess) {
@@ -214,6 +275,11 @@ export default function CheckoutPage() {
                         placeholder="+1 758 555 1234"
                         className="sm:col-span-2"
                       />
+                      {formError && (
+                        <p className="text-sm text-red-600 sm:col-span-2">
+                          {formError}
+                        </p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

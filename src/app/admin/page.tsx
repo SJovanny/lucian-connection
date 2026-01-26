@@ -401,6 +401,10 @@ export default async function AdminDashboard() {
                 <p className="text-2xl font-bold text-purple-600">{stats.pendingOrders}</p>
                 <p className="text-sm text-gray-500">En cours</p>
               </div>
+              <div className="p-4 bg-red-50 rounded-lg text-center">
+                <p className="text-2xl font-bold text-red-600">{stats.cancelledOrders}</p>
+                <p className="text-sm text-gray-500">Annulées</p>
+              </div>
               <div className="p-4 bg-gray-50 rounded-lg text-center">
                 <p className="text-2xl font-bold text-gray-900">{stats.totalOrders}</p>
                 <p className="text-sm text-gray-500">Total commandes</p>
