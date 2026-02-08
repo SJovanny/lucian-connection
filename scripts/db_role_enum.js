@@ -20,6 +20,10 @@ END $$;
 
 -- Drop policies that reference profiles.role directly
 DROP POLICY IF EXISTS "Coupons editable by admins" ON coupons;
+DROP POLICY IF EXISTS "Admins can select coupons" ON coupons;
+DROP POLICY IF EXISTS "Admins can insert coupons" ON coupons;
+DROP POLICY IF EXISTS "Admins can update coupons" ON coupons;
+DROP POLICY IF EXISTS "Admins can delete coupons" ON coupons;
 DROP POLICY IF EXISTS "Admins can insert reductions" ON reductions;
 DROP POLICY IF EXISTS "Admins can update reductions" ON reductions;
 DROP POLICY IF EXISTS "Admins can delete reductions" ON reductions;
@@ -33,8 +37,24 @@ ALTER TABLE public.profiles
   ALTER COLUMN role SET DEFAULT 'customer';
 
 -- Recreate admin policies using is_admin()
-CREATE POLICY "Coupons editable by admins"
-  ON coupons FOR ALL
+CREATE POLICY "Admins can select coupons"
+  ON coupons FOR SELECT
+  TO authenticated
+  USING (is_admin());
+
+CREATE POLICY "Admins can insert coupons"
+  ON coupons FOR INSERT
+  TO authenticated
+  WITH CHECK (is_admin());
+
+CREATE POLICY "Admins can update coupons"
+  ON coupons FOR UPDATE
+  TO authenticated
+  USING (is_admin());
+
+CREATE POLICY "Admins can delete coupons"
+  ON coupons FOR DELETE
+  TO authenticated
   USING (is_admin());
 
 CREATE POLICY "Admins can insert reductions"

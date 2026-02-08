@@ -1,22 +1,15 @@
-import { createClient } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/admin-auth";
-
-// Admin client avec service role pour bypasser RLS
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { NextRequest, NextResponse } from "next/server";
+import { getAdminSupabase } from "@/lib/admin-auth";
 
 // GET - Récupérer toutes les catégories
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const isAdmin = await checkAdmin();
-    if (!isAdmin) {
+    const supabase = await getAdminSupabase(request);
+    if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("categories")
       .select("*")
       .order("display_order", { ascending: true });
@@ -34,10 +27,10 @@ export async function GET() {
 }
 
 // POST - Créer une nouvelle catégorie
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const isAdmin = await checkAdmin();
-    if (!isAdmin) {
+    const supabase = await getAdminSupabase(request);
+    if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -52,7 +45,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("categories")
       .insert([body])
       .select()

@@ -1,25 +1,19 @@
-import { createClient } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/admin-auth";
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { NextRequest, NextResponse } from "next/server";
+import { getAdminSupabase } from "@/lib/admin-auth";
 
 // GET - Récupérer une catégorie
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
   try {
-    const isAdmin = await checkAdmin();
-    if (!isAdmin) {
+    const supabase = await getAdminSupabase(request);
+    if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("categories")
       .select("*")
       .eq("id", id)
@@ -39,19 +33,19 @@ export async function GET(
 
 // PUT - Mettre à jour une catégorie
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
   try {
-    const isAdmin = await checkAdmin();
-    if (!isAdmin) {
+    const supabase = await getAdminSupabase(request);
+    if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await request.json();
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("categories")
       .update(body)
       .eq("id", id)
@@ -72,17 +66,17 @@ export async function PUT(
 
 // DELETE - Supprimer une catégorie
 export async function DELETE(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
   try {
-    const isAdmin = await checkAdmin();
-    if (!isAdmin) {
+    const supabase = await getAdminSupabase(request);
+    if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { error } = await supabaseAdmin
+    const { error } = await supabase
       .from("categories")
       .delete()
       .eq("id", id);

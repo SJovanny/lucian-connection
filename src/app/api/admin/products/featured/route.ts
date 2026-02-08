@@ -1,26 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { checkAdmin } from "@/lib/admin-auth";
-
-// Create admin client for this route (without strict types to allow updates)
-function getAdminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    }
-  );
-}
+import { getAdminSupabase } from "@/lib/admin-auth";
 
 // POST /api/admin/products/featured - Toggle featured status
 export async function POST(request: NextRequest) {
   try {
-    const isAdmin = await checkAdmin();
-    if (!isAdmin) {
+    const supabase = await getAdminSupabase(request);
+    if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -32,8 +17,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const supabase = getAdminClient();
 
     const { data, error } = await supabase
       .from("products")
@@ -64,14 +47,12 @@ export async function POST(request: NextRequest) {
 }
 
 // GET /api/admin/products/featured - Get all products with featured status
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const isAdmin = await checkAdmin();
-    if (!isAdmin) {
+    const supabase = await getAdminSupabase(request);
+    if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    const supabase = getAdminClient();
 
     const { data, error } = await supabase
       .from("products")

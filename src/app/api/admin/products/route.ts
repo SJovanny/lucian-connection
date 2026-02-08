@@ -1,12 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/admin-auth";
-
-// Admin client avec service role pour bypasser RLS
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { getAdminSupabase } from "@/lib/admin-auth";
 
 const parseAllergens = (value: unknown): string[] => {
   if (Array.isArray(value)) {
@@ -24,14 +17,14 @@ const parseAllergens = (value: unknown): string[] => {
 };
 
 // GET - Récupérer tous les produits
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const isAdmin = await checkAdmin();
-    if (!isAdmin) {
+    const supabase = await getAdminSupabase(request);
+    if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("products")
       .select("*, categories(*)")
       .order("created_at", { ascending: false });
@@ -51,8 +44,8 @@ export async function GET() {
 // POST - Créer un nouveau produit
 export async function POST(request: NextRequest) {
   try {
-    const isAdmin = await checkAdmin();
-    if (!isAdmin) {
+    const supabase = await getAdminSupabase(request);
+    if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -87,7 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Vérifier si le slug existe déjà
-    const { data: existingProduct } = await supabaseAdmin
+    const { data: existingProduct } = await supabase
       .from("products")
       .select("id")
       .eq("slug", slug)
@@ -122,7 +115,7 @@ export async function POST(request: NextRequest) {
       image_url: image_url || null,
     };
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("products")
       .insert(productData)
       .select("*, categories(*)")

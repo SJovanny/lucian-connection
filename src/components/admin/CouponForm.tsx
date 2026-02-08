@@ -8,7 +8,7 @@ import * as z from "zod";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
-import { createClient } from "@/lib/supabase/client";
+
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
@@ -33,6 +33,13 @@ const toIsoWithOffset = (value?: string) => {
   const offsetH = pad(offsetMinutes / 60);
   const offsetM = pad(offsetMinutes % 60);
   return `${datePart}T${timePart}:00${sign}${offsetH}:${offsetM}`;
+};
+
+const getDefaultStartDate = () => {
+  const now = new Date();
+  const tzOffset = now.getTimezoneOffset() * 60000;
+  const local = new Date(now.getTime() - tzOffset);
+  return local.toISOString().slice(0, 16);
 };
 
 const couponSchema = z
@@ -89,8 +96,8 @@ export function CouponForm({ initialData, isEdit = false }: CouponFormProps) {
       min_order_amount: initialData?.min_order_amount || 0,
       max_discount_amount: initialData?.max_discount_amount || null,
       usage_limit: initialData?.usage_limit || null,
-      starts_at: toLocalInputValue(initialData?.starts_at),
-      expires_at: toLocalInputValue(initialData?.expires_at),
+      starts_at: toLocalInputValue(initialData?.starts_at) || getDefaultStartDate(),
+      expires_at: toLocalInputValue(initialData?.expires_at) || "",
       is_first_order_only: initialData?.is_first_order_only || false,
       is_active: initialData?.is_active ?? true,
     } as CouponFormData,
@@ -103,39 +110,51 @@ export function CouponForm({ initialData, isEdit = false }: CouponFormProps) {
     setError(null);
 
     try {
-      const supabase = createClient();
-      
       const payload = {
         ...data,
         starts_at: toIsoWithOffset(data.starts_at),
         expires_at: toIsoWithOffset(data.expires_at),
         max_discount_amount: data.max_discount_amount || null,
         usage_limit: data.usage_limit || null,
+        min_order_amount: data.min_order_amount ?? 0,
       };
 
       if (isEdit && initialData?.id) {
-        const { error } = await supabase
-          .from("coupons")
-          .update(payload)
-          .eq("id", initialData.id);
+        // Update existing coupon via API
+        const response = await fetch(`/api/admin/coupons/${initialData.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
 
-        if (error) throw error;
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || "Failed to update coupon");
+        }
       } else {
-        const { error } = await supabase
-          .from("coupons")
-          .insert(payload);
+        // Create new coupon via API
+        const response = await fetch("/api/admin/coupons", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
 
-        if (error) throw error;
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || "Failed to create coupon");
+        }
       }
 
       router.push("/admin/coupons");
       router.refresh();
     } catch (err: any) {
       console.error(err);
-      if (err.code === "23505") {
+      if (err.message?.includes("déjà")) {
         setError("Ce code promo existe déjà.");
       } else {
-        setError("Une erreur est survenue lors de l'enregistrement.");
+        setError(err.message || "Une erreur est survenue lors de l'enregistrement.");
       }
     } finally {
       setIsSubmitting(false);

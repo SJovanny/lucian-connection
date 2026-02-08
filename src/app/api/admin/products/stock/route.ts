@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateProductStock } from "@/lib/supabase/queries";
-import { verifyAdminAuth } from "@/lib/admin-auth";
+import { getAdminSupabase } from "@/lib/admin-auth";
 
 export async function PATCH(request: NextRequest) {
   try {
-    // Verify admin authentication
-    const authResult = await verifyAdminAuth();
-    if (!authResult.isValid) {
+    const supabase = await getAdminSupabase(request);
+    if (!supabase) {
       return NextResponse.json(
-        { error: authResult.error },
-        { status: authResult.status }
+        { error: "Unauthorized" },
+        { status: 401 }
       );
     }
 
@@ -22,16 +20,22 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const updatedProduct = await updateProductStock(productId, stock);
+    const { data, error } = await supabase
+      .from("products")
+      .update({ stock })
+      .eq("id", productId)
+      .select()
+      .single();
 
-    if (!updatedProduct) {
+    if (error) {
+      console.error("Error updating product stock:", error);
       return NextResponse.json(
         { error: "Failed to update product stock" },
         { status: 500 }
       );
     }
 
-    return NextResponse.json(updatedProduct);
+    return NextResponse.json(data);
   } catch (error) {
     console.error("Error updating product stock:", error);
     return NextResponse.json(

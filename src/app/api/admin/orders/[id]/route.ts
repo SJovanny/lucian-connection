@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getAdminSupabase } from "@/lib/admin-auth";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const supabase = await getAdminSupabase(request);
+    if (!supabase) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await Promise.resolve(params);
     const { status } = await request.json();
-
-    const adminClient = createAdminClient();
 
     // Validate status
     const validStatuses = ["pending", "confirmed", "preparing", "ready", "delivered", "cancelled", "refunded"];
@@ -20,7 +23,7 @@ export async function PATCH(
       );
     }
 
-    const { data, error } = await (adminClient as any)
+    const { data, error } = await supabase
       .from("orders")
       .update({ status })
       .eq("id", id)

@@ -1,12 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { checkAdmin } from "@/lib/admin-auth";
-
-// Admin client avec service role pour bypasser RLS
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { getAdminSupabase } from "@/lib/admin-auth";
 
 const parseAllergens = (value: unknown): string[] => {
   if (Array.isArray(value)) {
@@ -29,14 +22,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const isAdmin = await checkAdmin();
-    if (!isAdmin) {
+    const supabase = await getAdminSupabase(request);
+    if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
     const { id } = await params;
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("products")
       .select("*, categories(*)")
       .eq("id", id)
@@ -68,8 +61,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const isAdmin = await checkAdmin();
-    if (!isAdmin) {
+    const supabase = await getAdminSupabase(request);
+    if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
@@ -97,7 +90,7 @@ export async function PUT(
     } = body;
 
     // Vérifier si le produit existe
-    const { data: existingProduct, error: fetchError } = await supabaseAdmin
+    const { data: existingProduct, error: fetchError } = await supabase
       .from("products")
       .select("id")
       .eq("id", id)
@@ -112,7 +105,7 @@ export async function PUT(
 
     // Si le slug change, vérifier qu'il n'existe pas déjà
     if (slug) {
-      const { data: slugCheck } = await supabaseAdmin
+      const { data: slugCheck } = await supabase
         .from("products")
         .select("id")
         .eq("slug", slug)
@@ -133,7 +126,7 @@ export async function PUT(
 
     const getCurrentProduct = async () => {
       if (currentProductCache) return currentProductCache;
-      const { data } = await supabaseAdmin
+      const { data } = await supabase
         .from("products")
         .select("translations, allergens")
         .eq("id", id)
@@ -187,7 +180,7 @@ export async function PUT(
       };
     }
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("products")
       .update(updateData)
       .eq("id", id)
@@ -212,14 +205,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const isAdmin = await checkAdmin();
-    if (!isAdmin) {
+    const supabase = await getAdminSupabase(request);
+    if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     
     const { id } = await params;
     
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("products")
       .delete()
       .eq("id", id)

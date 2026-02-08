@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getAdminSupabase } from "@/lib/admin-auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const adminClient = createAdminClient();
+    const supabase = await getAdminSupabase(request);
+    if (!supabase) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     // Fetch all orders with related data
-    const { data: orders, error: ordersError } = await (adminClient as any)
+    const { data: orders, error: ordersError } = await supabase
       .from("orders")
       .select(
         `
