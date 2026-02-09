@@ -4,21 +4,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import { Edit, Trash2, Tag, FolderTree, Package } from "lucide-react";
-
-interface Reduction {
-  id: string;
-  name: string;
-  description: string | null;
-  discount_type: "percentage" | "fixed";
-  discount_value: number;
-  applies_to: "all" | "categories" | "products";
-  category_ids: string[];
-  product_ids: string[];
-  starts_at: string | null;
-  expires_at: string | null;
-  is_active: boolean;
-  priority: number;
-}
+import type { Reduction } from "@/types/database.types";
 
 interface ReductionsTableProps {
   reductions: Reduction[];

@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/Input";
 
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import type { Coupon } from "@/types/database.types";
 
 const toLocalInputValue = (iso?: string | null) => {
   if (!iso) return "";
@@ -72,7 +73,7 @@ const couponSchema = z
 type CouponFormData = z.output<typeof couponSchema>;
 
 interface CouponFormProps {
-  initialData?: CouponFormData & { id?: string };
+  initialData?: Partial<Coupon> & { id?: string };
   isEdit?: boolean;
 }
 

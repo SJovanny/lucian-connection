@@ -112,11 +112,15 @@ export default function OrdersPage() {
 
       // Update orders list
       setOrders((prevOrders) =>
-        prevOrders.map((o) => (o.id === updatedOrder.id ? updatedOrder : o))
+        prevOrders.map((o) =>
+          o.id === updatedOrder.id ? { ...o, status: updatedOrder.status } : o
+        )
       );
 
       // Update selected order
-      setSelectedOrder(updatedOrder);
+      setSelectedOrder((prev) =>
+        prev ? { ...prev, status: updatedOrder.status } : prev
+      );
 
       // Update status counts
       const oldStatus = selectedOrder.status;

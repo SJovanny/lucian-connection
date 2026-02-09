@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { createClient } from "@/lib/supabase/client";
-import type { Database } from "@/types/database.types";
+import type { Profile, StoreSettings } from "@/types/database.types";
 
 interface AdminSettingsFormProps {
   userId: string;
@@ -31,16 +31,17 @@ export function AdminSettingsForm({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  useState(() => {
+  useEffect(() => {
     const fetchSettings = async () => {
       const supabase = createClient();
       const { data } = await supabase.from("store_settings").select("preparation_fee").single();
-      if (data) {
-        setPreparationFee(data.preparation_fee.toString());
+      const typedSettings = data as Pick<StoreSettings, "preparation_fee"> | null;
+      if (typedSettings) {
+        setPreparationFee(typedSettings.preparation_fee.toString());
       }
     };
     fetchSettings();
-  });
+  }, []);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -50,13 +51,15 @@ export function AdminSettingsForm({
     try {
       const supabase = createClient();
 
+      const profileUpdate: Partial<Profile> = {
+        full_name: fullName || null,
+        phone: phone || null,
+        dashboard_locale: dashboardLocale || "fr",
+      };
+
       const { error: profileError } = await supabase
         .from("profiles")
-        .update({
-          full_name: fullName || null,
-          phone: phone || null,
-          dashboard_locale: dashboardLocale || "fr",
-        })
+        .update(profileUpdate)
         .eq("id", userId);
 
       if (profileError) {
@@ -66,19 +69,24 @@ export function AdminSettingsForm({
       }
 
       // Update store settings
+      const settingsUpdate: Partial<StoreSettings> = {
+        preparation_fee: parseFloat(preparationFee),
+        updated_at: new Date().toISOString(),
+        updated_by: userId,
+      };
+
       const { error: settingsError } = await supabase
         .from("store_settings")
-        .update({
-          preparation_fee: parseFloat(preparationFee),
-          updated_at: new Date().toISOString(),
-          updated_by: userId,
-        })
+        .update(settingsUpdate)
         .eq("id", (await supabase.from("store_settings").select("id").single()).data?.id);
 
         // Fail-safe if single row doesn't exist (though migration creates it)
         if (settingsError) {
            // Try insert if update fails (though unique index exists)
-           await supabase.from("store_settings").insert({ preparation_fee: parseFloat(preparationFee), updated_by: userId });
+           await supabase.from("store_settings").insert({
+             preparation_fee: parseFloat(preparationFee),
+             updated_by: userId,
+           });
         }
 
       if (email !== initialEmail) {

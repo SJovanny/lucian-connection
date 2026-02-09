@@ -13,20 +13,7 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { formatPrice } from "@/lib/utils";
-
-interface Coupon {
-  id: string;
-  code: string;
-  description: string | null;
-  discount_type: "percentage" | "fixed";
-  discount_value: number;
-  starts_at: string | null;
-  expires_at: string | null;
-  used_count: number;
-  usage_limit: number | null;
-  is_active: boolean;
-  is_first_order_only: boolean;
-}
+import type { Coupon } from "@/types/database.types";
 
 interface CouponsTableProps {
   coupons: Coupon[];

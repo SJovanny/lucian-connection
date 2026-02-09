@@ -1,5 +1,5 @@
 import { createAdminClient } from "./admin";
-import type { Product, Category } from "@/types/database.types";
+import type { Category, Order, OrderItem, Product, Profile } from "@/types/database.types";
 
 // Type pour les produits avec catégorie jointe
 export type ProductWithCategory = Product & {
@@ -50,8 +50,9 @@ export async function getProducts(options?: {
       .select("id")
       .in("slug", options.categorySlugs);
       
-    if (categoriesData && categoriesData.length > 0) {
-      const categoryIds = categoriesData.map(c => c.id);
+    const typedCategories = (categoriesData || []) as Array<{ id: string }>;
+    if (typedCategories.length > 0) {
+      const categoryIds = typedCategories.map((c) => c.id);
       query = query.in("category_id", categoryIds);
     }
   }
@@ -173,10 +174,11 @@ export async function getAllProductsForInventory(): Promise<ProductWithCategory[
  */
 export async function updateProductStock(productId: string, newStock: number) {
   const supabase = createAdminClient();
+  const updateData: Partial<Product> = { stock: newStock };
   
   const { data, error } = await supabase
     .from("products")
-    .update({ stock: newStock })
+    .update(updateData)
     .eq("id", productId)
     .select()
     .single();
@@ -212,6 +214,10 @@ export async function getAllOrders(options?: {
   date?: string;
 }) {
   const supabase = createAdminClient();
+  type OrderWithDetails = Order & {
+    order_items: OrderItem[];
+    profiles: Pick<Profile, "full_name" | "phone"> | null;
+  };
   
   let query = supabase
     .from("orders")
@@ -245,11 +251,11 @@ export async function getAllOrders(options?: {
   }
 
   // Filter by search term (order ID or customer name)
-  let results = data || [];
+  let results = (data || []) as OrderWithDetails[];
   if (options?.search) {
     const searchLower = options.search.toLowerCase();
-    results = results.filter(order => {
-      const customerName = (order.profiles as any)?.full_name?.toLowerCase() || "";
+    results = results.filter((order) => {
+      const customerName = order.profiles?.full_name?.toLowerCase() || "";
       const orderId = order.id.toLowerCase();
       return orderId.includes(searchLower) || customerName.includes(searchLower);
     });
@@ -342,7 +348,8 @@ export async function getOrderStats() {
     .select("*", { count: "exact", head: true })
     .eq("status", "refunded");
 
-  const todayRevenue = (todayOrders || [])
+  const typedTodayOrders = (todayOrders || []) as Array<Pick<Order, "status" | "total_amount">>;
+  const todayRevenue = typedTodayOrders
     .filter((order) => order.status !== "cancelled" && order.status !== "refunded")
     .reduce((acc, o) => acc + (o.total_amount || 0), 0);
   const todayCount = todayOrders?.length || 0;

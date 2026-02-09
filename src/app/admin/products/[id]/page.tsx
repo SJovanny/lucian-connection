@@ -1,14 +1,12 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ProductForm } from "@/components/admin/ProductForm";
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { notFound } from "next/navigation";
+import type { Category, Product } from "@/types/database.types";
 
 // Admin client pour bypasser RLS
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabaseAdmin = createAdminClient();
 
 async function getProduct(id: string) {
   const { data, error } = await supabaseAdmin
@@ -18,7 +16,7 @@ async function getProduct(id: string) {
     .single();
 
   if (error || !data) return null;
-  return data;
+  return data as Product & { categories: Category | null };
 }
 
 async function getCategories() {

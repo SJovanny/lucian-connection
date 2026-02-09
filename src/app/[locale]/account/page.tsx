@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { createClient } from "@/lib/supabase/client";
-import type { Order, OrderItem } from "@/types/database.types";
+import type { Order, OrderItem, Profile } from "@/types/database.types";
 
 const statusLabels: Record<string, string> = {
   pending: "En attente",
@@ -93,10 +93,12 @@ export default function AccountPage() {
 
       if (profileError) {
         setError("Impossible de charger votre profil");
-      } else if (profileData) {
+      const typedProfile = profileData as Pick<Profile, "full_name" | "phone"> | null;
+
+      if (typedProfile) {
         setProfile({
-          full_name: profileData.full_name || "",
-          phone: profileData.phone || "",
+          full_name: typedProfile.full_name || "",
+          phone: typedProfile.phone || "",
           email: user.email || "",
         });
       }
@@ -120,7 +122,9 @@ export default function AccountPage() {
           .select("*")
           .in("order_id", orderIds);
 
-        const grouped = (orderItems || []).reduce<Record<string, OrderItem[]>>(
+        const typedOrderItems = (orderItems || []) as OrderItem[];
+
+        const grouped = typedOrderItems.reduce<Record<string, OrderItem[]>>(
           (acc, item) => {
             const orderId = item.order_id;
             acc[orderId] = acc[orderId] || [];
