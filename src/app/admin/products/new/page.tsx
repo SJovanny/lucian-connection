@@ -3,6 +3,8 @@ import { ArrowLeft } from "lucide-react";
 import { ProductForm } from "@/components/admin/ProductForm";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+import type { Category } from "@/types/database.types";
+
 // Admin client pour bypasser RLS
 const supabaseAdmin = createAdminClient();
 
@@ -11,7 +13,7 @@ async function getCategories() {
     .from("categories")
     .select("*")
     .order("display_order", { ascending: true });
-  return data || [];
+  return (data as Category[]) || [];
 }
 
 export default async function NewProductPage() {

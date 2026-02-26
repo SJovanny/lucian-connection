@@ -1,5 +1,5 @@
 import { createAdminClient } from "./admin";
-import type { Category, Order, OrderItem, Product, Profile } from "@/types/database.types";
+import type { Category, Order, OrderItem, Product, Profile, OrderStatus } from "@/types/database.types";
 
 // Type pour les produits avec catégorie jointe
 export type ProductWithCategory = Product & {
@@ -230,7 +230,7 @@ export async function getAllOrders(options?: {
 
   // Filter by status
   if (options?.status && options.status !== "") {
-    query = query.eq("status", options.status);
+    query = query.eq("status", options.status as OrderStatus);
   }
 
   // Filter by date
@@ -300,7 +300,7 @@ export async function getOrderStatusCounts() {
     const { count, error } = await supabase
       .from("orders")
       .select("*", { count: "exact", head: true })
-      .eq("status", status);
+      .eq("status", status as OrderStatus);
 
     if (!error) {
       counts[status] = count || 0;

@@ -24,7 +24,7 @@ async function getCategories() {
     .from("categories")
     .select("*")
     .order("display_order", { ascending: true });
-  return data || [];
+  return (data as Category[]) || [];
 }
 
 export default async function EditProductPage({

@@ -93,6 +93,7 @@ export default function AccountPage() {
 
       if (profileError) {
         setError("Impossible de charger votre profil");
+      }
       const typedProfile = profileData as Pick<Profile, "full_name" | "phone"> | null;
 
       if (typedProfile) {

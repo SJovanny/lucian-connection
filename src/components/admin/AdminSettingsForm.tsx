@@ -75,19 +75,21 @@ export function AdminSettingsForm({
         updated_by: userId,
       };
 
-      const { error: settingsError } = await supabase
-        .from("store_settings")
-        .update(settingsUpdate)
-        .eq("id", (await supabase.from("store_settings").select("id").single()).data?.id);
+      const { data: settingsData } = await supabase.from("store_settings").select("id").single();
+      const settingsId = settingsData?.id;
 
-        // Fail-safe if single row doesn't exist (though migration creates it)
-        if (settingsError) {
-           // Try insert if update fails (though unique index exists)
-           await supabase.from("store_settings").insert({
-             preparation_fee: parseFloat(preparationFee),
-             updated_by: userId,
-           });
-        }
+      if (settingsId) {
+        const { error: settingsError } = await supabase
+          .from("store_settings")
+          .update(settingsUpdate)
+          .eq("id", settingsId);
+      } else {
+        await supabase.from("store_settings").insert({
+          preparation_fee: parseFloat(preparationFee),
+          min_order_amount: 0,
+          updated_by: userId,
+        });
+      }
 
       if (email !== initialEmail) {
         const { error: emailError } = await supabase.auth.updateUser({
