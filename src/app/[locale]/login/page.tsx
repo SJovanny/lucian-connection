@@ -29,7 +29,7 @@ export default function LoginPage() {
 
     try {
       const supabase = createClient();
-      
+
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -49,7 +49,7 @@ export default function LoginPage() {
         router.push("/");
         router.refresh();
       }
-    } catch (err) {
+    } catch {
       setError(locale === "fr" ? "Une erreur est survenue" : "An error occurred");
     } finally {
       setIsLoading(false);

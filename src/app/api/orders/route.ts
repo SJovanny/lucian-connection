@@ -1,14 +1,15 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
   console.log("=== ORDER API CALLED ===");
-  
+
   try {
     const supabase = await createClient();
     const body = await request.json();
     console.log("[orders] Request body:", JSON.stringify(body, null, 2));
-    
+
     const {
       items,
       subtotal,
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
       .select("id")
       .eq("id", user.id)
       .single();
-    
+
     console.log("[orders] Profile check:", profile, "Error:", profileCheckError);
 
     // Create profile if it doesn't exist
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
           email: user.email,
           phone: phone || null,
         });
-      
+
       if (createProfileError) {
         console.log("[orders] Profile creation error:", createProfileError);
       }
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
       discount_amount: Number(discount_amount) || 0,
       delivery_address: null,
     };
-    
+
     console.log("[orders] Inserting order:", JSON.stringify(orderData, null, 2));
 
     const { data: order, error: orderError } = await (supabase as any)
@@ -132,7 +133,7 @@ export async function POST(request: NextRequest) {
     console.error("Error creating order:", error);
     console.error("Error details:", JSON.stringify(error, null, 2));
     return NextResponse.json(
-      { 
+      {
         error: "Failed to create order",
         details: error?.message || error?.code || String(error)
       },

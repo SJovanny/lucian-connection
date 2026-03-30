@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useState } from "react";
@@ -86,15 +87,15 @@ export default function InventoryManager({
       const response =
         field === "stock"
           ? await fetch("/api/admin/products/stock", {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ productId: id, stock: editValue }),
-            })
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ productId: id, stock: editValue }),
+          })
           : await fetch(`/api/admin/products/${id}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ low_stock_threshold: editValue }),
-            });
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ low_stock_threshold: editValue }),
+          });
 
       if (response.ok) {
         setProducts((prev) =>
@@ -150,9 +151,8 @@ export default function InventoryManager({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card
           padding="md"
-          className={`cursor-pointer ${
-            filter === "all" ? "ring-2 ring-primary-500" : ""
-          }`}
+          className={`cursor-pointer ${filter === "all" ? "ring-2 ring-primary-500" : ""
+            }`}
           onClick={() => {
             setFilter("all");
             setCurrentPage(1);
@@ -171,9 +171,8 @@ export default function InventoryManager({
 
         <Card
           padding="md"
-          className={`cursor-pointer ${
-            filter === "low-stock" ? "ring-2 ring-warning-500" : ""
-          }`}
+          className={`cursor-pointer ${filter === "low-stock" ? "ring-2 ring-warning-500" : ""
+            }`}
           onClick={() => {
             setFilter("low-stock");
             setCurrentPage(1);
@@ -194,9 +193,8 @@ export default function InventoryManager({
 
         <Card
           padding="md"
-          className={`cursor-pointer ${
-            filter === "out-of-stock" ? "ring-2 ring-error-500" : ""
-          }`}
+          className={`cursor-pointer ${filter === "out-of-stock" ? "ring-2 ring-error-500" : ""
+            }`}
           onClick={() => {
             setFilter("out-of-stock");
             setCurrentPage(1);
@@ -288,11 +286,10 @@ export default function InventoryManager({
                   return (
                     <tr
                       key={product.id}
-                      className={`${
-                        product.stock <= product.low_stock_threshold
-                          ? "bg-warning-50/50"
-                          : ""
-                      } ${product.stock === 0 ? "bg-error-50/50" : ""}`}
+                      className={`${product.stock <= product.low_stock_threshold
+                        ? "bg-warning-50/50"
+                        : ""
+                        } ${product.stock === 0 ? "bg-error-50/50" : ""}`}
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -449,11 +446,10 @@ export default function InventoryManager({
                         )}
                         <button
                           onClick={() => setCurrentPage(page)}
-                          className={`w-10 h-10 flex items-center justify-center text-sm font-medium rounded-lg ${
-                            currentPage === page
-                              ? "bg-primary-500 text-white"
-                              : "text-gray-700"
-                          }`}
+                          className={`w-10 h-10 flex items-center justify-center text-sm font-medium rounded-lg ${currentPage === page
+                            ? "bg-primary-500 text-white"
+                            : "text-gray-700"
+                            }`}
                         >
                           {page}
                         </button>

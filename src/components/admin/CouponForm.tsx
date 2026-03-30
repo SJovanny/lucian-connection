@@ -149,6 +149,7 @@ export function CouponForm({ initialData, isEdit = false }: CouponFormProps) {
 
       router.push("/admin/coupons");
       router.refresh();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error(err);
       if (err.message?.includes("déjà")) {
@@ -247,7 +248,7 @@ export function CouponForm({ initialData, isEdit = false }: CouponFormProps) {
 
         <Card padding="lg" className="space-y-6">
           <h2 className="text-lg font-semibold text-gray-900">Validité et Limites</h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <Input
@@ -278,7 +279,7 @@ export function CouponForm({ initialData, isEdit = false }: CouponFormProps) {
             </div>
 
             <div className="flex flex-col gap-4 pt-8">
-               <label className="flex items-center gap-3 cursor-pointer">
+              <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"
                   {...register("is_first_order_only")}
@@ -286,7 +287,7 @@ export function CouponForm({ initialData, isEdit = false }: CouponFormProps) {
                 />
                 <span className="text-gray-700">Valable uniquement pour la première commande</span>
               </label>
-              
+
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"

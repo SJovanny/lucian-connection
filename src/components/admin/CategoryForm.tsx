@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useState, useEffect } from "react";
@@ -46,7 +47,7 @@ export function CategoryForm({ category, isEditing = false }: CategoryFormProps)
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
-    
+
     setFormData((prev) => ({
       ...prev,
       [name]: value,
@@ -62,7 +63,7 @@ export function CategoryForm({ category, isEditing = false }: CategoryFormProps)
       const url = isEditing
         ? `/api/admin/categories/${category?.id}`
         : "/api/admin/categories";
-      
+
       const method = isEditing ? "PUT" : "POST";
 
       const payload = {
@@ -70,8 +71,8 @@ export function CategoryForm({ category, isEditing = false }: CategoryFormProps)
         display_order: parseInt(formData.display_order) || 0,
         image_url: imagePreview || formData.image_url,
         translations: {
-            fr: { name: formData.name_fr },
-            en: { name: formData.name_en }
+          fr: { name: formData.name_fr },
+          en: { name: formData.name_en }
         }
       };
 
@@ -98,11 +99,11 @@ export function CategoryForm({ category, isEditing = false }: CategoryFormProps)
 
   const handleDelete = async () => {
     if (!category?.id) return;
-    
+
     const confirmed = window.confirm(
       "Êtes-vous sûr de vouloir supprimer cette catégorie ? Cette action est irréversible."
     );
-    
+
     if (!confirmed) return;
 
     setIsDeleting(true);
@@ -170,7 +171,7 @@ export function CategoryForm({ category, isEditing = false }: CategoryFormProps)
               required
             />
           </div>
-          
+
           <div className="grid sm:grid-cols-2 gap-4">
             <Input
               label="Slug (URL)"
@@ -180,7 +181,7 @@ export function CategoryForm({ category, isEditing = false }: CategoryFormProps)
               placeholder="ex: fruits"
               required
             />
-             <Input
+            <Input
               label="Ordre d'affichage"
               name="display_order"
               type="number"
@@ -208,9 +209,9 @@ export function CategoryForm({ category, isEditing = false }: CategoryFormProps)
             }}
             placeholder="https://example.com/image.jpg"
           />
-          
+
           <div className="text-sm text-gray-500 text-center">ou</div>
-          
+
           {imagePreview ? (
             <div className="relative w-48 h-48">
               <img

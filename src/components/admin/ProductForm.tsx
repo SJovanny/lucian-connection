@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useState, useEffect } from "react";
@@ -60,7 +61,7 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
   ) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
-    
+
     setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
@@ -76,7 +77,7 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
       const url = isEditing
         ? `/api/admin/products/${product?.id}`
         : "/api/admin/products";
-      
+
       const method = isEditing ? "PUT" : "POST";
 
       const response = await fetch(url, {
@@ -105,11 +106,11 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
 
   const handleDelete = async () => {
     if (!product?.id) return;
-    
+
     const confirmed = window.confirm(
       "Êtes-vous sûr de vouloir supprimer ce produit ? Cette action est irréversible."
     );
-    
+
     if (!confirmed) return;
 
     setIsDeleting(true);
@@ -353,9 +354,9 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
             }}
             placeholder="https://example.com/image.jpg"
           />
-          
+
           <div className="text-sm text-gray-500 text-center">ou</div>
-          
+
           {imagePreview ? (
             <div className="relative w-48 h-48">
               <img

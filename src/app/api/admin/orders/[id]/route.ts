@@ -36,6 +36,7 @@ export async function PATCH(
     }
 
     return NextResponse.json({ order: data }, { status: 200 });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error("[orders-api] Error:", error);
     return NextResponse.json(

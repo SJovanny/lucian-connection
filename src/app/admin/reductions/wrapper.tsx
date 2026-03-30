@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import { ReductionsTable } from "@/components/admin/ReductionsTable";
 import { useRouter } from "next/navigation";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function ReductionsWrapper({ reductions }: { reductions: any[] }) {
   const router = useRouter();
 

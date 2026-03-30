@@ -45,7 +45,7 @@ export default function RegisterPage() {
 
     try {
       const supabase = createClient();
-      
+
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -69,7 +69,7 @@ export default function RegisterPage() {
           router.push("/");
         }, 2000);
       }
-    } catch (err) {
+    } catch {
       setError(locale === "fr" ? "Une erreur est survenue" : "An error occurred");
     } finally {
       setIsLoading(false);
@@ -103,66 +103,66 @@ export default function RegisterPage() {
                 </p>
               </div>
             ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
-                  {error}
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {error && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+                    {error}
+                  </div>
+                )}
+                <Input
+                  label={t("fullName")}
+                  name="fullName"
+                  required
+                  placeholder="John Doe"
+                />
+                <Input
+                  label={t("email")}
+                  name="email"
+                  type="email"
+                  required
+                  placeholder="email@example.com"
+                />
+                <Input
+                  label={t("password")}
+                  name="password"
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  minLength={6}
+                />
+                <Input
+                  label={t("confirmPassword")}
+                  name="confirmPassword"
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  minLength={6}
+                />
+
+                <div className="text-sm">
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      required
+                      className="w-4 h-4 mt-0.5 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
+                    />
+                    <span className="text-gray-600">
+                      {locale === "fr"
+                        ? "J'accepte les conditions générales et la politique de confidentialité"
+                        : "I agree to the terms of service and privacy policy"}
+                    </span>
+                  </label>
                 </div>
-              )}
-              <Input
-                label={t("fullName")}
-                name="fullName"
-                required
-                placeholder="John Doe"
-              />
-              <Input
-                label={t("email")}
-                name="email"
-                type="email"
-                required
-                placeholder="email@example.com"
-              />
-              <Input
-                label={t("password")}
-                name="password"
-                type="password"
-                required
-                placeholder="••••••••"
-                minLength={6}
-              />
-              <Input
-                label={t("confirmPassword")}
-                name="confirmPassword"
-                type="password"
-                required
-                placeholder="••••••••"
-                minLength={6}
-              />
 
-              <div className="text-sm">
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    required
-                    className="w-4 h-4 mt-0.5 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
-                  />
-                  <span className="text-gray-600">
-                    {locale === "fr"
-                      ? "J'accepte les conditions générales et la politique de confidentialité"
-                      : "I agree to the terms of service and privacy policy"}
-                  </span>
-                </label>
-              </div>
-
-              <Button
-                type="submit"
-                variant="primary"
-                className="w-full"
-                isLoading={isLoading}
-              >
-                {t("submit")}
-              </Button>
-            </form>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="w-full"
+                  isLoading={isLoading}
+                >
+                  {t("submit")}
+                </Button>
+              </form>
             )}
 
             <div className="mt-6 text-center text-sm text-gray-600">

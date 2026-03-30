@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import { CouponsTable } from "@/components/admin/CouponsTable";
 import { useRouter } from "next/navigation";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function CouponsWrapper({ coupons }: { coupons: any[] }) {
   const router = useRouter();
 

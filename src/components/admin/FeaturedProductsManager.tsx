@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import { Star, Package, Search, Loader2 } from "lucide-react";
 import type { ProductWithCategory } from "@/lib/supabase/queries";
@@ -19,7 +19,7 @@ export function FeaturedProductsManager({ initialProducts }: FeaturedProductsMan
   const filteredProducts = products.filter((product) => {
     const name = product.translations.fr.name.toLowerCase();
     const matchesSearch = name.includes(searchQuery.toLowerCase());
-    
+
     if (filter === "featured") return matchesSearch && product.is_featured;
     if (filter === "not-featured") return matchesSearch && !product.is_featured;
     return matchesSearch;
@@ -32,7 +32,7 @@ export function FeaturedProductsManager({ initialProducts }: FeaturedProductsMan
   // Toggle featured status
   const toggleFeatured = async (productId: string, currentStatus: boolean) => {
     setLoading(productId);
-    
+
     try {
       const response = await fetch("/api/admin/products/featured", {
         method: "POST",
@@ -72,7 +72,7 @@ export function FeaturedProductsManager({ initialProducts }: FeaturedProductsMan
             {featuredCount} produit{featuredCount > 1 ? "s" : ""} mis en avant sur la page d&apos;accueil
           </p>
         </div>
-        
+
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative">
@@ -85,7 +85,7 @@ export function FeaturedProductsManager({ initialProducts }: FeaturedProductsMan
               className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
-          
+
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value as typeof filter)}
@@ -167,9 +167,8 @@ export function FeaturedProductsManager({ initialProducts }: FeaturedProductsMan
               {filteredProducts.map((product) => (
                 <tr
                   key={product.id}
-                  className={`${
-                    product.is_featured ? "bg-yellow-50/50" : ""
-                  }`}
+                  className={`${product.is_featured ? "bg-yellow-50/50" : ""
+                    }`}
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
@@ -213,11 +212,10 @@ export function FeaturedProductsManager({ initialProducts }: FeaturedProductsMan
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`inline-flex px-2 py-0.5 text-xs rounded-full ${
-                        product.stock <= product.low_stock_threshold
+                      className={`inline-flex px-2 py-0.5 text-xs rounded-full ${product.stock <= product.low_stock_threshold
                           ? "bg-red-100 text-red-700"
                           : "bg-green-100 text-green-700"
-                      }`}
+                        }`}
                     >
                       {product.stock} {product.unit}
                     </span>
@@ -226,19 +224,17 @@ export function FeaturedProductsManager({ initialProducts }: FeaturedProductsMan
                     <button
                       onClick={() => toggleFeatured(product.id, product.is_featured)}
                       disabled={loading === product.id}
-                      className={`relative inline-flex h-8 w-8 items-center justify-center rounded-lg ${
-                        product.is_featured
+                      className={`relative inline-flex h-8 w-8 items-center justify-center rounded-lg ${product.is_featured
                           ? "bg-yellow-100 text-yellow-600"
                           : "bg-gray-100 text-gray-400"
-                      }`}
+                        }`}
                     >
                       {loading === product.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
                         <Star
-                          className={`w-4 h-4 ${
-                            product.is_featured ? "fill-yellow-500" : ""
-                          }`}
+                          className={`w-4 h-4 ${product.is_featured ? "fill-yellow-500" : ""
+                            }`}
                         />
                       )}
                     </button>

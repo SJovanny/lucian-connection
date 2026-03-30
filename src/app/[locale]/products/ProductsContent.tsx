@@ -25,10 +25,10 @@ export function ProductsContent({
   initialSearch,
 }: ProductsContentProps) {
   const locale = useLocale() as Locale;
-  const t = useTranslations("products");
+
   const router = useRouter();
   const pathname = usePathname();
-  
+
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [showFilters, setShowFilters] = useState(false);
@@ -39,26 +39,23 @@ export function ProductsContent({
     return translations?.[locale]?.name || category.slug;
   };
 
-  // Récupérer le nom du produit dans la langue actuelle
-  const getProductName = (product: ProductWithCategory) => {
-    const translations = product.translations;
-    return translations?.[locale]?.name || product.slug;
-  };
+
 
   // Filtrer les produits côté client pour une UX plus rapide
   const filteredProducts = useMemo(() => {
     return initialProducts.filter((product) => {
       // Filtre par catégorie
       const matchesCategory =
-        selectedCategory === "all" || 
+        selectedCategory === "all" ||
         product.categories?.slug === selectedCategory;
-      
+
       // Filtre par recherche (côté client pour réactivité)
-      const productName = getProductName(product).toLowerCase();
+      const translations = product.translations;
+      const productName = (translations?.[locale]?.name || product.slug).toLowerCase();
       const matchesSearch =
         searchQuery === "" ||
         productName.includes(searchQuery.toLowerCase());
-      
+
       return matchesCategory && matchesSearch;
     });
   }, [initialProducts, selectedCategory, searchQuery, locale]);
@@ -95,6 +92,7 @@ export function ProductsContent({
       }
     }, 500);
     return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
   // Trouver le nom de la catégorie sélectionnée
@@ -149,7 +147,7 @@ export function ProductsContent({
                 </button>
               )}
             </div>
-            
+
             {/* Filter button - Mobile only */}
             <button
               onClick={() => setShowFilters(!showFilters)}

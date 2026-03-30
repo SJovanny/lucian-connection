@@ -95,6 +95,7 @@ export async function POST(request: NextRequest) {
     if (error) throw error;
 
     return NextResponse.json(data, { status: 201 });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error("Error creating coupon:", error);
     if (error.code === "23505") {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useState, useEffect } from "react";
@@ -130,7 +131,7 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
   useEffect(() => {
     const fetchData = async () => {
       const supabase = createClient();
-      
+
       const [{ data: categoriesData }, { data: productsData }] = await Promise.all([
         supabase.from("categories").select("id, translations, slug").order("display_order"),
         supabase.from("products").select("id, translations, slug").order("translations->fr->name"),
@@ -167,7 +168,7 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
 
     try {
       const supabase = createClient();
-      
+
       const payload = {
         ...data,
         starts_at: toIsoWithOffset(data.starts_at),
@@ -219,7 +220,7 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <Card padding="lg" className="space-y-6">
           <h2 className="text-lg font-semibold text-gray-900">Informations générales</h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="md:col-span-2">
               <Input
@@ -278,10 +279,10 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
 
         <Card padding="lg" className="space-y-6">
           <h2 className="text-lg font-semibold text-gray-900">Portée de la réduction</h2>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              S'applique à
+              S&apos;applique à
             </label>
             <select
               {...register("applies_to")}
@@ -350,7 +351,7 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
 
         <Card padding="lg" className="space-y-6">
           <h2 className="text-lg font-semibold text-gray-900">Période de validité</h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <Input

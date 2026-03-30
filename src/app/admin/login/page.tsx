@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -70,7 +71,7 @@ export default function AdminLoginPage() {
         router.push("/admin");
         router.refresh();
       }
-    } catch (err) {
+    } catch {
       setError("Une erreur est survenue");
     } finally {
       setIsLoading(false);
@@ -130,12 +131,12 @@ export default function AdminLoginPage() {
           </form>
 
           <div className="mt-6 pt-6 border-t border-gray-100 text-center">
-            <a
+            <Link
               href="/"
               className="text-sm text-gray-500"
             >
               ← Retour au site
-            </a>
+            </Link>
           </div>
         </CardContent>
       </Card>

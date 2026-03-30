@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { createClient } from "@/lib/supabase/client";
-import type { Database } from "@/types/database.types";
 
 interface AdminSettingsFormProps {
   userId: string;
@@ -31,16 +30,18 @@ export function AdminSettingsForm({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  useState(() => {
+  useEffect(() => {
     const fetchSettings = async () => {
       const supabase = createClient();
-      const { data } = await supabase.from("store_settings").select("preparation_fee").single();
+      const { data } = await (supabase.from("store_settings") as any)
+        .select("preparation_fee")
+        .single();
       if (data) {
         setPreparationFee(data.preparation_fee.toString());
       }
     };
     fetchSettings();
-  });
+  }, []);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -50,8 +51,7 @@ export function AdminSettingsForm({
     try {
       const supabase = createClient();
 
-      const { error: profileError } = await supabase
-        .from("profiles")
+      const { error: profileError } = await (supabase.from("profiles") as any)
         .update({
           full_name: fullName || null,
           phone: phone || null,
@@ -60,26 +60,32 @@ export function AdminSettingsForm({
         .eq("id", userId);
 
       if (profileError) {
-        
+
         setError(profileError.message);
         return;
       }
 
       // Update store settings
-      const { error: settingsError } = await supabase
-        .from("store_settings")
+      const { data: storeSettings } = await (supabase.from("store_settings") as any)
+        .select("id")
+        .single();
+
+      const { error: settingsError } = await (supabase.from("store_settings") as any)
         .update({
           preparation_fee: parseFloat(preparationFee),
           updated_at: new Date().toISOString(),
           updated_by: userId,
         })
-        .eq("id", (await supabase.from("store_settings").select("id").single()).data?.id);
+        .eq("id", storeSettings?.id);
 
-        // Fail-safe if single row doesn't exist (though migration creates it)
-        if (settingsError) {
-           // Try insert if update fails (though unique index exists)
-           await supabase.from("store_settings").insert({ preparation_fee: parseFloat(preparationFee), updated_by: userId });
-        }
+      // Fail-safe if single row doesn't exist (though migration creates it)
+      if (settingsError) {
+        // Try insert if update fails (though unique index exists)
+        await (supabase.from("store_settings") as any).insert({
+          preparation_fee: parseFloat(preparationFee),
+          updated_by: userId,
+        });
+      }
 
       if (email !== initialEmail) {
         const { error: emailError } = await supabase.auth.updateUser({
@@ -97,7 +103,7 @@ export function AdminSettingsForm({
           ? "Profil mis à jour. Vérifiez votre email pour confirmer le changement d’adresse."
           : "Profil mis à jour."
       );
-    } catch (err) {
+    } catch {
       setError("Une erreur est survenue.");
     } finally {
       setIsSaving(false);
@@ -154,11 +160,10 @@ export function AdminSettingsForm({
 
         {(error || success) && (
           <div
-            className={`text-sm rounded-lg px-4 py-3 ${
-              error
+            className={`text-sm rounded-lg px-4 py-3 ${error
                 ? "bg-error-50 text-error-700 border border-error-200"
                 : "bg-success-50 text-success-700 border border-success-200"
-            }`}
+              }`}
           >
             {error || success}
           </div>

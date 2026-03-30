@@ -59,8 +59,9 @@ export async function PATCH(
       }
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const couponData: any = {};
-    
+
     if (code !== undefined) couponData.code = code.toUpperCase();
     if (description !== undefined) couponData.description = description || null;
     if (discount_type !== undefined) couponData.discount_type = discount_type;
@@ -83,6 +84,7 @@ export async function PATCH(
     if (error) throw error;
 
     return NextResponse.json(data);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error("Error updating coupon:", error);
     if (error.code === "23505") {

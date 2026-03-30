@@ -6,12 +6,10 @@ import {
   DollarSign,
   AlertTriangle,
   TrendingUp,
-  Users,
   Plus,
   Eye,
   ArrowRight,
   Star,
-  Clock,
 } from "lucide-react";
 import { getProducts, getCategories, getRecentOrders, getOrderStats } from "@/lib/supabase/queries";
 import Link from "next/link";
@@ -29,7 +27,7 @@ async function getStats() {
     getCategories(),
     getOrderStats(),
   ]);
-  
+
   const lowStockProducts = products.filter(
     (p) => p.stock <= p.low_stock_threshold
   );
@@ -97,7 +95,7 @@ export default async function AdminDashboard() {
     getStats(),
     getRecentOrders(5),
   ]);
-  
+
   const orders = recentOrders as OrderWithItems[];
   return (
     <div className="space-y-8">
@@ -219,8 +217,8 @@ export default async function AdminDashboard() {
                 <ShoppingCart className="w-5 h-5" />
                 Commandes récentes
               </CardTitle>
-              <Link 
-                href="/admin/orders" 
+              <Link
+                href="/admin/orders"
                 className="text-sm text-primary-500 flex items-center gap-1"
               >
                 Tout voir <ArrowRight className="w-4 h-4" />
@@ -276,8 +274,8 @@ export default async function AdminDashboard() {
                 <AlertTriangle className="w-5 h-5 text-orange-500" />
                 Stock bas
               </CardTitle>
-              <Link 
-                href="/admin/inventory" 
+              <Link
+                href="/admin/inventory"
                 className="text-sm text-primary-500"
               >
                 Inventaire
@@ -338,8 +336,8 @@ export default async function AdminDashboard() {
                 <Star className="w-5 h-5 text-yellow-500" />
                 Produits vedettes
               </CardTitle>
-              <Link 
-                href="/admin/products" 
+              <Link
+                href="/admin/products"
                 className="text-sm text-primary-500 flex items-center gap-1"
               >
                 Gérer <ArrowRight className="w-4 h-4" />

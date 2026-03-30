@@ -21,15 +21,14 @@ export default function CheckoutPage() {
   const t = useTranslations("checkout");
   const router = useRouter();
   const { items, getSubtotal, clearCart } = useCartStore();
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  
+
   // Settings & Fees
   const [preparationFee, setPreparationFee] = useState(0);
-  const [minOrderAmount, setMinOrderAmount] = useState(0);
-  
+
   // Coupon State
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{
@@ -46,7 +45,6 @@ export default function CheckoutPage() {
       .then((res) => res.json())
       .then((data) => {
         if (data.preparation_fee) setPreparationFee(Number(data.preparation_fee));
-        if (data.min_order_amount) setMinOrderAmount(Number(data.min_order_amount));
       })
       .catch((err) => console.error("Failed to fetch settings", err));
   }, []);
@@ -58,7 +56,7 @@ export default function CheckoutPage() {
 
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) return;
-    
+
     setIsValidatingCoupon(true);
     setCouponError(null);
     setAppliedCoupon(null);
@@ -72,9 +70,9 @@ export default function CheckoutPage() {
           orderTotal: subtotal // Discount usually applies to subtotal
         }),
       });
-      
+
       const data = await res.json();
-      
+
       if (!data.valid) {
         setCouponError(data.message);
       } else {
@@ -86,6 +84,7 @@ export default function CheckoutPage() {
         setCouponCode(""); // Clear input on success
       }
     } catch (error) {
+      console.error(error);
       setCouponError("Error validating coupon");
     } finally {
       setIsValidatingCoupon(false);
@@ -146,6 +145,7 @@ export default function CheckoutPage() {
 
       console.log("[checkout] 6) response status:", res.status);
       if (!res.ok) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let data: any = null;
         try {
           data = await res.json();
@@ -328,21 +328,21 @@ export default function CheckoutPage() {
                     <h2 className="text-lg font-semibold text-gray-900 mb-4">
                       {locale === "fr" ? "Notes" : "Notes"}
                     </h2>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          {t("form.notes")}
-                        </label>
-                        <textarea
-                          name="notes"
-                          rows={3}
-                          className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
-                          placeholder={
-                            locale === "fr"
-                              ? "Notes pour la commande..."
-                              : "Order notes..."
-                          }
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        {t("form.notes")}
+                      </label>
+                      <textarea
+                        name="notes"
+                        rows={3}
+                        className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
+                        placeholder={
+                          locale === "fr"
+                            ? "Notes pour la commande..."
+                            : "Order notes..."
+                        }
+                      />
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -428,11 +428,11 @@ export default function CheckoutPage() {
                           {formatPrice(subtotal)}
                         </span>
                       </div>
-                      
+
                       {preparationFee > 0 && (
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">
-                             {t("deliveryFee")}
+                            {t("deliveryFee")}
                           </span>
                           <span className="font-medium">
                             {formatPrice(preparationFee)}
@@ -446,7 +446,7 @@ export default function CheckoutPage() {
                           <span>-{formatPrice(appliedCoupon.discount_amount)}</span>
                         </div>
                       )}
-                      
+
                       <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-200">
                         <span>{t("total")}</span>
                         <span className="text-primary-600">

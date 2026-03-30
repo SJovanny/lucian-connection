@@ -2,16 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { 
-  Edit, 
-  Trash2, 
+import {
+  Edit,
+  Trash2,
   Search,
-  CheckCircle,
-  XCircle,
   Clock,
   Ticket
 } from "lucide-react";
-import { Card } from "@/components/ui/Card";
+
 import { formatPrice } from "@/lib/utils";
 
 interface Coupon {
@@ -51,11 +49,11 @@ export function CouponsTable({ coupons, onDelete }: CouponsTableProps) {
 
   const getStatus = (coupon: Coupon) => {
     if (!coupon.is_active) return { label: "Inactif", color: "text-gray-500 bg-gray-100" };
-    
+
     if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
       return { label: "Expiré", color: "text-red-700 bg-red-100" };
     }
-    
+
     if (coupon.usage_limit && coupon.used_count >= coupon.usage_limit) {
       return { label: "Épuisé", color: "text-orange-700 bg-orange-100" };
     }
@@ -129,8 +127,8 @@ export function CouponsTable({ coupons, onDelete }: CouponsTableProps) {
                       </td>
                       <td className="px-6 py-4">
                         <div className="font-medium text-gray-900">
-                          {coupon.discount_type === "percentage" 
-                            ? `-${coupon.discount_value}%` 
+                          {coupon.discount_type === "percentage"
+                            ? `-${coupon.discount_value}%`
                             : `-${formatPrice(coupon.discount_value)}`
                           }
                         </div>

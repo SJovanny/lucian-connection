@@ -16,7 +16,7 @@ export async function GET() {
     }
 
     return NextResponse.json(data);
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { preparation_fee: 0, min_order_amount: 0 },
       { status: 500 }

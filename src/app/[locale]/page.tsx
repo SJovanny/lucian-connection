@@ -14,7 +14,7 @@ type Props = {
 export default async function HomePage({ params }: Props) {
   const { locale } = await params;
   setRequestLocale(locale);
-  const t = await getTranslations("home");
+  await getTranslations("home");
 
   // Récupérer les produits vedettes et les catégories
   const [featuredProducts, categories] = await Promise.all([
@@ -23,8 +23,8 @@ export default async function HomePage({ params }: Props) {
   ]);
 
   // Si pas de produits vedettes, prendre les 10 premiers produits
-  const productsToShow = featuredProducts.length > 0 
-    ? featuredProducts 
+  const productsToShow = featuredProducts.length > 0
+    ? featuredProducts
     : await getProducts({ limit: 10 });
 
   return (
