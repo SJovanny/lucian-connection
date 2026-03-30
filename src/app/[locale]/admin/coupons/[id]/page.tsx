@@ -8,7 +8,7 @@ interface PageProps {
 
 export default async function EditCouponPage(props: PageProps) {
   const params = await props.params;
-  const supabase = createClient();
+  const supabase = await createClient();
   
   const { data: coupon } = await supabase
     .from("coupons")

@@ -3,7 +3,7 @@ import { getAdminSupabase } from "@/lib/admin-auth";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await getAdminSupabase(request);
@@ -11,7 +11,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await Promise.resolve(params);
+    const { id } = await params;
     const { status } = await request.json();
 
     // Validate status

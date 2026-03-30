@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { ReductionForm } from "@/components/admin/ReductionForm";
 import { notFound } from "next/navigation";
+import type { Reduction } from "@/types/database.types";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -20,5 +21,5 @@ export default async function EditReductionPage(props: PageProps) {
     notFound();
   }
 
-  return <ReductionForm initialData={reduction} isEdit />;
+  return <ReductionForm initialData={reduction as Reduction} isEdit />;
 }

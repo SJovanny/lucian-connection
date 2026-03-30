@@ -1,13 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
-import { createServerClient, type SupabaseClient } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 import { NextRequest } from "next/server";
+import type { Database } from "@/types/database.types";
 
 /**
  * Create a Supabase client from API route request cookies.
  * Uses the anon key so that RLS policies are enforced.
  */
 function createClientFromRequest(request: NextRequest) {
-  return createServerClient(
+  return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {

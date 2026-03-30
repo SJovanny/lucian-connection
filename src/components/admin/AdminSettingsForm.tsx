@@ -5,6 +5,10 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { createClient } from "@/lib/supabase/client";
+<<<<<<< HEAD
+=======
+import type { Profile, StoreSettings } from "@/types/database.types";
+>>>>>>> 8fe42b97f85853eb971c445806efb905789fcda1
 
 interface AdminSettingsFormProps {
   userId: string;
@@ -33,11 +37,18 @@ export function AdminSettingsForm({
   useEffect(() => {
     const fetchSettings = async () => {
       const supabase = createClient();
+<<<<<<< HEAD
       const { data } = await (supabase.from("store_settings") as any)
         .select("preparation_fee")
         .single();
       if (data) {
         setPreparationFee(data.preparation_fee.toString());
+=======
+      const { data } = await supabase.from("store_settings").select("preparation_fee").single();
+      const typedSettings = data as Pick<StoreSettings, "preparation_fee"> | null;
+      if (typedSettings) {
+        setPreparationFee(typedSettings.preparation_fee.toString());
+>>>>>>> 8fe42b97f85853eb971c445806efb905789fcda1
       }
     };
     fetchSettings();
@@ -51,12 +62,24 @@ export function AdminSettingsForm({
     try {
       const supabase = createClient();
 
+<<<<<<< HEAD
       const { error: profileError } = await (supabase.from("profiles") as any)
         .update({
           full_name: fullName || null,
           phone: phone || null,
           dashboard_locale: dashboardLocale || "fr",
         })
+=======
+      const profileUpdate: Partial<Profile> = {
+        full_name: fullName || null,
+        phone: phone || null,
+        dashboard_locale: dashboardLocale || "fr",
+      };
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update(profileUpdate)
+>>>>>>> 8fe42b97f85853eb971c445806efb905789fcda1
         .eq("id", userId);
 
       if (profileError) {
@@ -66,6 +89,7 @@ export function AdminSettingsForm({
       }
 
       // Update store settings
+<<<<<<< HEAD
       const { data: storeSettings } = await (supabase.from("store_settings") as any)
         .select("id")
         .single();
@@ -83,6 +107,26 @@ export function AdminSettingsForm({
         // Try insert if update fails (though unique index exists)
         await (supabase.from("store_settings") as any).insert({
           preparation_fee: parseFloat(preparationFee),
+=======
+      const settingsUpdate: Partial<StoreSettings> = {
+        preparation_fee: parseFloat(preparationFee),
+        updated_at: new Date().toISOString(),
+        updated_by: userId,
+      };
+
+      const { data: settingsData } = await supabase.from("store_settings").select("id").single();
+      const settingsId = settingsData?.id;
+
+      if (settingsId) {
+        const { error: settingsError } = await supabase
+          .from("store_settings")
+          .update(settingsUpdate)
+          .eq("id", settingsId);
+      } else {
+        await supabase.from("store_settings").insert({
+          preparation_fee: parseFloat(preparationFee),
+          min_order_amount: 0,
+>>>>>>> 8fe42b97f85853eb971c445806efb905789fcda1
           updated_by: userId,
         });
       }

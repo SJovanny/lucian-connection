@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/Input";
 import { createClient } from "@/lib/supabase/client";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import type { Reduction } from "@/types/database.types";
 
 const toLocalInputValue = (iso?: string | null) => {
   if (!iso) return "";
@@ -90,7 +91,7 @@ const reductionSchema = z
 type ReductionFormData = z.infer<typeof reductionSchema>;
 
 interface ReductionFormProps {
-  initialData?: any;
+  initialData?: Reduction;
   isEdit?: boolean;
 }
 
@@ -168,8 +169,13 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
 
     try {
       const supabase = createClient();
+<<<<<<< HEAD
 
       const payload = {
+=======
+      
+      const payload: Partial<Reduction> = {
+>>>>>>> 8fe42b97f85853eb971c445806efb905789fcda1
         ...data,
         starts_at: toIsoWithOffset(data.starts_at),
         expires_at: toIsoWithOffset(data.expires_at),
@@ -179,6 +185,9 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
       };
 
       if (isEdit) {
+        if (!initialData?.id) {
+          throw new Error("Reduction ID is required for updates.");
+        }
         const { error } = await supabase
           .from("reductions")
           .update(payload)
@@ -188,7 +197,7 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
       } else {
         const { error } = await supabase
           .from("reductions")
-          .insert(payload);
+          .insert(payload as any);
 
         if (error) throw error;
       }
