@@ -1,15 +1,13 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ProductForm } from "@/components/admin/ProductForm";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import type { Category, Product } from "@/types/database.types";
 
-// Admin client pour bypasser RLS
-const supabaseAdmin = createAdminClient();
-
 async function getProduct(id: string) {
-  const { data, error } = await supabaseAdmin
+  const supabase = await createClient();
+  const { data, error } = await supabase
     .from("products")
     .select("*, categories(*)")
     .eq("id", id)
@@ -20,7 +18,8 @@ async function getProduct(id: string) {
 }
 
 async function getCategories() {
-  const { data } = await supabaseAdmin
+  const supabase = await createClient();
+  const { data } = await supabase
     .from("categories")
     .select("*")
     .order("display_order", { ascending: true });
