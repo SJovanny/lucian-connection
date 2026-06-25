@@ -32,8 +32,8 @@ export default async function HomePage({ params }: Props) {
       <Header />
       <CartDrawer />
       <main className="flex-1">
+        <HeroBanner />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <HeroBanner />
           <CategoryNav categories={categories} />
           <FeaturedProducts products={productsToShow} />
         </div>

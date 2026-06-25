@@ -29,11 +29,13 @@
     "logout": "Logout"
   },
   "home": {
-    "hero": {
-      "title": "Click & Collect your groceries",
-      "subtitle": "Order online and pick up your fresh local Caribbean products in store.",
-      "cta": "Shop now"
-    },
+  "hero": {
+    "eyebrow": "Caribbean Marketplace",
+    "title": "Straight From Saint Lucia",
+    "subtitle": "Discover the island's finest, hand-picked by local makers and growers and brought straight to your door.",
+    "cta": "Shop the island",
+    "secondaryCta": "Meet our sellers"
+  },
     "categories": {
       "title": "Categories",
       "vegetables": "Vegetables",

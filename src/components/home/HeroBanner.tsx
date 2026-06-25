@@ -1,73 +1,99 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/routing";
-import { Button } from "@/components/ui/Button";
+import { ArrowRight } from "lucide-react";
 
 export function HeroBanner() {
   const t = useTranslations("home.hero");
 
   return (
-    <section className="relative bg-primary-600 rounded-2xl overflow-hidden mb-8 grain-overlay">
-      {/* Background pattern - organic dots with slight variation */}
-      <div className="absolute inset-0 opacity-10">
-        <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <pattern id="grocery-pattern" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-            <circle cx="10" cy="10" r="2" fill="currentColor" />
-            <circle cx="5" cy="15" r="1" fill="currentColor" opacity="0.5" />
-          </pattern>
-          <rect width="100%" height="100%" fill="url(#grocery-pattern)" />
-        </svg>
+    <section
+      aria-label={t("title")}
+      className="relative mb-12 overflow-hidden grain-overlay"
+      style={{ backgroundColor: "var(--color-island-forest-deep)" }}
+    >
+      {/* Full-bleed background image */}
+      <div className="absolute inset-0">
+        <img
+          src="/saint-lucia-hero.png"
+          alt="A Saint Lucian seller with a basket of fresh produce in front of the twin Pitons at golden hour"
+          className="h-full w-full object-cover object-right animate-hero-zoom"
+        />
       </div>
 
-      <div className="relative grid lg:grid-cols-2 gap-8 p-8 lg:p-12 z-10">
-        {/* Left content */}
-        <div className="flex flex-col justify-center">
-          <h1 className="text-4xl lg:text-5xl font-bold text-white font-display leading-tight mb-4 heading-display">
+      {/* Cinematic readability gradients */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(90deg, var(--color-island-forest-deep) 0%, rgba(16,34,25,0.82) 38%, rgba(16,34,25,0.35) 62%, rgba(16,34,25,0) 100%)",
+        }}
+      />
+      <div
+        className="absolute inset-x-0 bottom-0 h-40"
+        style={{
+          background:
+            "linear-gradient(0deg, var(--color-island-forest-deep) 0%, rgba(16,34,25,0) 100%)",
+        }}
+      />
+
+      {/* Content */}
+      <div className="relative z-10 mx-auto flex min-h-[88vh] max-w-7xl items-center px-4 py-20 sm:px-6 lg:min-h-[90vh] lg:px-8">
+        <div className="max-w-2xl">
+          <p
+            className="animate-hero-rise mb-6 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em]"
+            style={{ color: "var(--color-island-sand)", animationDelay: "0.05s" }}
+          >
+            <span
+              className="h-px w-10"
+              style={{ backgroundColor: "var(--color-island-sand)" }}
+            />
+            {t("eyebrow")}
+          </p>
+
+          <h1
+            className="animate-hero-rise font-serif text-5xl font-bold leading-[0.98] text-balance sm:text-6xl lg:text-7xl xl:text-8xl"
+            style={{ color: "var(--color-island-cream)", animationDelay: "0.15s" }}
+          >
             {t("title")}
           </h1>
-          <p className="text-white/90 text-lg mb-8 max-w-md leading-relaxed">
+
+          <p
+            className="animate-hero-rise mt-7 max-w-md text-lg leading-relaxed text-pretty sm:text-xl"
+            style={{ color: "rgba(245,239,230,0.82)", animationDelay: "0.3s" }}
+          >
             {t("subtitle")}
           </p>
-          <div>
-            <Link href="/products">
-              <Button variant="accent" size="lg" className="font-semibold">
-                {t("cta")}
-              </Button>
+
+          <div
+            className="animate-hero-rise mt-10 flex flex-col items-start gap-4 sm:flex-row sm:items-center"
+            style={{ animationDelay: "0.45s" }}
+          >
+            <Link
+              href="/products"
+              className="btn-press group inline-flex items-center gap-2 rounded-full px-8 py-4 text-base font-semibold shadow-xl transition-all duration-200 hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-offset-2"
+              style={{
+                backgroundColor: "var(--color-island-coral)",
+                color: "var(--color-island-cream)",
+              }}
+            >
+              {t("cta")}
+              <ArrowRight className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" />
+            </Link>
+
+            <Link
+              href="/products"
+              className="inline-flex items-center gap-2 rounded-full border px-7 py-4 text-base font-medium backdrop-blur-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
+              style={{
+                borderColor: "rgba(245,239,230,0.35)",
+                color: "var(--color-island-cream)",
+              }}
+            >
+              {t("secondaryCta")}
             </Link>
           </div>
         </div>
-
-        {/* Right content - Illustration */}
-        <div className="hidden lg:flex items-center justify-center">
-          <div className="relative w-80 h-80">
-            {/* Background shape */}
-            <div className="absolute inset-0 bg-primary-500 rounded-3xl transform rotate-6" />
-            {/* Image container */}
-            <div className="absolute inset-0 rounded-3xl overflow-hidden">
-              <img
-                src="/hero_section.png"
-                alt="Produits frais"
-                className="w-full h-full object-cover"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Wave decoration */}
-      <div className="absolute bottom-0 left-0 right-0 h-6 bg-gray-50">
-        <svg
-          className="absolute bottom-full w-full h-6 text-gray-50"
-          viewBox="0 0 1200 120"
-          preserveAspectRatio="none"
-        >
-          <path
-            d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V120H0V95.8C57.1,118.92,156.63,69.08,321.39,56.44Z"
-            fill="currentColor"
-          />
-        </svg>
       </div>
     </section>
   );

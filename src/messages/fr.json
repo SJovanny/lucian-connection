@@ -30,9 +30,11 @@
   },
   "home": {
     "hero": {
-      "title": "Vos courses prêtes en un clic",
-      "subtitle": "Commandez en ligne et récupérez vos produits frais et locaux en magasin.",
-      "cta": "Commander maintenant"
+      "eyebrow": "Marché caribéen",
+      "title": "Tout droit de Sainte-Lucie",
+      "subtitle": "Découvrez le meilleur de l'île, sélectionné par nos artisans et producteurs locaux et livré jusqu'à votre porte.",
+      "cta": "Découvrir l'île",
+      "secondaryCta": "Nos vendeurs"
     },
     "categories": {
       "title": "Catégories",
