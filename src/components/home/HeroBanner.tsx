@@ -17,8 +17,8 @@ export function HeroBanner() {
       <div className="absolute inset-0">
         <img
           src="/saint-lucia-hero.png"
-          alt="A Saint Lucian seller with a basket of fresh produce in front of the twin Pitons at golden hour"
-          className="h-full w-full object-cover object-[75%_top] animate-hero-zoom"
+          alt="A Saint Lucian woman holding a basket of fresh fruits and vegetables on a Caribbean beach at golden hour"
+          className="h-full w-full object-cover object-center animate-hero-zoom"
         />
       </div>
 
