@@ -18,7 +18,7 @@ export function HeroBanner() {
         <img
           src="/saint-lucia-hero.png"
           alt="A Saint Lucian seller with a basket of fresh produce in front of the twin Pitons at golden hour"
-          className="h-full w-full object-cover object-right animate-hero-zoom"
+          className="h-full w-full object-cover object-[75%_top] animate-hero-zoom"
         />
       </div>
 
@@ -39,7 +39,7 @@ export function HeroBanner() {
       />
 
       {/* Content */}
-      <div className="relative z-10 mx-auto flex min-h-[88vh] max-w-7xl items-center px-4 py-20 sm:px-6 lg:min-h-[90vh] lg:px-8">
+      <div className="relative z-10 mx-auto flex min-h-[58vh] max-w-7xl items-center px-4 py-16 sm:px-6 lg:min-h-[66vh] lg:px-8">
         <div className="max-w-2xl">
           <p
             className="animate-hero-rise mb-6 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em]"
