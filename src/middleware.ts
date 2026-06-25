@@ -18,10 +18,25 @@ export async function middleware(request: NextRequest) {
     },
   });
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // If Supabase isn't configured, skip auth handling so the site still renders.
+  // Admin routes remain protected by bouncing to the login page.
+  if (!supabaseUrl || !supabaseAnonKey) {
+    if (pathname.startsWith('/admin') && pathname !== '/admin/login') {
+      return NextResponse.redirect(new URL('/admin/login', request.url));
+    }
+    if (pathname.startsWith('/api')) {
+      return response;
+    }
+    return intlMiddleware(request);
+  }
+
   // Create Supabase client with cookie handling
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
