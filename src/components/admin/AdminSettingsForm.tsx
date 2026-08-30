@@ -79,16 +79,26 @@ export function AdminSettingsForm({
       const settingsId = settingsData?.id;
 
       if (settingsId) {
-        await supabase
+        const { error: settingsError } = await supabase
           .from("store_settings")
           .update(settingsUpdate)
           .eq("id", settingsId);
+
+        if (settingsError) {
+          setError(settingsError.message);
+          return;
+        }
       } else {
-        await supabase.from("store_settings").insert({
+        const { error: settingsError } = await supabase.from("store_settings").insert({
           preparation_fee: parseFloat(preparationFee),
           min_order_amount: 0,
           updated_by: userId,
         });
+
+        if (settingsError) {
+          setError(settingsError.message);
+          return;
+        }
       }
 
       if (email !== initialEmail) {

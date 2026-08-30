@@ -11,6 +11,11 @@ export async function signOutAdmin() {
   redirect("/admin/login");
 }
 
+export type AdminUser = {
+  user: User;
+  profile: Profile;
+};
+
 export async function getAdminUser(): Promise<AdminUser | null> {
   const supabase = await createClient();
   
@@ -37,11 +42,6 @@ export async function getAdminUser(): Promise<AdminUser | null> {
     profile,
   };
 }
-
-export type AdminUser = {
-  user: User;
-  profile: Profile;
-};
 
 export async function updateOrderStatus(orderId: string, status: string) {
   const admin = await createClient();
