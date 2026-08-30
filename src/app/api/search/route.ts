@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ products: [] });
   }
 
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   const searchTerm = `%${query}%`;
 
   const { data, error } = await supabase

@@ -169,13 +169,8 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
 
     try {
       const supabase = createClient();
-<<<<<<< HEAD
-
-      const payload = {
-=======
       
       const payload: Partial<Reduction> = {
->>>>>>> 8fe42b97f85853eb971c445806efb905789fcda1
         ...data,
         starts_at: toIsoWithOffset(data.starts_at),
         expires_at: toIsoWithOffset(data.expires_at),

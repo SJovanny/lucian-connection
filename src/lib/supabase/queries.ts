@@ -1,4 +1,4 @@
-import { createAdminClient } from "./admin";
+import { createClient } from "./server";
 import type { Category, Order, OrderItem, Product, Profile, OrderStatus } from "@/types/database.types";
 
 // Type pour les produits avec catégorie jointe
@@ -18,7 +18,7 @@ export async function getProducts(options?: {
   featured?: boolean;
   limit?: number;
 }): Promise<ProductWithCategory[]> {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   
   let query = supabase
     .from("products_with_discount")
@@ -87,7 +87,7 @@ export async function getProducts(options?: {
  * Récupère un produit par son slug
  */
 export async function getProductBySlug(slug: string): Promise<ProductWithCategory | null> {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   
   const { data, error } = await supabase
     .from("products_with_discount")
@@ -112,7 +112,7 @@ export async function getProductBySlug(slug: string): Promise<ProductWithCategor
  * Récupère toutes les catégories
  */
 export async function getCategories(): Promise<Category[]> {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   
   const { data, error } = await supabase
     .from("categories")
@@ -131,7 +131,7 @@ export async function getCategories(): Promise<Category[]> {
  * Récupère une catégorie par son ID
  */
 export async function getCategoryById(id: string): Promise<Category | null> {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   
   const { data, error } = await supabase
     .from("categories")
@@ -151,7 +151,7 @@ export async function getCategoryById(id: string): Promise<Category | null> {
  * Récupère tous les produits pour la gestion d'inventaire
  */
 export async function getAllProductsForInventory(): Promise<ProductWithCategory[]> {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   
   const { data, error } = await supabase
     .from("products")
@@ -173,7 +173,7 @@ export async function getAllProductsForInventory(): Promise<ProductWithCategory[
  * Met à jour le stock d'un produit
  */
 export async function updateProductStock(productId: string, newStock: number) {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   const updateData: Partial<Product> = { stock: newStock };
   
   const { data, error } = await supabase
@@ -213,7 +213,7 @@ export async function getAllOrders(options?: {
   search?: string;
   date?: string;
 }) {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   type OrderWithDetails = Order & {
     order_items: OrderItem[];
     profiles: Pick<Profile, "full_name" | "phone"> | null;
@@ -268,7 +268,7 @@ export async function getAllOrders(options?: {
  * Récupère les commandes récentes
  */
 export async function getRecentOrders(limit: number = 10) {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   
   const { data, error } = await supabase
     .from("orders")
@@ -291,7 +291,7 @@ export async function getRecentOrders(limit: number = 10) {
  * Récupère les statistiques des commandes par statut
  */
 export async function getOrderStatusCounts() {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   
   const statuses = ['pending', 'confirmed', 'preparing', 'ready', 'delivered', 'cancelled', 'refunded'];
   const counts: Record<string, number> = {};
@@ -314,7 +314,7 @@ export async function getOrderStatusCounts() {
  * Récupère les statistiques des commandes
  */
 export async function getOrderStats() {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   
   // Commandes du jour
   const today = new Date();

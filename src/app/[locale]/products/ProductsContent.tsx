@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { ProductCard } from "@/components/products/ProductCard";
 import { Card } from "@/components/ui/Card";
-import { Search, X, SlidersHorizontal } from "lucide-react";
+import { Search, X, SlidersHorizontal, ChevronLeft, ChevronRight } from "lucide-react";
 import { Locale, usePathname } from "@/i18n/routing";
 import type { ProductWithCategory } from "@/lib/supabase/queries";
 import type { Category } from "@/types/database.types";
@@ -32,6 +32,8 @@ export function ProductsContent({
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [showFilters, setShowFilters] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PRODUCTS_PER_PAGE = 24;
 
   // Récupérer le nom de la catégorie dans la langue actuelle
   const getCategoryName = (category: Category) => {
@@ -40,6 +42,11 @@ export function ProductsContent({
   };
 
 
+
+  // Réinitialiser la page quand les filtres changent
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCategory, searchQuery]);
 
   // Filtrer les produits côté client pour une UX plus rapide
   const filteredProducts = useMemo(() => {
@@ -59,6 +66,13 @@ export function ProductsContent({
       return matchesCategory && matchesSearch;
     });
   }, [initialProducts, selectedCategory, searchQuery, locale]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE);
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * PRODUCTS_PER_PAGE;
+    return filteredProducts.slice(start, start + PRODUCTS_PER_PAGE);
+  }, [filteredProducts, currentPage, PRODUCTS_PER_PAGE]);
 
   // Mettre à jour l'URL quand les filtres changent
   const updateURL = (category: string, search: string) => {
@@ -197,11 +211,73 @@ export function ProductsContent({
 
         {/* Products Grid */}
         {filteredProducts.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-6">
-            {filteredProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-6">
+              {paginatedProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="mt-10 flex items-center justify-center gap-1">
+                {/* Bouton précédent */}
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="w-10 h-10 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-primary-300 hover:text-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  aria-label={locale === "fr" ? "Page précédente" : "Previous page"}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                {/* Numéros de pages avec ellipsis */}
+                {(() => {
+                  const pages: (number | "...")[] = [];
+                  if (totalPages <= 7) {
+                    for (let i = 1; i <= totalPages; i++) pages.push(i);
+                  } else {
+                    pages.push(1);
+                    if (currentPage > 4) pages.push("...");
+                    const start = Math.max(2, currentPage - 1);
+                    const end = Math.min(totalPages - 1, currentPage + 1);
+                    for (let i = start; i <= end; i++) pages.push(i);
+                    if (currentPage < totalPages - 3) pages.push("...");
+                    pages.push(totalPages);
+                  }
+                  return pages.map((page, idx) =>
+                    page === "..." ? (
+                      <span key={`ellipsis-${idx}`} className="w-10 h-10 flex items-center justify-center text-gray-400 text-sm">
+                        …
+                      </span>
+                    ) : (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`w-10 h-10 rounded-lg text-sm font-medium transition-colors ${
+                          currentPage === page
+                            ? "bg-primary-600 text-white shadow-sm"
+                            : "border border-gray-200 text-gray-700 hover:border-primary-300 hover:text-primary-600"
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    )
+                  );
+                })()}
+
+                {/* Bouton suivant */}
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="w-10 h-10 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-primary-300 hover:text-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  aria-label={locale === "fr" ? "Page suivante" : "Next page"}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <Card padding="lg" className="text-center">
             <div className="py-12">
