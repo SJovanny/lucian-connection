@@ -30,8 +30,9 @@
   },
   "home": {
     "hero": {
-      "title": "Click & Collect your groceries",
-      "subtitle": "Order online and pick up your fresh local Caribbean products in store.",
+      "eyebrow": "CARIBBEAN PRODUCTS, ONE EASY ORDER",
+      "title": "Everything you need, in one place.",
+      "subtitle": "Shop food, drinks, beauty, home essentials, and more. Order online and pick up in store.",
       "cta": "Shop now"
     },
     "categories": {
