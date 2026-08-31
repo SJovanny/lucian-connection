@@ -73,7 +73,7 @@ export function Header() {
   return (
     <header className="bg-primary-700 sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between min-h-[80px] sm:min-h-[96px] py-2">
+        <div className="relative flex min-h-[80px] items-center justify-between py-2 sm:min-h-[96px]">
           {/* Mobile menu button */}
           <button
             className="lg:hidden p-2 text-white hover:bg-primary-600 rounded-lg"
@@ -83,11 +83,11 @@ export function Header() {
           </button>
 
           {/* Logo */}
-          <Link href="/" className="flex items-center">
+          <Link href="/" className="absolute left-1/2 flex -translate-x-1/2 items-center lg:static lg:translate-x-0">
             <img
               src="/logo_lc.svg"
               alt="Lucian Connection"
-              className="h-14 sm:h-20 w-auto"
+              className="h-10 w-auto sm:h-14"
             />
           </Link>
 
@@ -109,7 +109,9 @@ export function Header() {
             </div>
 
             {/* Language Switcher */}
-            <LanguageSwitcher />
+            <div className="hidden lg:block">
+              <LanguageSwitcher />
+            </div>
 
             {/* Cart */}
             <button
@@ -173,6 +175,9 @@ export function Header() {
               placeholder={t("searchPlaceholder")} 
               onClose={() => setIsMobileMenuOpen(false)}
             />
+
+            {/* Mobile language switcher */}
+            <LanguageSwitcher />
 
             {/* Mobile nav links */}
             <div className="flex flex-col gap-2">

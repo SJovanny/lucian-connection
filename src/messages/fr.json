@@ -31,7 +31,9 @@
   "home": {
     "hero": {
       "eyebrow": "VOS PRODUITS CARIBÉENS, EN QUELQUES CLICS",
-      "title": "Tout ce dont vous avez besoin, au même endroit.",
+      "titleBefore": "Tout ce dont vous avez ",
+      "titleHighlight": "besoin",
+      "titleAfter": ", au même endroit.",
       "subtitle": "Alimentation, boissons, beauté, maison et bien plus. Commandez en ligne et récupérez votre commande en magasin.",
       "cta": "Commander maintenant"
     },

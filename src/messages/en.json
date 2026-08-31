@@ -31,7 +31,9 @@
   "home": {
     "hero": {
       "eyebrow": "CARIBBEAN PRODUCTS, ONE EASY ORDER",
-      "title": "Everything you need, in one place.",
+      "titleBefore": "Everything you ",
+      "titleHighlight": "need",
+      "titleAfter": ", in one place.",
       "subtitle": "Shop food, drinks, beauty, home essentials, and more. Order online and pick up in store.",
       "cta": "Shop now"
     },

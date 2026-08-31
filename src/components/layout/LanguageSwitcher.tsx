@@ -48,7 +48,7 @@ export function LanguageSwitcher() {
   return (
     <button
       onClick={() => onChange(otherLocale)}
-      className="flex items-center gap-2 px-3 py-1.5 text-white hover:bg-primary-600 rounded-lg transition-colors text-sm"
+      className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-white transition-colors hover:bg-gray-200"
       aria-label="Change language"
     >
       <Flag code={otherLocale} />

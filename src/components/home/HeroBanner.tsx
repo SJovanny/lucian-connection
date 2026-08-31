@@ -8,7 +8,7 @@ export function HeroBanner() {
   const t = useTranslations("home.hero");
 
   return (
-    <section className="relative isolate h-[560px] w-full overflow-hidden bg-primary-900 lg:h-[480px]" aria-labelledby="hero-title">
+    <section className="relative isolate min-h-[560px] w-full overflow-hidden bg-primary-900 lg:min-h-[480px]" aria-labelledby="hero-title">
       <picture className="absolute inset-0 -z-10 block">
         <source media="(max-width: 767px)" srcSet="/hero-section_mobile.png" />
         <img
@@ -18,19 +18,22 @@ export function HeroBanner() {
         />
       </picture>
       <div className="absolute inset-0 -z-0 bg-gradient-to-r from-primary-950/90 via-primary-950/55 to-transparent md:via-primary-950/35" aria-hidden="true" />
-      <div className="relative z-10 mx-auto flex h-full w-full max-w-7xl items-center px-6 py-12 sm:px-8 lg:px-12">
-        <div className="flex max-w-[420px] flex-col items-start gap-5 text-left text-white">
-          <p className="font-mono text-xs font-semibold tracking-[0.18em] text-accent uppercase">
-            {t("eyebrow")}
-          </p>
-          <div className="h-px w-12 bg-accent" aria-hidden="true" />
-          <h1 id="hero-title" className="font-display text-4xl font-bold leading-tight text-balance sm:text-5xl">
-            {t("title")}
-          </h1>
-          <p className="max-w-md text-base leading-relaxed text-white/90 sm:text-lg">
+      <div className="relative z-10 mx-auto flex min-h-[560px] w-full max-w-7xl items-center px-5 py-10 sm:px-8 sm:py-12 lg:min-h-[480px] lg:items-end lg:px-12 lg:py-14">
+        <div className="flex max-w-[500px] flex-col items-start text-left text-white">
+          <div className="border-l-2 border-accent pl-4">
+            <p className="font-mono text-[11px] font-semibold tracking-[0.18em] text-accent uppercase">
+              {t("eyebrow")}
+            </p>
+            <h1 id="hero-title" className="mt-3 font-display text-3xl font-bold leading-[1.08] text-balance sm:text-4xl lg:text-5xl">
+              {t("titleBefore")}
+              <span className="text-primary-300">{t("titleHighlight")}</span>
+              {t("titleAfter")}
+            </h1>
+          </div>
+          <p className="mt-5 max-w-md text-base leading-relaxed text-white sm:text-lg">
             {t("subtitle")}
           </p>
-          <Link href="/products" className="mt-2 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">
+          <Link href="/products" className="mt-6 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">
             <Button variant="accent" size="lg" className="font-semibold">
               {t("cta")}
             </Button>
