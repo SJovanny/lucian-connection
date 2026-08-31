@@ -12,13 +12,12 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Brand */}
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 bg-accent-400 rounded-lg flex items-center justify-center">
-                <span className="text-xl">🛒</span>
-              </div>
-              <span className="text-xl font-bold font-display">
-                Lucian Connection
-              </span>
+            <div className="mb-4 flex items-center">
+              <img
+                src="/logo_lc.svg"
+                alt="Lucian Connection"
+                className="h-10 w-auto"
+              />
             </div>
             <p className="text-primary-200 text-sm">{t("tagline")}</p>
           </div>
