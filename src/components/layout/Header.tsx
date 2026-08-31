@@ -15,6 +15,7 @@ import { SearchBar } from "./SearchBar";
 import { useCartStore } from "@/store/cartStore";
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { getSupabaseConfig } from "@/lib/supabase/config";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export function Header() {
@@ -40,6 +41,11 @@ export function Header() {
   }, [itemCount]);
 
   useEffect(() => {
+    if (!getSupabaseConfig()) {
+      setIsLoading(false);
+      return;
+    }
+
     const supabase = createClient();
 
     // Get initial session
@@ -57,6 +63,8 @@ export function Header() {
   }, []);
 
   const handleLogout = async () => {
+    if (!getSupabaseConfig()) return;
+
     const supabase = createClient();
     await supabase.auth.signOut();
     router.refresh();

@@ -2,6 +2,7 @@ import createMiddleware from 'next-intl/middleware';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { routing } from './i18n/routing';
+import { getSupabaseConfig } from './lib/supabase/config';
 
 const intlMiddleware = createMiddleware(routing);
 
@@ -18,10 +19,21 @@ export async function middleware(request: NextRequest) {
     },
   });
 
+  const supabaseConfig = getSupabaseConfig();
+
+  // Auth is optional for public preview pages when Supabase is not configured.
+  if (!supabaseConfig) {
+    if (pathname.startsWith('/api') || pathname.startsWith('/admin')) {
+      return response;
+    }
+
+    return intlMiddleware(request);
+  }
+
   // Create Supabase client with cookie handling
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseConfig.url,
+    supabaseConfig.key,
     {
       cookies: {
         getAll() {

@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { createClient } from "@/lib/supabase/client";
+import { getSupabaseConfig } from "@/lib/supabase/config";
 import type { Order, OrderItem, Profile } from "@/types/database.types";
 
 const statusLabels: Record<string, string> = {
@@ -50,7 +51,7 @@ function formatCurrency(value: number) {
 export default function AccountPage() {
   const locale = useLocale();
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
+  const supabase = useMemo(() => (getSupabaseConfig() ? createClient() : null), []);
   const pageSize = 5;
 
   const [isLoading, setIsLoading] = useState(true);
@@ -74,6 +75,11 @@ export default function AccountPage() {
     const load = async () => {
       setIsLoading(true);
       setError(null);
+      if (!supabase) {
+        setError("Le service de compte est temporairement indisponible");
+        setIsLoading(false);
+        return;
+      }
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push(`/login`);
@@ -150,6 +156,12 @@ export default function AccountPage() {
     setIsSaving(true);
     setError(null);
     setSuccess(null);
+
+    if (!supabase) {
+      setError("Le service de compte est temporairement indisponible");
+      setIsSaving(false);
+      return;
+    }
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
