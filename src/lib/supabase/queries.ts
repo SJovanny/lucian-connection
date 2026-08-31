@@ -1,4 +1,5 @@
 import { createClient } from "./server";
+import { getSupabaseConfig } from "./config";
 import type { Category, Order, OrderItem, Product, Profile, OrderStatus } from "@/types/database.types";
 
 // Type pour les produits avec catégorie jointe
@@ -18,6 +19,8 @@ export async function getProducts(options?: {
   featured?: boolean;
   limit?: number;
 }): Promise<ProductWithCategory[]> {
+  if (!getSupabaseConfig()) return [];
+
   const supabase = await createClient();
   
   let query = supabase
@@ -112,6 +115,8 @@ export async function getProductBySlug(slug: string): Promise<ProductWithCategor
  * Récupère toutes les catégories
  */
 export async function getCategories(): Promise<Category[]> {
+  if (!getSupabaseConfig()) return [];
+
   const supabase = await createClient();
   
   const { data, error } = await supabase
