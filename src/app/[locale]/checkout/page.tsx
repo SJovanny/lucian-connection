@@ -302,7 +302,7 @@ export default function CheckoutPage() {
                         label={t("form.city")}
                         name="city"
                         required
-                        placeholder="Castries"
+                        placeholder="Fort-de-France"
                       />
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">

@@ -56,11 +56,11 @@ export function Footer() {
             <ul className="space-y-3 text-primary-200 text-sm">
               <li className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-accent-400" />
-                <span>Castries, Saint Lucia</span>
+                <span>Fort-de-France, Martinique</span>
               </li>
               <li className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-accent-400" />
-                <span>+1 758 XXX XXXX</span>
+                <span>+596 696 94 96 52</span>
               </li>
               <li className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-accent-400" />
