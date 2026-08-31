@@ -47,7 +47,7 @@ export function HeroBanner() {
             {/* Image container */}
             <div className="absolute inset-0 rounded-3xl overflow-hidden">
               <img
-                src="/hero_section.png"
+                src="/hero_section.jpeg"
                 alt="Produits frais"
                 className="w-full h-full object-cover"
               />
