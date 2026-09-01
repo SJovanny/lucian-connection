@@ -74,7 +74,7 @@ export function Footer() {
             <ul className="space-y-3 text-primary-200 text-sm">
               <li className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-accent-400" />
-                <span>Fort-de-France, Martinique</span>
+                <span>119 rue Lamartine, 97200 Fort-de-France, Martinique</span>
               </li>
               <li className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-accent-400" />
