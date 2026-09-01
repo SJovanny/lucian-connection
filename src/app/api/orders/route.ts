@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { validatePickupAt } from "@/lib/pickup-rules";
 
 export async function POST(request: NextRequest) {
   console.log("=== ORDER API CALLED ===");
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
       discount_amount,
       locale,
       full_name,
+      pickup_at,
     } = body;
 
     const {
@@ -38,6 +40,15 @@ export async function POST(request: NextRequest) {
     if (!Array.isArray(items) || items.length === 0) {
       console.log("[orders] Empty cart submitted");
       return NextResponse.json({ error: "Empty cart" }, { status: 400 });
+    }
+
+    const { data: closedDates, error: closuresError } = await supabase.rpc("get_pickup_closed_dates");
+    if (closuresError) {
+      console.error("[orders] Failed to load pickup closures:", closuresError);
+      return NextResponse.json({ error: "Pickup availability is unavailable" }, { status: 503 });
+    }
+    if (!validatePickupAt(pickup_at, new Date(), (closedDates || []).map((row) => row.closed_on))) {
+      return NextResponse.json({ error: "PICKUP_SLOT_UNAVAILABLE" }, { status: 400 });
     }
 
     // Check if profile exists
@@ -78,6 +89,7 @@ export async function POST(request: NextRequest) {
       coupon_id: coupon_id || null,
       discount_amount: Number(discount_amount) || 0,
       delivery_address: null,
+      pickup_at: new Date(pickup_at).toISOString(),
     };
 
     console.log("[orders] Inserting order:", JSON.stringify(orderData, null, 2));
@@ -91,6 +103,9 @@ export async function POST(request: NextRequest) {
     console.log("[orders] Order result:", order, "Order error:", orderError);
 
     if (orderError) {
+      if (orderError.code === "23514") {
+        return NextResponse.json({ error: "PICKUP_SLOT_UNAVAILABLE" }, { status: 400 });
+      }
       throw orderError;
     }
 

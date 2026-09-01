@@ -256,7 +256,7 @@ export async function getAllOrders(options?: {
   }
 
   // Filter by search term (order ID or customer name)
-  let results = (data || []) as OrderWithDetails[];
+  let results = (data || []) as unknown as OrderWithDetails[];
   if (options?.search) {
     const searchLower = options.search.toLowerCase();
     results = results.filter((order) => {

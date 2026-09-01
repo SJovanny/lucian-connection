@@ -15,6 +15,7 @@ import { Link } from "@/i18n/routing";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Locale } from "@/i18n/routing";
+import { PickupSlotPicker } from "@/components/pickup/PickupSlotPicker";
 
 export default function CheckoutPage() {
   const locale = useLocale() as Locale;
@@ -25,6 +26,8 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [pickupAt, setPickupAt] = useState<string | null>(null);
+  const [availabilityReloadToken, setAvailabilityReloadToken] = useState(0);
 
   // Settings & Fees
   const [preparationFee, setPreparationFee] = useState(0);
@@ -102,6 +105,12 @@ export default function CheckoutPage() {
     setIsSubmitting(true);
     setFormError(null);
 
+    if (!pickupAt) {
+      setFormError(locale === "fr" ? "Veuillez choisir un créneau de retrait." : "Please choose a pickup slot.");
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const supabase = createClient();
       console.log("[checkout] 2) fetching user session");
@@ -134,6 +143,7 @@ export default function CheckoutPage() {
         discount_amount: appliedCoupon?.discount_amount || 0,
         full_name,
         email,
+        pickup_at: pickupAt,
       };
 
       console.log("[checkout] 5) posting /api/orders with payload:", payload);
@@ -153,7 +163,13 @@ export default function CheckoutPage() {
           console.error("[checkout] failed to parse error response", jsonErr);
         }
         console.error("[checkout] Order creation failed:", data);
-        setFormError(data?.details || data?.error || "Erreur lors de la création de la commande");
+        if (data?.error === "PICKUP_SLOT_UNAVAILABLE") {
+          setPickupAt(null);
+          setAvailabilityReloadToken((value) => value + 1);
+          setFormError(locale === "fr" ? "Ce créneau n'est plus disponible. Choisissez-en un autre." : "This slot is no longer available. Please choose another one.");
+        } else {
+          setFormError(data?.details || data?.error || "Erreur lors de la création de la commande");
+        }
         return;
       }
 
@@ -181,7 +197,15 @@ export default function CheckoutPage() {
             <h1 className="text-2xl font-bold text-gray-900 mb-2">
               {t("orderSuccess")}
             </h1>
-            <p className="text-gray-600 mb-8">{t("orderSuccessMessage")}</p>
+             <p className="text-gray-600 mb-3">{t("orderSuccessMessage")}</p>
+             {pickupAt && (
+               <p className="mb-8 rounded-lg bg-primary-50 px-4 py-3 text-sm font-medium text-primary-700">
+                 {locale === "fr" ? "Retrait prévu le " : "Pickup scheduled for "}
+                 {new Intl.DateTimeFormat(locale === "fr" ? "fr-FR" : "en-US", {
+                   timeZone: "America/Martinique", dateStyle: "full", timeStyle: "short",
+                 }).format(new Date(pickupAt))}
+               </p>
+             )}
             <Link href="/">
               <Button variant="primary" className="w-full">
                 {locale === "fr" ? "Retour à l'accueil" : "Back to home"}
@@ -281,6 +305,20 @@ export default function CheckoutPage() {
                         </p>
                       )}
                     </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-6">
+                    <PickupSlotPicker
+                      locale={locale}
+                      value={pickupAt}
+                      onChange={(value) => {
+                        setPickupAt(value);
+                        setFormError(null);
+                      }}
+                      reloadToken={availabilityReloadToken}
+                    />
                   </CardContent>
                 </Card>
 

@@ -96,7 +96,7 @@ export default async function AdminDashboard() {
     getRecentOrders(5),
   ]);
 
-  const orders = recentOrders as OrderWithItems[];
+  const orders = recentOrders as unknown as OrderWithItems[];
   return (
     <div className="space-y-8">
       {/* Header */}

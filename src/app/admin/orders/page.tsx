@@ -3,6 +3,7 @@
 import { Card } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
 import { Search, Eye } from "lucide-react";
+import { PickupSlotPicker } from "@/components/pickup/PickupSlotPicker";
 import type { Order, OrderItem, Profile } from "@/types/database.types";
 import { useState, useEffect } from "react";
 
@@ -39,7 +40,27 @@ function formatDate(dateString: string): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "America/Martinique",
   }).format(date);
+}
+
+function formatPickup(dateString: string | null): string {
+  if (!dateString) return "Non planifié";
+  return new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "America/Martinique",
+  }).format(new Date(dateString));
+}
+
+function pickupDateKey(dateString: string | null): string | null {
+  if (!dateString) return null;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Martinique",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(dateString));
 }
 
 export default function OrdersPage() {
@@ -59,6 +80,11 @@ export default function OrdersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [filterDate, setFilterDate] = useState("");
+  const [adminPickupAt, setAdminPickupAt] = useState<string | null>(null);
+  const [isSavingPickup, setIsSavingPickup] = useState(false);
+  const [pickupError, setPickupError] = useState<string | null>(null);
+  const [pickupReloadToken, setPickupReloadToken] = useState(0);
 
   // Load orders on mount
   useEffect(() => {
@@ -85,11 +111,14 @@ export default function OrdersPage() {
       order.profiles?.full_name?.includes(searchTerm) ||
       order.phone?.includes(searchTerm);
     const matchesStatus = !filterStatus || order.status === filterStatus;
-    return matchesSearch && matchesStatus;
+    const matchesDate = !filterDate || pickupDateKey(order.pickup_at) === filterDate;
+    return matchesSearch && matchesStatus && matchesDate;
   });
 
   const handleViewOrder = (order: OrderWithDetails) => {
     setSelectedOrder(order);
+    setAdminPickupAt(order.pickup_at);
+    setPickupError(null);
     setIsModalOpen(true);
   };
 
@@ -134,6 +163,39 @@ export default function OrdersPage() {
       alert("Erreur lors de la mise à jour du statut");
     } finally {
       setIsLoadingStatus(false);
+    }
+  };
+
+  const handleReschedule = async () => {
+    if (!selectedOrder || !adminPickupAt) return;
+    setIsSavingPickup(true);
+    setPickupError(null);
+    try {
+      const res = await fetch(`/api/admin/orders/${selectedOrder.id}/pickup`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pickup_at: adminPickupAt }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.error === "PICKUP_SLOT_UNAVAILABLE") {
+          setPickupError("Ce créneau n'est plus disponible. Choisissez-en un autre.");
+          setPickupReloadToken((value) => value + 1);
+        } else {
+          throw new Error(data.error || "update");
+        }
+        return;
+      }
+      const updatedOrder = data.order as Order;
+      setOrders((prev) => prev.map((order) =>
+        order.id === updatedOrder.id ? { ...order, pickup_at: updatedOrder.pickup_at } : order
+      ));
+      setSelectedOrder((prev) => prev ? { ...prev, pickup_at: updatedOrder.pickup_at } : prev);
+    } catch (error) {
+      console.error("Error updating pickup:", error);
+      setPickupError("Erreur lors de la reprogrammation");
+    } finally {
+      setIsSavingPickup(false);
     }
   };
 
@@ -207,6 +269,8 @@ export default function OrdersPage() {
           </select>
           <input
             type="date"
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value)}
             className="h-11 px-4 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
           />
         </div>
@@ -231,7 +295,10 @@ export default function OrdersPage() {
                   Statut
                 </th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">
-                  Date
+                  Retrait prévu
+                </th>
+                <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">
+                  Créée le
                 </th>
                 <th className="text-right px-6 py-4 text-sm font-semibold text-gray-600">
                   Actions
@@ -241,7 +308,7 @@ export default function OrdersPage() {
             <tbody className="divide-y divide-gray-100">
               {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                     Aucune commande trouvée
                   </td>
                 </tr>
@@ -278,6 +345,9 @@ export default function OrdersPage() {
                             {statusConfig[order.status].label}
                           </span>
                         </div>
+                      </td>
+                      <td className="px-6 py-4 text-gray-600 text-sm">
+                        {formatPickup(order.pickup_at)}
                       </td>
                       <td className="px-6 py-4 text-gray-600 text-sm">
                         {formatDate(order.created_at)}
@@ -336,6 +406,32 @@ export default function OrdersPage() {
                   {formatDate(selectedOrder.created_at)}
                 </p>
               </div>
+            </div>
+
+            <div className="rounded-lg border border-primary-100 bg-primary-50 p-4">
+              <p className="text-sm text-gray-500">Retrait prévu</p>
+              <p className="font-medium text-primary-800">{formatPickup(selectedOrder.pickup_at)}</p>
+            </div>
+
+            <div className="space-y-3 border-t border-gray-100 pt-4">
+              <PickupSlotPicker
+                locale="fr"
+                value={adminPickupAt}
+                onChange={(value) => {
+                  setAdminPickupAt(value);
+                  setPickupError(null);
+                }}
+                reloadToken={pickupReloadToken}
+              />
+              {pickupError && <p className="text-sm text-red-600">{pickupError}</p>}
+              <button
+                type="button"
+                onClick={handleReschedule}
+                disabled={!adminPickupAt || adminPickupAt === selectedOrder.pickup_at || isSavingPickup}
+                className="rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSavingPickup ? "Enregistrement..." : "Enregistrer le créneau"}
+              </button>
             </div>
 
             {/* Order Items */}

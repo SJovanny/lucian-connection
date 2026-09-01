@@ -38,7 +38,17 @@ function formatDate(dateString: string) {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: "America/Martinique",
   }).format(date);
+}
+
+function formatPickupDate(dateString: string | null) {
+  if (!dateString) return "Non planifié";
+  return new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "full",
+    timeStyle: "short",
+    timeZone: "America/Martinique",
+  }).format(new Date(dateString));
 }
 
 function formatCurrency(value: number) {
@@ -261,6 +271,9 @@ export default function AccountPage() {
                           <div>
                             <p className="text-sm text-gray-500">#{order.id.slice(0, 8)}</p>
                             <p className="text-sm text-gray-600">{formatDate(order.created_at)}</p>
+                            <p className="text-sm font-medium text-primary-700">
+                              Retrait : {formatPickupDate(order.pickup_at)}
+                            </p>
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="text-sm font-semibold text-gray-900">

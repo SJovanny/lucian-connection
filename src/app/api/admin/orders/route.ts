@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
         profiles:user_id (full_name, phone)
       `
       )
-      .order("created_at", { ascending: false });
+      .order("pickup_at", { ascending: true, nullsFirst: false });
 
     if (ordersError) {
       throw ordersError;

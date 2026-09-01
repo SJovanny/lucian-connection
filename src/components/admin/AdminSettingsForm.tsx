@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { createClient } from "@/lib/supabase/client";
-import type { Profile, StoreSettings } from "@/types/database.types";
+import type { PickupClosure, Profile, StoreSettings } from "@/types/database.types";
 
 interface AdminSettingsFormProps {
   userId: string;
@@ -30,6 +30,10 @@ export function AdminSettingsForm({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [closures, setClosures] = useState<PickupClosure[]>([]);
+  const [closedOn, setClosedOn] = useState("");
+  const [closureReason, setClosureReason] = useState("");
+  const [isSavingClosure, setIsSavingClosure] = useState(false);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -42,6 +46,53 @@ export function AdminSettingsForm({
     };
     fetchSettings();
   }, []);
+
+  useEffect(() => {
+    fetch("/api/admin/pickup-closures")
+      .then((response) => response.json())
+      .then((data) => setClosures(data.closures || []))
+      .catch(() => setError("Impossible de charger les fermetures."));
+  }, []);
+
+  const handleAddClosure = async () => {
+    if (!closedOn) return;
+    setIsSavingClosure(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const response = await fetch("/api/admin/pickup-closures", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ closed_on: closedOn, reason: closureReason }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        const messages: Record<string, string> = {
+          INVALID_CLOSURE_DATE: "La date doit être un jour ouvré futur.",
+          CLOSURE_HAS_SCHEDULED_ORDERS: "Des commandes sont déjà prévues à cette date.",
+          CLOSURE_ALREADY_EXISTS: "Cette date est déjà fermée.",
+        };
+        throw new Error(messages[data.error] || "Impossible de créer la fermeture.");
+      }
+      setClosures((current) => [...current, data.closure].sort((a, b) => a.closed_on.localeCompare(b.closed_on)));
+      setClosedOn("");
+      setClosureReason("");
+      setSuccess("Fermeture ajoutée.");
+    } catch (closureError) {
+      setError(closureError instanceof Error ? closureError.message : "Impossible de créer la fermeture.");
+    } finally {
+      setIsSavingClosure(false);
+    }
+  };
+
+  const handleDeleteClosure = async (id: string) => {
+    const response = await fetch(`/api/admin/pickup-closures/${id}`, { method: "DELETE" });
+    if (!response.ok) {
+      setError("Impossible de supprimer la fermeture.");
+      return;
+    }
+    setClosures((current) => current.filter((closure) => closure.id !== id));
+  };
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -188,6 +239,33 @@ export function AdminSettingsForm({
             Enregistrer
           </Button>
         </div>
+      </Card>
+
+      <Card padding="md" className="space-y-5">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Fermetures exceptionnelles</h2>
+          <p className="text-sm text-gray-500">Bloquez une journée de retrait. Les commandes déjà prévues doivent d&apos;abord être reprogrammées.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_2fr_auto] md:items-end">
+          <Input label="Date" type="date" value={closedOn} onChange={(e) => setClosedOn(e.target.value)} required />
+          <Input label="Motif interne (facultatif)" value={closureReason} onChange={(e) => setClosureReason(e.target.value)} placeholder="Jour férié" />
+          <Button onClick={handleAddClosure} isLoading={isSavingClosure} disabled={!closedOn}>Ajouter</Button>
+        </div>
+        {closures.length > 0 ? (
+          <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
+            {closures.map((closure) => (
+              <li key={closure.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                <div>
+                  <p className="font-medium text-gray-900">{closure.closed_on}</p>
+                  {closure.reason && <p className="text-sm text-gray-500">{closure.reason}</p>}
+                </div>
+                <button type="button" onClick={() => handleDeleteClosure(closure.id)} className="text-sm font-medium text-red-600 hover:text-red-800">Supprimer</button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-gray-500">Aucune fermeture future.</p>
+        )}
       </Card>
 
       <Card padding="md" className="space-y-6">

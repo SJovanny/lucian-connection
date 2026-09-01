@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Link, usePathname, useRouter } from "@/i18n/routing";
+import { Link, useRouter } from "@/i18n/routing";
 import {
   ShoppingCart,
   User,
@@ -9,7 +9,6 @@ import {
   Zap,
   LogOut,
 } from "lucide-react";
-import Image from "next/image";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { SearchBar } from "./SearchBar";
 import { useCartStore } from "@/store/cartStore";
@@ -20,7 +19,6 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export function Header() {
   const t = useTranslations("header");
-  const pathname = usePathname();
   const router = useRouter();
   const { items, toggleCart } = useCartStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -33,6 +31,8 @@ export function Header() {
 
   useEffect(() => {
     if (itemCount > prevItemCountRef.current) {
+      // The animation is intentionally synchronized with the external cart count.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsCartAnimating(true);
       const timer = setTimeout(() => setIsCartAnimating(false), 300);
       return () => clearTimeout(timer);
@@ -42,6 +42,8 @@ export function Header() {
 
   useEffect(() => {
     if (!getSupabaseConfig()) {
+      // Mark the initial auth check as complete when Supabase is unavailable.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoading(false);
       return;
     }
@@ -103,8 +105,7 @@ export function Header() {
             <div className="hidden xl:flex items-center gap-2 text-white">
               <Zap className="w-5 h-5 text-accent-400" />
               <span className="text-sm">
-                {t("deliveryBadge").split("15")[0]}
-                <span className="text-accent-400 font-bold">15 min</span>!
+                {t("deliveryBadge")}
               </span>
             </div>
 
