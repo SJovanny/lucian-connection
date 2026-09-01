@@ -28,6 +28,11 @@ export default function CheckoutPage() {
   const [pickupAt, setPickupAt] = useState<string | null>(null);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [availabilityReloadToken, setAvailabilityReloadToken] = useState(0);
+  const [contactInfo, setContactInfo] = useState({
+    fullName: "",
+    email: "",
+    phone: "",
+  });
 
   // Settings & Fees
   const [preparationFee, setPreparationFee] = useState(0);
@@ -50,6 +55,33 @@ export default function CheckoutPage() {
         if (data.preparation_fee) setPreparationFee(Number(data.preparation_fee));
       })
       .catch((err) => console.error("Failed to fetch settings", err));
+  }, []);
+
+  useEffect(() => {
+    const loadContactInfo = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (!user) return;
+
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name, phone")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        setContactInfo({
+          fullName: profile?.full_name || user.user_metadata?.full_name || "",
+          email: user.email || "",
+          phone: profile?.phone || "",
+        });
+      } catch (error) {
+        console.error("Failed to load contact information", error);
+      }
+    };
+
+    loadContactInfo();
   }, []);
 
   const subtotal = getSubtotal();
@@ -244,25 +276,46 @@ export default function CheckoutPage() {
                       {t("contactInfo")}
                     </h2>
                     <div className="grid sm:grid-cols-2 gap-4">
-                      <Input
-                        label={t("form.fullName")}
-                        name="fullName"
-                        required
-                        placeholder="John Doe"
-                      />
-                      <Input
-                        label={t("form.email")}
-                        name="email"
-                        type="email"
-                        required
-                        placeholder="john@example.com"
-                      />
-                      <Input
-                        label={t("form.phone")}
-                        name="phone"
-                        type="tel"
-                        required
-                        placeholder="+1 758 555 1234"
+                       <Input
+                         label={t("form.fullName")}
+                         name="fullName"
+                         value={contactInfo.fullName}
+                         onChange={(event) =>
+                           setContactInfo((current) => ({
+                             ...current,
+                             fullName: event.target.value,
+                           }))
+                         }
+                         required
+                         placeholder="John Doe"
+                       />
+                       <Input
+                         label={t("form.email")}
+                         name="email"
+                         type="email"
+                         value={contactInfo.email}
+                         onChange={(event) =>
+                           setContactInfo((current) => ({
+                             ...current,
+                             email: event.target.value,
+                           }))
+                         }
+                         required
+                         placeholder="john@example.com"
+                       />
+                       <Input
+                         label={t("form.phone")}
+                         name="phone"
+                         type="tel"
+                         value={contactInfo.phone}
+                         onChange={(event) =>
+                           setContactInfo((current) => ({
+                             ...current,
+                             phone: event.target.value,
+                           }))
+                         }
+                         required
+                         placeholder="+1 758 555 1234"
                         className="sm:col-span-2"
                       />
                       {formError && (
