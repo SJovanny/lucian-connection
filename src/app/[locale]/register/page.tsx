@@ -147,9 +147,15 @@ export default function RegisterPage() {
                       className="w-4 h-4 mt-0.5 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
                     />
                     <span className="text-gray-600">
-                      {locale === "fr"
-                        ? "J'accepte les conditions générales et la politique de confidentialité"
-                        : "I agree to the terms of service and privacy policy"}
+                      {locale === "fr" ? "J’accepte les " : "I accept the "}
+                      <Link href="/terms" className="text-primary-700 underline">
+                        {locale === "fr" ? "conditions générales" : "terms and conditions"}
+                      </Link>
+                      {locale === "fr" ? ". J’ai pris connaissance de la " : ". I have read the "}
+                      <Link href="/privacy" className="text-primary-700 underline">
+                        {locale === "fr" ? "politique de confidentialité" : "privacy policy"}
+                      </Link>
+                      {locale === "fr" ? "." : "."}
                     </span>
                   </label>
                 </div>

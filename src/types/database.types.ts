@@ -75,6 +75,23 @@ export type Order = {
   pickup_at: string | null;
   created_at: string;
   updated_at: string;
+  payment_status: "pending_payment" | "paid" | "payment_failed" | "cancelled" | "refunded" | "partially_refunded";
+  payment_provider: string | null;
+  payment_reference: string | null;
+  paid_at: string | null;
+  refunded_at: string | null;
+  terms_version: string | null;
+};
+
+export type LegalAcceptance = {
+  id: string;
+  user_id: string;
+  document_type: string;
+  document_version: string;
+  order_id: string | null;
+  accepted_at: string;
+  ip_address: string | null;
+  user_agent: string | null;
 };
 
 export type OrderItem = {
@@ -146,6 +163,7 @@ export type Database = {
       products: { Row: Product; Insert: Partial<Product> & { slug: string; price: number }; Update: Partial<Product>; Relationships: [{ foreignKeyName: "products_category_id_fkey"; columns: ["category_id"]; isOneToOne: false; referencedRelation: "categories"; referencedColumns: ["id"] }] };
       profiles: { Row: Profile; Insert: Partial<Profile> & { id: string }; Update: Partial<Profile>; Relationships: [] };
       orders: { Row: Order; Insert: Partial<Order> & { subtotal: number; total_amount: number }; Update: Partial<Order>; Relationships: [{ foreignKeyName: "orders_user_id_fkey"; columns: ["user_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] }, { foreignKeyName: "order_items_order_id_fkey"; columns: ["id"]; isOneToOne: false; referencedRelation: "order_items"; referencedColumns: ["order_id"] }] };
+      legal_acceptances: { Row: LegalAcceptance; Insert: Partial<LegalAcceptance> & { user_id: string; document_type: string; document_version: string }; Update: Partial<LegalAcceptance>; Relationships: [] };
       order_items: { Row: OrderItem; Insert: Partial<OrderItem> & { order_id: string; product_name: string; quantity: number; unit_price: number; total_price: number }; Update: Partial<OrderItem>; Relationships: [{ foreignKeyName: "order_items_order_id_fkey"; columns: ["order_id"]; isOneToOne: false; referencedRelation: "orders"; referencedColumns: ["id"] }] };
       coupons: { Row: Coupon; Insert: Partial<Coupon> & { code: string; discount_type: DiscountType; discount_value: number }; Update: Partial<Coupon>; Relationships: [] };
       reductions: { Row: Reduction; Insert: Partial<Reduction> & { name: string; discount_type: DiscountType; discount_value: number; applies_to: AppliesTo }; Update: Partial<Reduction>; Relationships: [] };

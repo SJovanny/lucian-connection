@@ -46,6 +46,25 @@ export function Footer() {
                   {t("privacy")}
                 </Link>
               </li>
+              <li>
+                <Link href="/legal-notice" className="hover:text-white transition-colors">
+                  Mentions légales
+                </Link>
+              </li>
+              <li>
+                <Link href="/cookies" className="hover:text-white transition-colors">
+                  Cookies
+                </Link>
+              </li>
+              <li>
+                <a
+                  href="#cookie-settings"
+                  data-cookie-settings
+                  className="hover:text-white transition-colors"
+                >
+                  Gérer mes cookies
+                </a>
+              </li>
             </ul>
           </div>
 

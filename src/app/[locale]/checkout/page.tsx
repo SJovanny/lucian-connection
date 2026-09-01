@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useCartStore } from "@/store/cartStore";
 import { formatPrice } from "@/lib/utils";
-import { ShoppingBag, ArrowLeft, Check, X } from "lucide-react";
+import { ShoppingBag, ArrowLeft, X } from "lucide-react";
 import { Link } from "@/i18n/routing";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -21,12 +21,12 @@ export default function CheckoutPage() {
   const locale = useLocale() as Locale;
   const t = useTranslations("checkout");
   const router = useRouter();
-  const { items, getSubtotal, clearCart } = useCartStore();
+  const { items, getSubtotal } = useCartStore();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [pickupAt, setPickupAt] = useState<string | null>(null);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [availabilityReloadToken, setAvailabilityReloadToken] = useState(0);
 
   // Settings & Fees
@@ -111,6 +111,12 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (!acceptedTerms) {
+      setFormError(locale === "fr" ? "Veuillez accepter les conditions générales." : "Please accept the terms and conditions.");
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const supabase = createClient();
       console.log("[checkout] 2) fetching user session");
@@ -131,51 +137,44 @@ export default function CheckoutPage() {
       const phone = String(formData.get("phone") || "").trim();
       const notes = String(formData.get("notes") || "").trim();
 
-      const payload = {
-        items,
-        subtotal,
-        delivery_fee: preparationFee,
-        total_amount: total,
-        phone,
+       const payload = {
+         items,
+         phone,
         notes,
         locale,
-        coupon_id: appliedCoupon?.id || null,
-        discount_amount: appliedCoupon?.discount_amount || 0,
-        full_name,
-        email,
-        pickup_at: pickupAt,
-      };
+         coupon_id: appliedCoupon?.id || null,
+         discount_amount: appliedCoupon?.discount_amount || 0,
+         full_name,
+         email,
+         terms_accepted: acceptedTerms,
+          pickup_at: pickupAt,
+       };
 
-      console.log("[checkout] 5) posting /api/orders with payload:", payload);
-      const res = await fetch("/api/orders", {
+       const res = await fetch("/api/payments/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      console.log("[checkout] 6) response status:", res.status);
-      if (!res.ok) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let data: any = null;
-        try {
-          data = await res.json();
-        } catch (jsonErr) {
-          console.error("[checkout] failed to parse error response", jsonErr);
-        }
-        console.error("[checkout] Order creation failed:", data);
+       const data = await res.json();
+       console.log("[checkout] payment session response status:", res.status);
+       if (!res.ok) {
+         console.error("[checkout] Payment session creation failed:", data);
         if (data?.error === "PICKUP_SLOT_UNAVAILABLE") {
           setPickupAt(null);
           setAvailabilityReloadToken((value) => value + 1);
           setFormError(locale === "fr" ? "Ce créneau n'est plus disponible. Choisissez-en un autre." : "This slot is no longer available. Please choose another one.");
         } else {
-          setFormError(data?.details || data?.error || "Erreur lors de la création de la commande");
+           setFormError(data?.details || data?.error || "Erreur lors de la préparation du paiement");
         }
         return;
       }
 
-      setIsSuccess(true);
-      clearCart();
-      console.log("[checkout] 7) order success, cart cleared");
+       if (!data.url) {
+         setFormError(locale === "fr" ? "Le paiement n’est pas disponible." : "Payment is currently unavailable.");
+         return;
+       }
+       window.location.assign(data.url);
     } catch (error) {
       console.error("[checkout] unexpected error:", error);
       setFormError("Erreur lors de la création de la commande");
@@ -184,39 +183,6 @@ export default function CheckoutPage() {
       console.log("[checkout] 8) submit finished");
     }
   };
-
-  if (isSuccess) {
-    return (
-      <div className="min-h-screen flex flex-col bg-gray-50">
-        <Header />
-        <main className="flex-1 flex items-center justify-center p-4">
-          <Card padding="lg" className="max-w-md w-full text-center">
-            <div className="w-16 h-16 bg-success-50 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Check className="w-8 h-8 text-success-600" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              {t("orderSuccess")}
-            </h1>
-             <p className="text-gray-600 mb-3">{t("orderSuccessMessage")}</p>
-             {pickupAt && (
-               <p className="mb-8 rounded-lg bg-primary-50 px-4 py-3 text-sm font-medium text-primary-700">
-                 {locale === "fr" ? "Retrait prévu le " : "Pickup scheduled for "}
-                 {new Intl.DateTimeFormat(locale === "fr" ? "fr-FR" : "en-US", {
-                   timeZone: "America/Martinique", dateStyle: "full", timeStyle: "short",
-                 }).format(new Date(pickupAt))}
-               </p>
-             )}
-            <Link href="/">
-              <Button variant="primary" className="w-full">
-                {locale === "fr" ? "Retour à l'accueil" : "Back to home"}
-              </Button>
-            </Link>
-          </Card>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
 
   if (items.length === 0) {
     return (
@@ -493,6 +459,24 @@ export default function CheckoutPage() {
                       </div>
                     </div>
 
+                    <label className="mt-6 flex items-start gap-3 text-sm text-gray-600">
+                      <input
+                        type="checkbox"
+                        name="termsAccepted"
+                        required
+                        checked={acceptedTerms}
+                        onChange={(event) => setAcceptedTerms(event.target.checked)}
+                        className="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span>
+                        {locale === "fr" ? "J’accepte les " : "I accept the "}
+                        <Link href="/terms" className="font-medium text-primary-700 underline">
+                          {locale === "fr" ? "conditions générales de vente" : "terms and conditions"}
+                        </Link>
+                        {locale === "fr" ? " et reconnais l’obligation de paiement." : " and acknowledge the payment obligation."}
+                      </span>
+                    </label>
+
                     <Button
                       type="submit"
                       variant="primary"
@@ -502,10 +486,10 @@ export default function CheckoutPage() {
                       {t("placeOrder")}
                     </Button>
 
-                    <p className="text-xs text-gray-500 text-center mt-4">
-                      {locale === "fr"
-                        ? "Paiement à la livraison"
-                        : "Pay on delivery"}
+                     <p className="text-xs text-gray-500 text-center mt-4">
+                       {locale === "fr"
+                         ? "Paiement sécurisé en ligne par Stripe"
+                         : "Secure online payment powered by Stripe"}
                     </p>
                   </CardContent>
                 </Card>
