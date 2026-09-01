@@ -6,7 +6,7 @@ import { Globe } from "lucide-react";
 
 const locales = [
   { code: "fr" as const, label: "FR", flag: "🇫🇷" },
-  { code: "en" as const, label: "EN", flag: "🇬🇧" },
+  { code: "en" as const, label: "EN", flag: "🇱🇨" },
 ];
 
 // Composant pour afficher les drapeaux en CSS (compatible Windows)
@@ -21,14 +21,19 @@ function Flag({ code }: { code: "fr" | "en" }) {
     );
   }
   return (
-    <span className="inline-flex w-5 h-3.5 rounded-sm overflow-hidden shadow-sm relative bg-blue-800">
-      {/* Union Jack simplifié */}
-      <span className="absolute inset-0 flex items-center justify-center">
-        <span className="absolute w-full h-1 bg-white"></span>
-        <span className="absolute w-1 h-full bg-white"></span>
-        <span className="absolute w-full h-0.5 bg-red-600"></span>
-        <span className="absolute w-0.5 h-full bg-red-600"></span>
-      </span>
+    <span className="inline-flex w-5 h-3.5 rounded-sm overflow-hidden shadow-sm relative bg-[#66c7d5]">
+      <span
+        className="absolute inset-0 bg-white"
+        style={{ clipPath: "polygon(50% 18%, 82% 82%, 18% 82%)" }}
+      ></span>
+      <span
+        className="absolute inset-0 bg-black"
+        style={{ clipPath: "polygon(50% 25%, 76% 78%, 24% 78%)" }}
+      ></span>
+      <span
+        className="absolute inset-0 bg-[#fcd116]"
+        style={{ clipPath: "polygon(50% 34%, 68% 75%, 32% 75%)" }}
+      ></span>
     </span>
   );
 }
