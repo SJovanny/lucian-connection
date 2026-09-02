@@ -25,6 +25,7 @@ export default function CheckoutPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [paymentCancelled, setPaymentCancelled] = useState(false);
   const [pickupAt, setPickupAt] = useState<string | null>(null);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [availabilityReloadToken, setAvailabilityReloadToken] = useState(0);
@@ -55,6 +56,10 @@ export default function CheckoutPage() {
         if (data.preparation_fee) setPreparationFee(Number(data.preparation_fee));
       })
       .catch((err) => console.error("Failed to fetch settings", err));
+  }, []);
+
+  useEffect(() => {
+    setPaymentCancelled(new URLSearchParams(window.location.search).get("payment") === "cancelled");
   }, []);
 
   useEffect(() => {
@@ -264,6 +269,17 @@ export default function CheckoutPage() {
           <h1 className="text-3xl font-bold text-gray-900 font-display mb-8">
             {t("title")}
           </h1>
+
+          {paymentCancelled && (
+            <div
+              role="alert"
+              className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+            >
+              {locale === "fr"
+                ? "Le paiement n’a pas été finalisé. Votre panier est conservé afin que vous puissiez réessayer."
+                : "The payment was not completed. Your cart has been kept so you can try again."}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit}>
             <div className="grid lg:grid-cols-3 gap-8">
