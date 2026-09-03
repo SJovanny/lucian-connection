@@ -140,6 +140,7 @@
       "confirmed": "Confirmed",
       "preparing": "Preparing",
       "ready": "Ready",
+      "completed": "Completed",
       "delivered": "Delivered",
       "cancelled": "Cancelled"
     }

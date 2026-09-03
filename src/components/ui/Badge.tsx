@@ -49,13 +49,14 @@ Badge.displayName = "Badge";
 
 // Status badge for orders
 export interface StatusBadgeProps {
-  status: "pending" | "preparing" | "ready" | "cancelled" | "refunded";
+  status: "pending" | "preparing" | "ready" | "completed" | "cancelled" | "refunded";
 }
 
 const statusConfig = {
   pending: { variant: "warning" as const, label: { fr: "En attente", en: "Pending" } },
   preparing: { variant: "accent" as const, label: { fr: "En préparation", en: "Preparing" } },
   ready: { variant: "success" as const, label: { fr: "Prête", en: "Ready" } },
+  completed: { variant: "primary" as const, label: { fr: "Terminée", en: "Completed" } },
   cancelled: { variant: "error" as const, label: { fr: "Annulée", en: "Cancelled" } },
   refunded: { variant: "warning" as const, label: { fr: "Remboursement", en: "Refunded" } },
 };

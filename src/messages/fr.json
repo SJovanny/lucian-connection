@@ -140,6 +140,7 @@
       "confirmed": "Confirmée",
       "preparing": "En préparation",
       "ready": "Prête",
+      "completed": "Terminée",
       "delivered": "Livrée",
       "cancelled": "Annulée"
     }

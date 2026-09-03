@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
       pending: 0,
       preparing: 0,
       ready: 0,
+      completed: 0,
       cancelled: 0,
       refunded: 0,
     };

@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
 import { updateOrderStatus } from "@/lib/admin-actions";
 
-type OrderStatus = "pending" | "preparing" | "ready" | "cancelled" | "refunded";
+type OrderStatus = "pending" | "preparing" | "ready" | "completed" | "cancelled" | "refunded";
 
 interface OrderItem {
   id: string;
@@ -54,6 +54,7 @@ const statusConfig: Record<OrderStatus, { label: string; color: string }> = {
   pending: { label: "En attente", color: "bg-yellow-100 text-yellow-800" },
   preparing: { label: "En préparation", color: "bg-purple-100 text-purple-800" },
   ready: { label: "Prête", color: "bg-green-100 text-green-800" },
+  completed: { label: "Terminée", color: "bg-blue-100 text-blue-800" },
   cancelled: { label: "Annulée", color: "bg-red-100 text-red-800" },
   refunded: { label: "Remboursement", color: "bg-orange-100 text-orange-800" },
 };

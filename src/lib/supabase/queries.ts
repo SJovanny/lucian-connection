@@ -298,7 +298,7 @@ export async function getRecentOrders(limit: number = 10) {
 export async function getOrderStatusCounts() {
   const supabase = await createClient();
   
-  const statuses = ['pending', 'preparing', 'ready', 'cancelled', 'refunded'];
+  const statuses = ['pending', 'preparing', 'ready', 'completed', 'cancelled', 'refunded'];
   const counts: Record<string, number> = {};
 
   for (const status of statuses) {

@@ -16,6 +16,7 @@ const statusConfig = {
   pending: { label: "En attente", color: "bg-yellow-100 text-yellow-800" },
   preparing: { label: "En préparation", color: "bg-purple-100 text-purple-800" },
   ready: { label: "Prête", color: "bg-green-100 text-green-800" },
+  completed: { label: "Terminée", color: "bg-blue-100 text-blue-800" },
   cancelled: { label: "Annulée", color: "bg-red-100 text-red-800" },
   refunded: { label: "Remboursement", color: "bg-orange-100 text-orange-800" },
 };
@@ -24,6 +25,7 @@ const statusOptions: Array<keyof typeof statusConfig> = [
   "pending",
   "preparing",
   "ready",
+  "completed",
   "cancelled",
   "refunded",
 ];
@@ -65,6 +67,7 @@ export default function OrdersPage() {
     pending: 0,
     preparing: 0,
     ready: 0,
+    completed: 0,
     cancelled: 0,
     refunded: 0,
   });
@@ -260,6 +263,7 @@ export default function OrdersPage() {
             <option value="pending">En attente</option>
             <option value="preparing">En préparation</option>
             <option value="ready">Prête</option>
+            <option value="completed">Terminée</option>
             <option value="cancelled">Annulée</option>
             <option value="refunded">Remboursement</option>
           </select>
