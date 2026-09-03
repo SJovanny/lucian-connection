@@ -2,7 +2,7 @@
 
 import { Card } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
-import { Search, Eye } from "lucide-react";
+import { ChevronDown, Eye, Search } from "lucide-react";
 import { PickupSlotPicker } from "@/components/pickup/PickupSlotPicker";
 import type { Order, OrderItem, Profile } from "@/types/database.types";
 import { useState, useEffect } from "react";
@@ -14,20 +14,16 @@ type OrderWithDetails = Order & {
 
 const statusConfig = {
   pending: { label: "En attente", color: "bg-yellow-100 text-yellow-800" },
-  confirmed: { label: "Confirmée", color: "bg-blue-100 text-blue-800" },
   preparing: { label: "En préparation", color: "bg-purple-100 text-purple-800" },
   ready: { label: "Prête", color: "bg-green-100 text-green-800" },
-  delivered: { label: "Livrée", color: "bg-green-200 text-green-900" },
   cancelled: { label: "Annulée", color: "bg-red-100 text-red-800" },
   refunded: { label: "Remboursement", color: "bg-orange-100 text-orange-800" },
 };
 
 const statusOptions: Array<keyof typeof statusConfig> = [
   "pending",
-  "confirmed",
   "preparing",
   "ready",
-  "delivered",
   "cancelled",
   "refunded",
 ];
@@ -67,10 +63,8 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<OrderWithDetails[]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({
     pending: 0,
-    confirmed: 0,
     preparing: 0,
     ready: 0,
-    delivered: 0,
     cancelled: 0,
     refunded: 0,
   });
@@ -85,6 +79,7 @@ export default function OrdersPage() {
   const [isSavingPickup, setIsSavingPickup] = useState(false);
   const [pickupError, setPickupError] = useState<string | null>(null);
   const [pickupReloadToken, setPickupReloadToken] = useState(0);
+  const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
 
   // Load orders on mount
   useEffect(() => {
@@ -119,6 +114,7 @@ export default function OrdersPage() {
     setSelectedOrder(order);
     setAdminPickupAt(order.pickup_at);
     setPickupError(null);
+    setIsRescheduleOpen(false);
     setIsModalOpen(true);
   };
 
@@ -180,6 +176,7 @@ export default function OrdersPage() {
       if (!res.ok) {
         if (data.error === "PICKUP_SLOT_UNAVAILABLE") {
           setPickupError("Ce créneau n'est plus disponible. Choisissez-en un autre.");
+          setAdminPickupAt(null);
           setPickupReloadToken((value) => value + 1);
         } else {
           throw new Error(data.error || "update");
@@ -191,6 +188,7 @@ export default function OrdersPage() {
         order.id === updatedOrder.id ? { ...order, pickup_at: updatedOrder.pickup_at } : order
       ));
       setSelectedOrder((prev) => prev ? { ...prev, pickup_at: updatedOrder.pickup_at } : prev);
+      setIsRescheduleOpen(false);
     } catch (error) {
       console.error("Error updating pickup:", error);
       setPickupError("Erreur lors de la reprogrammation");
@@ -260,10 +258,8 @@ export default function OrdersPage() {
           >
             <option value="">Tous les statuts</option>
             <option value="pending">En attente</option>
-            <option value="confirmed">Confirmée</option>
             <option value="preparing">En préparation</option>
             <option value="ready">Prête</option>
-            <option value="delivered">Livrée</option>
             <option value="cancelled">Annulée</option>
             <option value="refunded">Remboursement</option>
           </select>
@@ -413,25 +409,38 @@ export default function OrdersPage() {
               <p className="font-medium text-primary-800">{formatPickup(selectedOrder.pickup_at)}</p>
             </div>
 
-            <div className="space-y-3 border-t border-gray-100 pt-4">
-              <PickupSlotPicker
-                locale="fr"
-                value={adminPickupAt}
-                onChange={(value) => {
-                  setAdminPickupAt(value);
-                  setPickupError(null);
-                }}
-                reloadToken={pickupReloadToken}
-              />
-              {pickupError && <p className="text-sm text-red-600">{pickupError}</p>}
+            <div className="border-t border-gray-100 pt-4">
               <button
                 type="button"
-                onClick={handleReschedule}
-                disabled={!adminPickupAt || adminPickupAt === selectedOrder.pickup_at || isSavingPickup}
-                className="rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => setIsRescheduleOpen((isOpen) => !isOpen)}
+                aria-expanded={isRescheduleOpen}
+                className="flex w-full items-center justify-between text-left font-semibold text-gray-900"
               >
-                {isSavingPickup ? "Enregistrement..." : "Enregistrer le créneau"}
+                Modifier le créneau de retrait
+                <ChevronDown className={`h-5 w-5 text-gray-500 ${isRescheduleOpen ? "rotate-180" : ""}`} />
               </button>
+              {isRescheduleOpen && (
+                <div className="mt-3 space-y-3">
+                  <PickupSlotPicker
+                    locale="fr"
+                    value={adminPickupAt}
+                    onChange={(value) => {
+                      setAdminPickupAt(value);
+                      setPickupError(null);
+                    }}
+                    reloadToken={pickupReloadToken}
+                  />
+                  {pickupError && <p className="text-sm text-red-600">{pickupError}</p>}
+                  <button
+                    type="button"
+                    onClick={handleReschedule}
+                    disabled={!adminPickupAt || adminPickupAt === selectedOrder.pickup_at || isSavingPickup}
+                    className="rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isSavingPickup ? "Enregistrement..." : "Enregistrer le créneau"}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Order Items */}

@@ -28,10 +28,8 @@ export async function GET(request: NextRequest) {
     // Calculate status counts
     const statusCounts = {
       pending: 0,
-      confirmed: 0,
       preparing: 0,
       ready: 0,
-      delivered: 0,
       cancelled: 0,
       refunded: 0,
     };

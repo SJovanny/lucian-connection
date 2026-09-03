@@ -41,14 +41,14 @@ export function Modal({
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
           className={cn(
-            "bg-white rounded-2xl shadow-xl w-full transform transition-all",
+            "flex max-h-[calc(100dvh-2rem)] w-full flex-col rounded-2xl bg-white shadow-xl",
             sizes[size]
           )}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           {title && (
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
               <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
               <button
                 onClick={onClose}
@@ -61,7 +61,7 @@ export function Modal({
           )}
 
           {/* Content */}
-          <div className="px-6 py-4">{children}</div>
+          <div className="min-h-0 overflow-y-auto px-6 py-4">{children}</div>
         </div>
       </div>
     </Fragment>

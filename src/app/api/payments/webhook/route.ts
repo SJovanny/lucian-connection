@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   if (orderId && event.type === "checkout.session.completed") {
     const supabase = createAdminClient();
     await supabase.from("orders").update({
-      status: "confirmed", payment_status: "paid", paid_at: new Date().toISOString(),
+      payment_status: "paid", paid_at: new Date().toISOString(),
       payment_reference: session.payment_intent?.toString() || session.id,
     }).eq("id", orderId);
   }

@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
 import { updateOrderStatus } from "@/lib/admin-actions";
 
-type OrderStatus = "pending" | "confirmed" | "preparing" | "ready" | "delivered" | "cancelled" | "refunded";
+type OrderStatus = "pending" | "preparing" | "ready" | "cancelled" | "refunded";
 
 interface OrderItem {
   id: string;
@@ -52,10 +52,8 @@ interface OrdersTableProps {
 
 const statusConfig: Record<OrderStatus, { label: string; color: string }> = {
   pending: { label: "En attente", color: "bg-yellow-100 text-yellow-800" },
-  confirmed: { label: "Confirmée", color: "bg-blue-100 text-blue-800" },
   preparing: { label: "En préparation", color: "bg-purple-100 text-purple-800" },
   ready: { label: "Prête", color: "bg-green-100 text-green-800" },
-  delivered: { label: "Livrée", color: "bg-green-200 text-green-900" },
   cancelled: { label: "Annulée", color: "bg-red-100 text-red-800" },
   refunded: { label: "Remboursement", color: "bg-orange-100 text-orange-800" },
 };
@@ -344,25 +342,11 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-4">
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => handleStatusChange("confirmed")}
-                  disabled={isUpdating || selectedOrder.status === "confirmed"}
-                  className="px-3 py-2 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
-                >
-                  Confirmée
-                </button>
-                <button
                   onClick={() => handleStatusChange("preparing")}
                   disabled={isUpdating || selectedOrder.status === "preparing"}
                   className="px-3 py-2 text-sm bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors disabled:opacity-50"
                 >
                   En préparation
-                </button>
-                <button
-                  onClick={() => handleStatusChange("delivered")}
-                  disabled={isUpdating || selectedOrder.status === "delivered"}
-                  className="px-3 py-2 text-sm bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50"
-                >
-                  Commande terminée
                 </button>
                 <button
                   onClick={() => handleStatusChange("cancelled")}

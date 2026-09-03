@@ -3,7 +3,7 @@ import { getAdminSupabase } from "@/lib/admin-auth";
 import { isValidClosureDate, localPickupToDate } from "@/lib/pickup-rules";
 import type { OrderStatus } from "@/types/database.types";
 
-const blockedStatuses: OrderStatus[] = ["pending", "confirmed", "preparing", "ready"];
+const blockedStatuses: OrderStatus[] = ["pending", "preparing", "ready"];
 
 export async function GET(request: NextRequest) {
   const supabase = await getAdminSupabase(request);

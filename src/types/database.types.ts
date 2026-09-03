@@ -2,10 +2,8 @@
 
 export type OrderStatus =
   | "pending"
-  | "confirmed"
   | "preparing"
   | "ready"
-  | "delivered"
   | "cancelled"
   | "refunded";
 
