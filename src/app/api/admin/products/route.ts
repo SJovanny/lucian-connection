@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminSupabase } from "@/lib/admin-auth";
+import { slugify } from "@/lib/utils";
 
 const parseAllergens = (value: unknown): string[] => {
   if (Array.isArray(value)) {
@@ -52,7 +53,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     const {
-      slug,
       name_fr,
       name_en,
       description_fr,
@@ -72,25 +72,30 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validation basique
-    if (!slug || !name_fr || !name_en || !price) {
+    if (!name_fr || !name_en || !price) {
       return NextResponse.json(
-        { error: "Missing required fields: slug, name_fr, name_en, price" },
+        { error: "Missing required fields: name_fr, name_en, price" },
         { status: 400 }
       );
     }
 
-    // Vérifier si le slug existe déjà
-    const { data: existingProduct } = await supabase
-      .from("products")
-      .select("id")
-      .eq("slug", slug)
-      .single();
+    const baseSlug = slugify(name_fr) || "produit";
+    let slug = baseSlug;
+    let suffix = 2;
 
-    if (existingProduct) {
-      return NextResponse.json(
-        { error: "A product with this slug already exists" },
-        { status: 400 }
-      );
+    // Slugs remain unique for the database, without requiring admin input.
+    while (true) {
+      const { data: existingProduct, error: slugError } = await supabase
+        .from("products")
+        .select("id")
+        .eq("slug", slug)
+        .maybeSingle();
+
+      if (slugError) throw slugError;
+      if (!existingProduct) break;
+
+      slug = `${baseSlug}-${suffix}`;
+      suffix += 1;
     }
 
     const productData = {

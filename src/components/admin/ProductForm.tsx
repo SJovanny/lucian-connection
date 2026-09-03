@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -24,7 +24,6 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
 
   // Form state
   const [formData, setFormData] = useState({
-    slug: product?.slug || "",
     name_fr: product?.translations?.fr?.name || "",
     name_en: product?.translations?.en?.name || "",
     description_fr: product?.translations?.fr?.description || "",
@@ -42,19 +41,6 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
     is_featured: product?.is_featured || false,
     image_url: product?.image_url || "",
   });
-
-  // Auto-generate slug from French name
-  useEffect(() => {
-    if (!isEditing && formData.name_fr && !formData.slug) {
-      const generatedSlug = formData.name_fr
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "");
-      setFormData((prev) => ({ ...prev, slug: generatedSlug }));
-    }
-  }, [formData.name_fr, isEditing, formData.slug]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -236,33 +222,23 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
               <p className="mt-1 text-xs text-gray-500">Separate allergens with commas.</p>
             </div>
           </div>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <Input
-              label="Slug (URL)"
-              name="slug"
-              value={formData.slug}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Catégorie
+            </label>
+            <select
+              name="category_id"
+              value={formData.category_id}
               onChange={handleChange}
-              placeholder="ex: italian-avocado"
-              required
-            />
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Catégorie
-              </label>
-              <select
-                name="category_id"
-                value={formData.category_id}
-                onChange={handleChange}
-                className="w-full h-12 px-4 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
-              >
-                <option value="">Sans catégorie</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.translations?.fr?.name || category.slug}
-                  </option>
-                ))}
-              </select>
-            </div>
+              className="w-full h-12 px-4 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
+            >
+              <option value="">Sans catégorie</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.translations?.fr?.name || category.slug}
+                </option>
+              ))}
+            </select>
           </div>
         </CardContent>
       </Card>

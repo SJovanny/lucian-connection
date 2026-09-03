@@ -70,7 +70,6 @@ export async function PUT(
     const body = await request.json();
 
     const {
-      slug,
       name_fr,
       name_en,
       description_fr,
@@ -103,23 +102,6 @@ export async function PUT(
       );
     }
 
-    // Si le slug change, vérifier qu'il n'existe pas déjà
-    if (slug) {
-      const { data: slugCheck } = await supabase
-        .from("products")
-        .select("id")
-        .eq("slug", slug)
-        .neq("id", id)
-        .single();
-
-      if (slugCheck) {
-        return NextResponse.json(
-          { error: "A product with this slug already exists" },
-          { status: 400 }
-        );
-      }
-    }
-
     // Construire l'objet de mise à jour
     const updateData: Record<string, unknown> = {};
     let currentProductCache: { translations?: { fr?: { name?: string; description?: string }; en?: { name?: string; description?: string } }; allergens?: { fr?: string[]; en?: string[] } } | null = null;
@@ -135,7 +117,6 @@ export async function PUT(
       return currentProductCache;
     };
 
-    if (slug !== undefined) updateData.slug = slug;
     if (category_id !== undefined) updateData.category_id = category_id || null;
     if (price !== undefined) updateData.price = parseFloat(price);
     if (compare_at_price !== undefined) {
