@@ -30,8 +30,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing order information" }, { status: 400 });
     }
 
-    const { data: closedDates, error: closuresError } = await supabase.rpc("get_pickup_closed_dates");
-    if (closuresError || !validatePickupAt(pickup_at, new Date(), (closedDates || []).map((row) => row.closed_on))) {
+    const [{ data: closedDates, error: closuresError }, { data: openingHours, error: openingHoursError }] = await Promise.all([
+      supabase.rpc("get_pickup_closed_dates"),
+      supabase.from("pickup_opening_hours").select("weekday, is_open, start_time, end_time"),
+    ]);
+    if (closuresError || openingHoursError || !validatePickupAt(pickup_at, new Date(), (closedDates || []).map((row) => row.closed_on), openingHours || undefined)) {
       return NextResponse.json({ error: "PICKUP_SLOT_UNAVAILABLE" }, { status: 400 });
     }
 

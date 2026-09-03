@@ -61,7 +61,7 @@ export function PickupSlotPicker({
       <div>
         <h2 className="text-lg font-semibold text-gray-900">{labels.title}</h2>
         <p className="text-sm text-gray-500">
-          {locale === "fr" ? "Retrait en magasin, du lundi au vendredi." : "In-store pickup, Monday to Friday."}
+           {locale === "fr" ? "Retrait en magasin selon les horaires d'ouverture." : "In-store pickup according to opening hours."}
         </p>
       </div>
 

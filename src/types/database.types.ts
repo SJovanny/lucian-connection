@@ -154,6 +154,16 @@ export type PickupClosure = {
   created_at: string;
 };
 
+export type PickupOpeningHour = {
+  id: string;
+  weekday: number;
+  is_open: boolean;
+  start_time: string | null;
+  end_time: string | null;
+  updated_at: string;
+  updated_by: string | null;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -167,6 +177,7 @@ export type Database = {
       reductions: { Row: Reduction; Insert: Partial<Reduction> & { name: string; discount_type: DiscountType; discount_value: number; applies_to: AppliesTo }; Update: Partial<Reduction>; Relationships: [] };
       store_settings: { Row: StoreSettings; Insert: Partial<StoreSettings> & { preparation_fee: number; min_order_amount: number }; Update: Partial<StoreSettings>; Relationships: [] };
       pickup_closures: { Row: PickupClosure; Insert: Partial<PickupClosure> & { closed_on: string }; Update: Partial<PickupClosure>; Relationships: [] };
+      pickup_opening_hours: { Row: PickupOpeningHour; Insert: Partial<PickupOpeningHour> & { weekday: number }; Update: Partial<PickupOpeningHour>; Relationships: [] };
     };
     Views: {
       products_with_discount: { Row: Product & { discounted_price: number | null }; Relationships: [{ foreignKeyName: "products_category_id_fkey"; columns: ["category_id"]; isOneToOne: false; referencedRelation: "categories"; referencedColumns: ["id"] }] };

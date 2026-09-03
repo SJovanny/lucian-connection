@@ -5,6 +5,19 @@ export const PICKUP_START_MINUTES = 9 * 60;
 export const PICKUP_END_MINUTES = 18 * 60;
 export const PICKUP_INTERVAL_MINUTES = 30;
 
+export type PickupOpeningHour = {
+  weekday: number;
+  is_open: boolean;
+  start_time: string | null;
+  end_time: string | null;
+};
+
+export const DEFAULT_PICKUP_OPENING_HOURS: PickupOpeningHour[] = [
+  { weekday: 0, is_open: false, start_time: null, end_time: null },
+  ...Array.from({ length: 5 }, (_, index) => ({ weekday: index + 1, is_open: true, start_time: "09:00", end_time: "18:00" })),
+  { weekday: 6, is_open: true, start_time: "08:00", end_time: "13:00" },
+];
+
 export type PickupDayState = "available" | "weekend" | "closed" | "no_slots";
 
 export type PickupSlot = {
@@ -109,27 +122,34 @@ export function isValidClosureDate(dateKey: unknown, now: Date = new Date()): da
 
 export function getPickupAvailability(
   now: Date = new Date(),
-  closedDates: Iterable<string> = []
+  closedDates: Iterable<string> = [],
+  openingHours: Iterable<PickupOpeningHour> = DEFAULT_PICKUP_OPENING_HOURS
 ): PickupDay[] {
   const today = getLocalDateKey(now);
   const closed = new Set(closedDates);
+  const hoursByWeekday = new Map(Array.from(openingHours, (hours) => [hours.weekday, hours]));
   const minimumPickupTime = now.getTime() + PICKUP_LEAD_MINUTES * 60_000;
 
   return Array.from({ length: PICKUP_BOOKING_DAYS }, (_, dayIndex) => {
     const date = addCalendarDays(today, dayIndex);
     const weekday = getWeekday(date);
 
-    if (weekday === 0 || weekday === 6) {
+    const hours = hoursByWeekday.get(weekday);
+    if (!hours?.is_open || !hours.start_time || !hours.end_time) {
       return { date, state: "weekend", slots: [] };
     }
     if (closed.has(date)) {
       return { date, state: "closed", slots: [] };
     }
 
+    const [startHour, startMinute] = hours.start_time.split(":").map(Number);
+    const [endHour, endMinute] = hours.end_time.split(":").map(Number);
+    const startMinutes = startHour * 60 + startMinute;
+    const endMinutes = endHour * 60 + endMinute;
     const slots: PickupSlot[] = [];
     for (
-      let minutes = PICKUP_START_MINUTES;
-      minutes <= PICKUP_END_MINUTES;
+      let minutes = startMinutes;
+      minutes <= endMinutes;
       minutes += PICKUP_INTERVAL_MINUTES
     ) {
       const pickupAt = localPickupToDate(date, minutes);
@@ -152,14 +172,15 @@ export function getPickupAvailability(
 export function validatePickupAt(
   value: unknown,
   now: Date = new Date(),
-  closedDates: Iterable<string> = []
+  closedDates: Iterable<string> = [],
+  openingHours: Iterable<PickupOpeningHour> = DEFAULT_PICKUP_OPENING_HOURS
 ): boolean {
   if (typeof value !== "string" || !value.trim()) return false;
 
   const pickupAt = new Date(value);
   if (Number.isNaN(pickupAt.getTime())) return false;
 
-  return getPickupAvailability(now, closedDates).some((day) =>
+  return getPickupAvailability(now, closedDates, openingHours).some((day) =>
     day.slots.some((slot) => slot.pickupAt === pickupAt.toISOString())
   );
 }

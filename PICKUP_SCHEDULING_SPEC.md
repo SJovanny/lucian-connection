@@ -11,8 +11,8 @@ Avant de confirmer une commande, le client doit choisir obligatoirement un crén
 | Sujet | Décision |
 | --- | --- |
 | Fuseau horaire de référence | `America/Martinique` |
-| Jours d'ouverture | Du lundi au vendredi |
-| Horaires de retrait | De `09:00` à `18:00`, créneau de `18:00` inclus |
+| Jours d'ouverture | Configurables par jour depuis l'administration |
+| Horaires de retrait | Configurables par jour depuis l'administration, créneau de fin inclus |
 | Intervalle | Toutes les 30 minutes |
 | Délai minimal | 30 minutes à partir de l'heure serveur |
 | Fenêtre de réservation | Aujourd'hui et les 6 jours locaux suivants (7 jours au total) |
@@ -28,7 +28,7 @@ Avant de confirmer une commande, le client doit choisir obligatoirement un crén
 La disponibilité doit être calculée côté serveur. Le navigateur ne doit jamais être la source de vérité pour l'heure, le fuseau horaire ou la validité d'un créneau.
 
 1. Les dates proposées correspondent aux 7 prochains jours calendaires dans `America/Martinique`, aujourd'hui inclus.
-2. Les samedis et dimanches sont visibles mais non sélectionnables.
+2. Les jours fermés dans la configuration hebdomadaire sont visibles mais non sélectionnables.
 3. Une date inscrite dans les fermetures exceptionnelles est visible mais non sélectionnable.
 4. Les créneaux ouverts sont `09:00`, `09:30`, ..., `17:30`, `18:00`.
 5. Un créneau doit commencer au moins 30 minutes après l'heure serveur.

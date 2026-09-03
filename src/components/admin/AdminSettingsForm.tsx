@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { createClient } from "@/lib/supabase/client";
-import type { PickupClosure, Profile, StoreSettings } from "@/types/database.types";
+import type { PickupClosure, PickupOpeningHour, Profile, StoreSettings } from "@/types/database.types";
 
 interface AdminSettingsFormProps {
   userId: string;
@@ -34,6 +34,8 @@ export function AdminSettingsForm({
   const [closedOn, setClosedOn] = useState("");
   const [closureReason, setClosureReason] = useState("");
   const [isSavingClosure, setIsSavingClosure] = useState(false);
+  const [openingHours, setOpeningHours] = useState<PickupOpeningHour[]>([]);
+  const [isSavingOpeningHours, setIsSavingOpeningHours] = useState(false);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -46,6 +48,42 @@ export function AdminSettingsForm({
     };
     fetchSettings();
   }, []);
+
+  useEffect(() => {
+    fetch("/api/admin/pickup-opening-hours")
+      .then((response) => response.json())
+      .then((data) => setOpeningHours(data.openingHours || []))
+      .catch(() => setError("Impossible de charger les horaires d'ouverture."));
+  }, []);
+
+  const updateOpeningHour = (weekday: number, update: Partial<PickupOpeningHour>) => {
+    setOpeningHours((current) => current.map((hours) =>
+      hours.weekday === weekday ? { ...hours, ...update } : hours
+    ));
+  };
+
+  const handleSaveOpeningHours = async () => {
+    setIsSavingOpeningHours(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const response = await fetch("/api/admin/pickup-opening-hours", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ openingHours }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error === "INVALID_OPENING_HOURS" ? "Vérifiez les horaires saisis." : "Impossible d'enregistrer les horaires.");
+      }
+      setOpeningHours(data.openingHours || []);
+      setSuccess("Horaires d'ouverture mis à jour.");
+    } catch (openingHoursError) {
+      setError(openingHoursError instanceof Error ? openingHoursError.message : "Impossible d'enregistrer les horaires.");
+    } finally {
+      setIsSavingOpeningHours(false);
+    }
+  };
 
   useEffect(() => {
     fetch("/api/admin/pickup-closures")
@@ -266,6 +304,57 @@ export function AdminSettingsForm({
         ) : (
           <p className="text-sm text-gray-500">Aucune fermeture future.</p>
         )}
+      </Card>
+
+      <Card padding="md" className="space-y-5">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Horaires d&apos;ouverture</h2>
+          <p className="text-sm text-gray-500">Configurez les jours et les heures pendant lesquels les clients peuvent choisir un retrait.</p>
+        </div>
+        <div className="space-y-3">
+          {openingHours.map((hours) => {
+            const dayLabel = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"][hours.weekday];
+            return (
+              <div key={hours.weekday} className="grid grid-cols-1 items-end gap-3 rounded-lg border border-gray-200 p-3 sm:grid-cols-[1fr_auto_1fr_1fr]">
+                <span className="font-medium text-gray-900">{dayLabel}</span>
+                <label className="flex items-center gap-2 text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={hours.is_open}
+                    onChange={(event) => updateOpeningHour(hours.weekday, {
+                      is_open: event.target.checked,
+                      start_time: event.target.checked ? (hours.start_time || "09:00") : null,
+                      end_time: event.target.checked ? (hours.end_time || "18:00") : null,
+                    })}
+                    className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  Ouvert
+                </label>
+                <Input
+                  label="De"
+                  type="time"
+                  step="1800"
+                  value={hours.start_time || ""}
+                  disabled={!hours.is_open}
+                  onChange={(event) => updateOpeningHour(hours.weekday, { start_time: event.target.value })}
+                />
+                <Input
+                  label="À"
+                  type="time"
+                  step="1800"
+                  value={hours.end_time || ""}
+                  disabled={!hours.is_open}
+                  onChange={(event) => updateOpeningHour(hours.weekday, { end_time: event.target.value })}
+                />
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex justify-end">
+          <Button onClick={handleSaveOpeningHours} isLoading={isSavingOpeningHours} disabled={openingHours.length !== 7}>
+            Enregistrer les horaires
+          </Button>
+        </div>
       </Card>
 
       <Card padding="md" className="space-y-6">

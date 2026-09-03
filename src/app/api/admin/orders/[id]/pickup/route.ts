@@ -11,9 +11,12 @@ export async function PATCH(
 
   try {
     const { pickup_at } = await request.json();
-    const { data: closedDates, error: closuresError } = await supabase.rpc("get_pickup_closed_dates");
-    if (closuresError) throw closuresError;
-    if (!validatePickupAt(pickup_at, new Date(), (closedDates || []).map((row) => row.closed_on))) {
+    const [{ data: closedDates, error: closuresError }, { data: openingHours, error: openingHoursError }] = await Promise.all([
+      supabase.rpc("get_pickup_closed_dates"),
+      supabase.from("pickup_opening_hours").select("weekday, is_open, start_time, end_time"),
+    ]);
+    if (closuresError || openingHoursError) throw closuresError || openingHoursError;
+    if (!validatePickupAt(pickup_at, new Date(), (closedDates || []).map((row) => row.closed_on), openingHours || undefined)) {
       return NextResponse.json({ error: "PICKUP_SLOT_UNAVAILABLE" }, { status: 400 });
     }
 
