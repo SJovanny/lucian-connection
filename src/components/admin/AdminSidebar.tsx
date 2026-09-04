@@ -105,9 +105,11 @@ export function AdminSidebar() {
         {/* Header */}
         <div className="h-16 flex items-center justify-between px-6 border-b border-primary-700">
           <Link href="/admin" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-accent-400 rounded-lg flex items-center justify-center">
-              <span className="text-lg">🛒</span>
-            </div>
+            <img
+              src="/logo_lc.svg"
+              alt="Lucian Connection"
+              className="h-10 w-auto"
+            />
             <span className="font-bold font-display">Admin</span>
           </Link>
           <button
