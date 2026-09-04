@@ -104,10 +104,11 @@ export default function OrdersPage() {
   }, []);
 
   const filteredOrders = orders.filter((order) => {
+    const term = searchTerm.toLowerCase();
     const matchesSearch = 
-      order.id.includes(searchTerm) ||
-      order.profiles?.full_name?.includes(searchTerm) ||
-      order.phone?.includes(searchTerm);
+      order.id.toLowerCase().includes(term) ||
+      (order.profiles?.full_name ?? "").toLowerCase().includes(term) ||
+      (order.phone ?? "").toLowerCase().includes(term);
     const matchesStatus = !filterStatus || order.status === filterStatus;
     const matchesDate = !filterDate || pickupDateKey(order.pickup_at) === filterDate;
     return matchesSearch && matchesStatus && matchesDate;
