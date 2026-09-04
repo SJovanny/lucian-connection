@@ -15,9 +15,11 @@ export async function POST(request: NextRequest) {
   let event: Stripe.Event;
   try {
     event = new Stripe(key).webhooks.constructEvent(body, signature, secret);
-  } catch {
+  } catch (error) {
+    console.error("Stripe webhook signature verification failed", error);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
+  console.log(`Stripe webhook received: ${event.type} [${event.id}]`);
 
   const handledEvents = new Set([
     "checkout.session.completed",
@@ -38,21 +40,30 @@ export async function POST(request: NextRequest) {
   const session = event.data.object as Stripe.Checkout.Session;
   const orderId = session.metadata?.order_id;
   if (orderId && event.type === "checkout.session.completed") {
-    const { data: order } = await supabase.from("orders").select("user_id, subtotal").eq("id", orderId).single();
-    await supabase.from("orders").update({
+    const { data: order, error: orderFetchError } = await supabase.from("orders").select("user_id, subtotal").eq("id", orderId).single();
+    if (orderFetchError) console.error(`Webhook: unable to fetch order ${orderId}`, orderFetchError);
+    const { error: orderUpdateError } = await supabase.from("orders").update({
       payment_status: "paid", paid_at: new Date().toISOString(),
       payment_reference: session.payment_intent?.toString() || session.id,
     }).eq("id", orderId);
+    if (orderUpdateError) console.error(`Webhook: unable to mark order ${orderId} as paid`, orderUpdateError);
     if (order?.user_id) {
       const { data: settings } = await supabase.from("store_settings").select("loyalty_points_per_euro").limit(1).maybeSingle();
       const rate = Number(settings?.loyalty_points_per_euro || 1);
       const points = Math.floor(Number(order.subtotal) * rate);
-      await supabase.rpc("loyalty_earn_points", {
+      const { error: loyaltyError } = await supabase.rpc("loyalty_earn_points", {
         p_user_id: order.user_id,
         p_order_id: orderId,
         p_points: points,
         p_description: `Points gagnés sur la commande #${orderId.slice(0, 8)}`,
       });
+      if (loyaltyError) {
+        console.error(`Webhook: unable to award loyalty points for order ${orderId}`, loyaltyError);
+      } else {
+        console.log(`Webhook: awarded ${points} loyalty points to user ${order.user_id} for order ${orderId}`);
+      }
+    } else {
+      console.error(`Webhook: order ${orderId} has no user_id, cannot award loyalty points`);
     }
   }
   if (orderId && (event.type === "checkout.session.expired" || event.type === "checkout.session.async_payment_failed")) {
@@ -87,7 +98,8 @@ export async function POST(request: NextRequest) {
             payment_status: refund.amount >= Number((await supabase.from("orders").select("total_amount").eq("id", refundOrderId).single()).data?.total_amount || 0) * 100 ? "refunded" : "partially_refunded",
             refunded_at: new Date().toISOString(),
           }).eq("id", refundOrderId);
-          await supabase.rpc("loyalty_apply_refund", { p_refund_id: refundRow.id });
+          const { error: applyRefundError } = await supabase.rpc("loyalty_apply_refund", { p_refund_id: refundRow.id });
+          if (applyRefundError) console.error(`Webhook: unable to apply loyalty refund for refund ${refundRow.id}`, applyRefundError);
         }
       }
     }
