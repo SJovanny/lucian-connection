@@ -1,5 +1,2 @@
 -- Add a final "completed" status for orders that have been picked up.
-ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_status_check;
-ALTER TABLE public.orders
-  ADD CONSTRAINT orders_status_check
-  CHECK (status IN ('pending', 'preparing', 'ready', 'completed', 'cancelled', 'refunded'));
+ALTER TYPE public.order_status ADD VALUE IF NOT EXISTS 'completed';
