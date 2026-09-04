@@ -24,6 +24,11 @@ export async function POST(request: Request) {
       );
     }
 
+    const { data: { user } } = await supabase.auth.getUser();
+    if (coupon.user_id && coupon.user_id !== user?.id) {
+      return NextResponse.json({ valid: false, message: "Coupon invalid" }, { status: 400 });
+    }
+
     // 2. Validate basic status
     // Time window is enforced by coupons_active view (DB clock)
 

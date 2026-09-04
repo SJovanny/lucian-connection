@@ -54,6 +54,7 @@ export type Profile = {
   address: string | null;
   dashboard_locale: string;
   role: "customer" | "admin";
+  loyalty_points_balance: number;
   created_at: string;
   updated_at: string;
 };
@@ -119,6 +120,7 @@ export type Coupon = {
   is_active: boolean;
   created_at: string;
   created_by: string | null;
+  user_id: string | null;
 };
 
 export type Reduction = {
@@ -145,6 +147,57 @@ export type StoreSettings = {
   min_order_amount: number;
   updated_at: string;
   updated_by: string | null;
+  loyalty_points_per_euro: number;
+};
+
+export type LoyaltyReward = {
+  id: string;
+  name: string;
+  points_cost: number;
+  discount_type: DiscountType;
+  discount_value: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LoyaltyLedgerEntry = {
+  id: string;
+  user_id: string;
+  order_id: string | null;
+  order_refund_id: string | null;
+  type: "earn" | "redeem" | "adjustment";
+  points: number;
+  balance_after: number;
+  description: string;
+  created_at: string;
+};
+
+export type LoyaltyRedemption = {
+  id: string;
+  user_id: string;
+  reward_id: string;
+  coupon_id: string;
+  points_spent: number;
+  created_at: string;
+  loyalty_rewards?: LoyaltyReward;
+  coupons?: Coupon;
+};
+
+export type OrderRefund = {
+  id: string;
+  order_id: string;
+  user_id: string;
+  stripe_refund_id: string | null;
+  amount: number;
+  product_amount: number;
+  items: Array<{ product_id: string; quantity: number; amount: number }>;
+  status: "pending" | "succeeded" | "failed" | "canceled";
+  points_reversed: number;
+  reason: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type PickupClosure = {
@@ -177,6 +230,10 @@ export type Database = {
       coupons: { Row: Coupon; Insert: Partial<Coupon> & { code: string; discount_type: DiscountType; discount_value: number }; Update: Partial<Coupon>; Relationships: [] };
       reductions: { Row: Reduction; Insert: Partial<Reduction> & { name: string; discount_type: DiscountType; discount_value: number; applies_to: AppliesTo }; Update: Partial<Reduction>; Relationships: [] };
       store_settings: { Row: StoreSettings; Insert: Partial<StoreSettings> & { preparation_fee: number; min_order_amount: number }; Update: Partial<StoreSettings>; Relationships: [] };
+      loyalty_rewards: { Row: LoyaltyReward; Insert: Partial<LoyaltyReward> & { name: string; points_cost: number; discount_type: DiscountType; discount_value: number }; Update: Partial<LoyaltyReward>; Relationships: [] };
+      loyalty_ledger: { Row: LoyaltyLedgerEntry; Insert: Partial<LoyaltyLedgerEntry> & { user_id: string; type: LoyaltyLedgerEntry["type"]; points: number; balance_after: number; description: string }; Update: Partial<LoyaltyLedgerEntry>; Relationships: [] };
+      loyalty_redemptions: { Row: LoyaltyRedemption; Insert: Partial<LoyaltyRedemption> & { user_id: string; reward_id: string; coupon_id: string; points_spent: number }; Update: Partial<LoyaltyRedemption>; Relationships: [] };
+      order_refunds: { Row: OrderRefund; Insert: Partial<OrderRefund> & { order_id: string; user_id: string; amount: number; product_amount: number }; Update: Partial<OrderRefund>; Relationships: [] };
       pickup_closures: { Row: PickupClosure; Insert: Partial<PickupClosure> & { closed_on: string }; Update: Partial<PickupClosure>; Relationships: [] };
       pickup_opening_hours: { Row: PickupOpeningHour; Insert: Partial<PickupOpeningHour> & { weekday: number }; Update: Partial<PickupOpeningHour>; Relationships: [] };
     };
@@ -186,6 +243,10 @@ export type Database = {
     };
     Functions: {
       get_pickup_closed_dates: { Args: Record<string, never>; Returns: { closed_on: string }[] };
+      loyalty_earn_points: { Args: { p_user_id: string; p_order_id: string; p_points: number; p_description: string }; Returns: { new_balance: number; applied: boolean }[] };
+      loyalty_redeem_points: { Args: { p_user_id: string; p_reward_id: string; p_description: string }; Returns: { new_balance: number; points_spent: number }[] };
+      loyalty_apply_refund: { Args: { p_refund_id: string }; Returns: { points_reversed: number; new_balance: number }[] };
+      loyalty_redeem_reward: { Args: { p_user_id: string; p_reward_id: string }; Returns: { coupon_id: string; coupon_code: string; new_balance: number; points_spent: number }[] };
     };
     Enums: { role: "customer" | "admin" };
     CompositeTypes: Record<string, never>;

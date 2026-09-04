@@ -83,6 +83,8 @@ export default function OrdersPage() {
   const [pickupError, setPickupError] = useState<string | null>(null);
   const [pickupReloadToken, setPickupReloadToken] = useState(0);
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
+  const [refundItemIds, setRefundItemIds] = useState<string[]>([]);
+  const [isRefunding, setIsRefunding] = useState(false);
 
   // Load orders on mount
   useEffect(() => {
@@ -119,7 +121,32 @@ export default function OrdersPage() {
     setAdminPickupAt(order.pickup_at);
     setPickupError(null);
     setIsRescheduleOpen(false);
+    setRefundItemIds([]);
     setIsModalOpen(true);
+  };
+
+  const handleRefund = async (fullOrder: boolean) => {
+    if (!selectedOrder || isRefunding) return;
+    const selectedItems = selectedOrder.order_items.filter((item) => refundItemIds.includes(item.id));
+    const grossSelected = fullOrder ? selectedOrder.subtotal : selectedItems.reduce((sum, item) => sum + Number(item.total_price), 0);
+    const productAmount = fullOrder ? selectedOrder.total_amount - selectedOrder.delivery_fee : grossSelected * (selectedOrder.subtotal ? (selectedOrder.subtotal - selectedOrder.discount_amount) / selectedOrder.subtotal : 1);
+    if (!productAmount || !confirm(`Confirmer le remboursement de ${productAmount.toFixed(2)} € (hors frais de préparation) ?`)) return;
+    setIsRefunding(true);
+    try {
+      const response = await fetch(`/api/admin/orders/${selectedOrder.id}/refund`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: productAmount, product_amount: productAmount, items: fullOrder ? [] : selectedItems.map((item) => ({ product_id: item.product_id, quantity: item.quantity, amount: item.total_price })) }),
+      });
+      if (!response.ok) throw new Error("refund");
+      alert("Remboursement envoyé à Stripe. Les points seront ajustés après confirmation.");
+      setRefundItemIds([]);
+    } catch (error) {
+      console.error("Error creating refund", error);
+      alert("Le remboursement n'a pas pu être créé.");
+    } finally {
+      setIsRefunding(false);
+    }
   };
 
   const handleStatusChange = async (newStatus: string) => {
@@ -453,15 +480,24 @@ export default function OrdersPage() {
               <h3 className="font-semibold text-gray-900 mb-3">Articles</h3>
               <div className="space-y-2 bg-gray-50 rounded-lg p-4">
                 {selectedOrder.order_items?.map((item) => (
-                  <div key={item.id} className="flex justify-between text-sm">
-                    <span className="text-gray-600">
+                  <label key={item.id} className="flex items-center justify-between text-sm gap-3">
+                    <span className="flex items-center gap-2 text-gray-600">
+                      <input type="checkbox" checked={refundItemIds.includes(item.id)} onChange={() => setRefundItemIds((ids) => ids.includes(item.id) ? ids.filter((id) => id !== item.id) : [...ids, item.id])} />
                       {item.product_name} × {item.quantity}
                     </span>
                     <span className="font-medium text-gray-900">
                       ${(item.total_price as number).toFixed(2)}
                     </span>
-                  </div>
+                  </label>
                 ))}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 space-y-3">
+              <div><p className="font-semibold text-orange-900">Remboursement</p><p className="text-sm text-orange-800">Les frais de préparation sont toujours exclus. La confirmation Stripe déterminera la mise à jour des points.</p></div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => handleRefund(true)} disabled={isRefunding || !["paid", "partially_refunded"].includes(selectedOrder.payment_status)} className="rounded-lg bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50">{isRefunding ? "Traitement..." : "Rembourser les produits"}</button>
+                <button type="button" onClick={() => handleRefund(false)} disabled={isRefunding || refundItemIds.length === 0 || !["paid", "partially_refunded"].includes(selectedOrder.payment_status)} className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-orange-700 border border-orange-300 hover:bg-orange-100 disabled:opacity-50">Rembourser la sélection</button>
               </div>
             </div>
 

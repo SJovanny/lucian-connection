@@ -15,6 +15,7 @@ import {
   X,
   Home,
   Percent,
+  Gift,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -50,6 +51,11 @@ const navItems = [
     label: "Réductions",
     href: "/admin/reductions",
     icon: Percent,
+  },
+  {
+    label: "Fidélité",
+    href: "/admin/loyalty",
+    icon: Gift,
   },
   {
     label: "Inventaire",

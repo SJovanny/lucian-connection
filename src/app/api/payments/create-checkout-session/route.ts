@@ -73,13 +73,13 @@ export async function POST(request: NextRequest) {
     if (coupon_id) {
       const { data: coupon } = await (supabase as any)
         .from("coupons_active").select("*").eq("id", coupon_id).maybeSingle();
-      if (coupon) {
+      if (coupon && (!coupon.user_id || coupon.user_id === user.id)) {
         discount = coupon.discount_type === "percentage"
           ? subtotal * Number(coupon.discount_value) / 100
           : Number(coupon.discount_value);
         if (coupon.max_discount_amount) discount = Math.min(discount, Number(coupon.max_discount_amount));
         discount = Math.min(Math.max(0, discount), subtotal + preparationFee);
-      }
+      } else if (coupon) return NextResponse.json({ error: "Coupon unavailable" }, { status: 400 });
     }
     const total = Math.max(0, subtotal + preparationFee - discount);
     const { data: order, error: orderError } = await (supabase as any)

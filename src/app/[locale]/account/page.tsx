@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/Input";
 import { createClient } from "@/lib/supabase/client";
 import { getSupabaseConfig } from "@/lib/supabase/config";
 import type { Order, OrderItem, Profile } from "@/types/database.types";
+import { LoyaltySection } from "@/components/account/LoyaltySection";
 
 const statusLabels: Record<string, string> = {
   pending: "En attente",
@@ -211,6 +212,7 @@ export default function AccountPage() {
           </div>
 
           <div className="grid lg:grid-cols-3 gap-6">
+            <LoyaltySection />
             <Card className="lg:col-span-1">
               <CardHeader>
                 <CardTitle>Profil</CardTitle>
