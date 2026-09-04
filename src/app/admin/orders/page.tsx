@@ -2,7 +2,7 @@
 
 import { Card } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
-import { ChevronDown, Eye, Search } from "lucide-react";
+import { ChevronDown, Eye, RotateCcw, Search } from "lucide-react";
 import { PickupSlotPicker } from "@/components/pickup/PickupSlotPicker";
 import type { Order, OrderItem, Profile } from "@/types/database.types";
 import { useState, useEffect } from "react";
@@ -51,13 +51,11 @@ function formatPickup(dateString: string | null): string {
   }).format(new Date(dateString));
 }
 
-function pickupDateKey(dateString: string | null): string | null {
-  if (!dateString) return null;
+function orderMonthKey(dateString: string): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Martinique",
     year: "numeric",
     month: "2-digit",
-    day: "2-digit",
   }).format(new Date(dateString));
 }
 
@@ -75,9 +73,9 @@ export default function OrdersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
+  const [filterStatus, setFilterStatus] = useState("pending");
   const [isLoading, setIsLoading] = useState(true);
-  const [filterDate, setFilterDate] = useState("");
+  const [filterMonth, setFilterMonth] = useState("");
   const [adminPickupAt, setAdminPickupAt] = useState<string | null>(null);
   const [isSavingPickup, setIsSavingPickup] = useState(false);
   const [pickupError, setPickupError] = useState<string | null>(null);
@@ -112,9 +110,17 @@ export default function OrdersPage() {
       (order.profiles?.full_name ?? "").toLowerCase().includes(term) ||
       (order.phone ?? "").toLowerCase().includes(term);
     const matchesStatus = !filterStatus || order.status === filterStatus;
-    const matchesDate = !filterDate || pickupDateKey(order.pickup_at) === filterDate;
-    return matchesSearch && matchesStatus && matchesDate;
+    const matchesMonth = !filterMonth || orderMonthKey(order.created_at) === filterMonth;
+    return matchesSearch && matchesStatus && matchesMonth;
   });
+
+  const hasActiveFilters = searchTerm !== "" || filterStatus !== "pending" || filterMonth !== "";
+
+  const handleResetFilters = () => {
+    setSearchTerm("");
+    setFilterStatus("pending");
+    setFilterMonth("");
+  };
 
   const handleViewOrder = (order: OrderWithDetails) => {
     setSelectedOrder(order);
@@ -296,11 +302,23 @@ export default function OrdersPage() {
             <option value="refunded">Remboursement</option>
           </select>
           <input
-            type="date"
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
+            type="month"
+            value={filterMonth}
+            onChange={(e) => setFilterMonth(e.target.value)}
+            title="Filtrer par mois de commande"
+            aria-label="Filtrer par mois de commande"
             className="h-11 px-4 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
           />
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="h-11 px-4 rounded-lg border border-gray-300 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-2 whitespace-nowrap"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Réinitialiser
+            </button>
+          )}
         </div>
       </Card>
 
