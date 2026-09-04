@@ -40,13 +40,27 @@ export async function POST(request: NextRequest) {
   const session = event.data.object as Stripe.Checkout.Session;
   const orderId = session.metadata?.order_id;
   if (orderId && event.type === "checkout.session.completed") {
-    const { data: order, error: orderFetchError } = await supabase.from("orders").select("user_id, subtotal").eq("id", orderId).single();
+    const { data: order, error: orderFetchError } = await supabase.from("orders").select("user_id, subtotal, coupon_id").eq("id", orderId).single();
     if (orderFetchError) console.error(`Webhook: unable to fetch order ${orderId}`, orderFetchError);
     const { error: orderUpdateError } = await supabase.from("orders").update({
       payment_status: "paid", paid_at: new Date().toISOString(),
       payment_reference: session.payment_intent?.toString() || session.id,
     }).eq("id", orderId);
     if (orderUpdateError) console.error(`Webhook: unable to mark order ${orderId} as paid`, orderUpdateError);
+    if (order?.coupon_id) {
+      const { data: couponApplied, error: couponError } = await supabase.rpc("use_coupon", {
+        p_coupon_id: order.coupon_id,
+        p_order_id: orderId,
+        p_user_id: order.user_id,
+      });
+      if (couponError) {
+        console.error(`Webhook: unable to record coupon usage for order ${orderId}`, couponError);
+      } else if (couponApplied) {
+        console.log(`Webhook: recorded usage of coupon ${order.coupon_id} for order ${orderId}`);
+      } else {
+        console.log(`Webhook: coupon usage for order ${orderId} already recorded (retry), skipped`);
+      }
+    }
     if (order?.user_id) {
       const { data: settings } = await supabase.from("store_settings").select("loyalty_points_per_euro").limit(1).maybeSingle();
       const rate = Number(settings?.loyalty_points_per_euro || 1);

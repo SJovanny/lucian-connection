@@ -123,6 +123,14 @@ export type Coupon = {
   user_id: string | null;
 };
 
+export type CouponUsage = {
+  id: string;
+  coupon_id: string;
+  order_id: string;
+  user_id: string | null;
+  created_at: string;
+};
+
 export type Reduction = {
   id: string;
   name: string;
@@ -234,6 +242,7 @@ export type Database = {
       loyalty_ledger: { Row: LoyaltyLedgerEntry; Insert: Partial<LoyaltyLedgerEntry> & { user_id: string; type: LoyaltyLedgerEntry["type"]; points: number; balance_after: number; description: string }; Update: Partial<LoyaltyLedgerEntry>; Relationships: [] };
       loyalty_redemptions: { Row: LoyaltyRedemption; Insert: Partial<LoyaltyRedemption> & { user_id: string; reward_id: string; coupon_id: string; points_spent: number }; Update: Partial<LoyaltyRedemption>; Relationships: [] };
       order_refunds: { Row: OrderRefund; Insert: Partial<OrderRefund> & { order_id: string; user_id: string; amount: number; product_amount: number }; Update: Partial<OrderRefund>; Relationships: [] };
+      coupon_usages: { Row: CouponUsage; Insert: Partial<CouponUsage> & { coupon_id: string; order_id: string }; Update: Partial<CouponUsage>; Relationships: [] };
       pickup_closures: { Row: PickupClosure; Insert: Partial<PickupClosure> & { closed_on: string }; Update: Partial<PickupClosure>; Relationships: [] };
       pickup_opening_hours: { Row: PickupOpeningHour; Insert: Partial<PickupOpeningHour> & { weekday: number }; Update: Partial<PickupOpeningHour>; Relationships: [] };
     };
@@ -247,6 +256,7 @@ export type Database = {
       loyalty_redeem_points: { Args: { p_user_id: string; p_reward_id: string; p_description: string }; Returns: { new_balance: number; points_spent: number }[] };
       loyalty_apply_refund: { Args: { p_refund_id: string }; Returns: { points_reversed: number; new_balance: number }[] };
       loyalty_redeem_reward: { Args: { p_user_id: string; p_reward_id: string }; Returns: { coupon_id: string; coupon_code: string; new_balance: number; points_spent: number }[] };
+      use_coupon: { Args: { p_coupon_id: string; p_order_id: string; p_user_id: string | null }; Returns: boolean };
     };
     Enums: { role: "customer" | "admin" };
     CompositeTypes: Record<string, never>;
