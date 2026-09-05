@@ -53,6 +53,11 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/pickup-refunds" className="hover:text-white transition-colors">
+                  Retrait et remboursements
+                </Link>
+              </li>
+              <li>
                 <Link href="/cookies" className="hover:text-white transition-colors">
                   Cookies
                 </Link>

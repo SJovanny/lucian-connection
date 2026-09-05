@@ -40,6 +40,7 @@ export type Product = {
   stock: number;
   low_stock_threshold: number;
   track_stock: boolean;
+  is_alcoholic: boolean;
   unit: string;
   is_featured: boolean;
   is_active: boolean;
@@ -81,6 +82,10 @@ export type Order = {
   paid_at: string | null;
   refunded_at: string | null;
   terms_version: string | null;
+  contains_alcohol: boolean;
+  age_confirmed_at: string | null;
+  pickup_age_verified_at: string | null;
+  pickup_age_verified_by: string | null;
 };
 
 export type LegalAcceptance = {

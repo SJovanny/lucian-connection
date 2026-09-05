@@ -37,6 +37,7 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
     stock: product?.stock?.toString() || "0",
     low_stock_threshold: product?.low_stock_threshold?.toString() || "5",
     track_stock: product?.track_stock !== false,
+    is_alcoholic: product?.is_alcoholic === true,
     is_active: product?.is_active !== false,
     is_featured: product?.is_featured || false,
     image_url: product?.image_url || "",
@@ -397,6 +398,16 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
                 className="w-5 h-5 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
               />
               <span className="text-sm text-gray-700">Produit vedette</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                name="is_alcoholic"
+                checked={formData.is_alcoholic}
+                onChange={handleChange}
+                className="w-5 h-5 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
+              />
+              <span className="text-sm text-gray-700">Produit alcoolisé (vente interdite aux mineurs)</span>
             </label>
           </div>
         </CardContent>

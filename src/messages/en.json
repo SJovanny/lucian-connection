@@ -62,6 +62,7 @@
     "outOfStock": "Out of stock",
     "inStock": "In stock",
     "allergens": "Allergens",
+    "alcoholWarning": "Sale restricted to adults",
     "unit": {
       "each": "each",
       "kg": "kg",

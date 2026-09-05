@@ -48,12 +48,15 @@ export async function updateOrderStatus(orderId: string, status: string) {
   if (["preparing", "ready", "completed"].includes(status)) {
     const { data: order, error: orderError } = await admin
       .from("orders")
-      .select("payment_status")
+      .select("payment_status, contains_alcohol, pickup_age_verified_at")
       .eq("id", orderId)
       .single();
     if (orderError) throw orderError;
     if (order.payment_status !== "paid") {
       throw new Error("Order must be paid before entering preparation");
+    }
+    if (status === "completed" && order.contains_alcohol && !order.pickup_age_verified_at) {
+      throw new Error("Pickup age verification is required");
     }
   }
   const updateData: Partial<Order> = { status: status as OrderStatus };

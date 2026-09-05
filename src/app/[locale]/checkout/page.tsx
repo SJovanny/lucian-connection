@@ -29,6 +29,8 @@ export default function CheckoutPage() {
   const [paymentCancelled, setPaymentCancelled] = useState(false);
   const [pickupAt, setPickupAt] = useState<string | null>(null);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [catalogContainsAlcohol, setCatalogContainsAlcohol] = useState(false);
   const [availabilityReloadToken, setAvailabilityReloadToken] = useState(0);
   const [contactInfo, setContactInfo] = useState({
     fullName: "",
@@ -90,10 +92,43 @@ export default function CheckoutPage() {
     loadContactInfo();
   }, []);
 
+  useEffect(() => {
+    let isCurrent = true;
+
+    if (items.length === 0) {
+      setCatalogContainsAlcohol(false);
+      return () => {
+        isCurrent = false;
+      };
+    }
+
+    fetch("/api/products/age-requirement", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ product_ids: items.map((item) => item.id) }),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (isCurrent) setCatalogContainsAlcohol(data.containsAlcohol === true);
+      })
+      .catch(() => {
+        if (isCurrent) setCatalogContainsAlcohol(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [items]);
+
   const subtotal = getSubtotal();
   const totalBeforeDiscount = subtotal + preparationFee;
   const discount = appliedCoupon ? appliedCoupon.discount_amount : 0;
   const total = Math.max(0, totalBeforeDiscount - discount);
+  const containsAlcohol = catalogContainsAlcohol || items.some((item) => item.is_alcoholic === true);
+
+  useEffect(() => {
+    if (!containsAlcohol) setAgeConfirmed(false);
+  }, [containsAlcohol]);
 
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) return;
@@ -155,6 +190,12 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (containsAlcohol && !ageConfirmed) {
+      setFormError(locale === "fr" ? "Vous devez confirmer avoir au moins 18 ans pour commander de l’alcool." : "You must confirm that you are at least 18 to order alcohol.");
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const supabase = createClient();
       console.log("[checkout] 2) fetching user session");
@@ -175,35 +216,40 @@ export default function CheckoutPage() {
       const phone = String(formData.get("phone") || "").trim();
       const notes = String(formData.get("notes") || "").trim();
 
-       const payload = {
-         items,
-         phone,
+      const payload = {
+        items,
+        phone,
         notes,
         locale,
-         coupon_id: appliedCoupon?.id || null,
-         discount_amount: appliedCoupon?.discount_amount || 0,
-         full_name,
-         email,
-         terms_accepted: acceptedTerms,
-          pickup_at: pickupAt,
-       };
+        coupon_id: appliedCoupon?.id || null,
+        discount_amount: appliedCoupon?.discount_amount || 0,
+        full_name,
+        email,
+        terms_accepted: acceptedTerms,
+        age_confirmed: ageConfirmed,
+        pickup_at: pickupAt,
+      };
 
-       const res = await fetch("/api/payments/create-checkout-session", {
+      const res = await fetch("/api/payments/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-       const data = await res.json();
-       console.log("[checkout] payment session response status:", res.status);
-       if (!res.ok) {
-         console.error("[checkout] Payment session creation failed:", data);
+      const data = await res.json();
+      console.log("[checkout] payment session response status:", res.status);
+      if (!res.ok) {
+        console.error("[checkout] Payment session creation failed:", data);
         if (data?.error === "PICKUP_SLOT_UNAVAILABLE") {
           setPickupAt(null);
           setAvailabilityReloadToken((value) => value + 1);
           setFormError(locale === "fr" ? "Ce créneau n'est plus disponible. Choisissez-en un autre." : "This slot is no longer available. Please choose another one.");
+        } else if (data?.error === "ALCOHOL_AGE_REQUIRED") {
+          setFormError(locale === "fr" ? "La confirmation de majorité est requise pour cette commande." : "Age confirmation is required for this order.");
+          setCatalogContainsAlcohol(true);
+          setAgeConfirmed(false);
         } else {
-           setFormError(data?.details || data?.error || "Erreur lors de la préparation du paiement");
+          setFormError(data?.details || data?.error || "Erreur lors de la préparation du paiement");
         }
         return;
       }
@@ -544,9 +590,34 @@ export default function CheckoutPage() {
                         <Link href="/terms" className="font-medium text-primary-700 underline">
                           {locale === "fr" ? "conditions générales de vente" : "terms and conditions"}
                         </Link>
-                        {locale === "fr" ? " et reconnais l’obligation de paiement." : " and acknowledge the payment obligation."}
+                        {locale === "fr" ? " et " : " and "}
+                        <Link href="/pickup-refunds" className="font-medium text-primary-700 underline">
+                          {locale === "fr" ? "la politique de retrait et de remboursement" : "the pickup and refund policy"}
+                        </Link>
+                        {locale === "fr" ? ". Je reconnais l’obligation de paiement." : ". I acknowledge the payment obligation."}
                       </span>
                     </label>
+
+                    {containsAlcohol && (
+                      <label className="mt-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+                        <input
+                          type="checkbox"
+                          name="ageConfirmed"
+                          required
+                          checked={ageConfirmed}
+                          onChange={(event) => {
+                            setAgeConfirmed(event.target.checked);
+                            setFormError(null);
+                          }}
+                          className="mt-1 h-4 w-4 rounded border-amber-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <span>
+                          {locale === "fr"
+                            ? "Je confirme avoir au moins 18 ans. Une pièce d’identité pourra être demandée lors du retrait."
+                            : "I confirm that I am at least 18 years old. ID may be requested at pickup."}
+                        </span>
+                      </label>
+                    )}
 
                     <Button
                       type="submit"

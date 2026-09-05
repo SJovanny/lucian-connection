@@ -1,6 +1,9 @@
 import { LegalPage, LegalSection } from "@/components/legal/LegalPage";
+import { getLegalMediator } from "@/lib/legal";
 
 export default function TermsPage() {
+  const mediator = getLegalMediator();
+
   return (
     <LegalPage title="Conditions générales de vente et d’utilisation">
       <p className="text-sm text-gray-500">Version applicable : 1.0 — 1er septembre 2026</p>
@@ -40,7 +43,8 @@ export default function TermsPage() {
           Les commandes sont retirées à l’adresse indiquée lors de la commande, à Fort-de-France,
           pendant le créneau sélectionné. Le client doit présenter les informations nécessaires
           à l’identification de la commande. Les commandes non retirées doivent faire l’objet
-          d’une prise de contact avec le vendeur afin de convenir d’une solution.
+          d’une prise de contact avec le vendeur afin de convenir d’une solution. Les modalités
+          détaillées figurent dans la politique de retrait et de remboursement.
         </p>
       </LegalSection>
       <LegalSection title="6. Indisponibilité, annulation et remboursement">
@@ -62,10 +66,27 @@ export default function TermsPage() {
         <p>
           Toute réclamation peut être adressée à contact@lucianconnection.com. Après réclamation
           écrite préalable et en l’absence de solution, le consommateur peut recourir gratuitement
-          au médiateur de la consommation dont les coordonnées seront indiquées dès son désignation.
+          au médiateur de la consommation.
+        </p>
+        {mediator ? (
+          <p>
+            Médiateur : {mediator.name}, {mediator.address}. Informations et saisine :{" "}
+            <a href={mediator.website} className="text-primary-700 underline">{mediator.website}</a>.
+          </p>
+        ) : (
+          <p className="text-amber-800">
+            Les coordonnées du médiateur compétent doivent être complétées avant la mise en ligne.
+          </p>
+        )}
+      </LegalSection>
+      <LegalSection title="9. Produits alcoolisés">
+        <p>
+          La vente de boissons alcoolisées est réservée aux personnes majeures. Une déclaration
+          d’âge est demandée lors de la commande et une pièce d’identité peut être exigée lors du
+          retrait. La commande peut être refusée ou annulée si l’âge légal ne peut pas être vérifié.
         </p>
       </LegalSection>
-      <LegalSection title="9. Acceptation">
+      <LegalSection title="10. Acceptation">
         <p>
           Le client reconnaît avoir pris connaissance des présentes CGV et les accepter avant
           toute commande. La version acceptée est conservée avec les informations de commande.

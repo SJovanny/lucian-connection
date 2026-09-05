@@ -21,9 +21,25 @@ export async function PATCH(
     }
 
     const { id } = await params;
+    const { data: order, error: orderError } = await supabase
+      .from("orders")
+      .select("status")
+      .eq("id", id)
+      .single();
+    if (orderError || !order) {
+      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    }
+    if (["completed", "cancelled", "refunded"].includes(order.status)) {
+      return NextResponse.json({ error: "Order pickup cannot be changed" }, { status: 409 });
+    }
+
     const { data, error } = await supabase
       .from("orders")
-      .update({ pickup_at: new Date(pickup_at).toISOString() })
+      .update({
+        pickup_at: new Date(pickup_at).toISOString(),
+        pickup_age_verified_at: null,
+        pickup_age_verified_by: null,
+      })
       .eq("id", id)
       .select()
       .single();

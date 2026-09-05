@@ -84,6 +84,7 @@ export default function OrdersPage() {
   const [refundItemIds, setRefundItemIds] = useState<string[]>([]);
   const [isRefunding, setIsRefunding] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
+  const [isVerifyingPickupAge, setIsVerifyingPickupAge] = useState(false);
 
   // Load orders on mount
   useEffect(() => {
@@ -159,6 +160,11 @@ export default function OrdersPage() {
   const handleStatusChange = async (newStatus: string) => {
     if (!selectedOrder) return;
 
+    if (newStatus === "completed" && selectedOrder.contains_alcohol && !selectedOrder.pickup_age_verified_at) {
+      setStatusError("Cette commande contient de l’alcool. Vérifiez la pièce d’identité au retrait avant de la passer en terminée.");
+      return;
+    }
+
     setIsLoadingStatus(true);
     try {
       const res = await fetch(`/api/admin/orders/${selectedOrder.id}`, {
@@ -171,6 +177,10 @@ export default function OrdersPage() {
         const data = await res.json().catch(() => null);
         if (res.status === 409 && data?.error === "Order must be paid before entering preparation") {
           setStatusError("Cette commande est encore en attente de paiement. Elle ne peut pas passer en préparation tant que Stripe n’a pas confirmé le paiement.");
+          return;
+        }
+        if (res.status === 409 && data?.error === "PICKUP_AGE_REQUIRED") {
+          setStatusError("Vérifiez la pièce d’identité du client au retrait avant de finaliser cette commande.");
           return;
         }
         throw new Error(data?.error || "Failed to update order status");
@@ -202,6 +212,31 @@ export default function OrdersPage() {
       setStatusError("Le statut de la commande n’a pas pu être mis à jour. Réessayez dans quelques instants.");
     } finally {
       setIsLoadingStatus(false);
+    }
+  };
+
+  const handlePickupAgeVerification = async () => {
+    if (!selectedOrder || isVerifyingPickupAge || !selectedOrder.contains_alcohol) return;
+
+    setIsVerifyingPickupAge(true);
+    setStatusError(null);
+    try {
+      const response = await fetch(`/api/admin/orders/${selectedOrder.id}/age-verification`, {
+        method: "POST",
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || "verification");
+
+      const verification = data.order as Pick<Order, "pickup_age_verified_at" | "pickup_age_verified_by">;
+      setOrders((prevOrders) => prevOrders.map((order) =>
+        order.id === selectedOrder.id ? { ...order, ...verification } : order
+      ));
+      setSelectedOrder((prev) => prev ? { ...prev, ...verification } : prev);
+    } catch (error) {
+      console.error("Error verifying pickup age:", error);
+      setStatusError("La vérification de l’âge n’a pas pu être enregistrée.");
+    } finally {
+      setIsVerifyingPickupAge(false);
     }
   };
 
@@ -465,6 +500,31 @@ export default function OrdersPage() {
               <p className="font-medium text-primary-800">{formatPickup(selectedOrder.pickup_at)}</p>
             </div>
 
+            {selectedOrder.contains_alcohol && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <p className="font-semibold text-amber-950">Vérification d’âge requise</p>
+                <p className="mt-1 text-sm text-amber-900">
+                  Vérifiez une pièce d’identité au retrait avant de remettre les produits alcoolisés.
+                </p>
+                {selectedOrder.pickup_age_verified_at ? (
+                  <p className="mt-2 text-sm font-medium text-green-700">Âge vérifié pour ce retrait.</p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handlePickupAgeVerification}
+                    disabled={isVerifyingPickupAge || selectedOrder.status !== "ready"}
+                    className="mt-3 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                  >
+                    {isVerifyingPickupAge
+                      ? "Enregistrement..."
+                      : selectedOrder.status === "ready"
+                        ? "Confirmer la vérification"
+                        : "Disponible quand la commande est prête"}
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="border-t border-gray-100 pt-4">
               <button
                 type="button"
@@ -542,7 +602,8 @@ export default function OrdersPage() {
                     key={status}
                     onClick={() => handleStatusChange(status)}
                     disabled={
-                      isLoadingStatus || status === selectedOrder.status
+                      isLoadingStatus || status === selectedOrder.status ||
+                      (status === "completed" && selectedOrder.contains_alcohol && !selectedOrder.pickup_age_verified_at)
                     }
                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       status === selectedOrder.status

@@ -99,6 +99,7 @@ export function ProductCard({ product }: ProductCardProps) {
       price: displayPrice,
       image_url: product.image_url,
       unit: product.unit,
+      is_alcoholic: product.is_alcoholic,
     });
   };
 
@@ -161,6 +162,11 @@ export function ProductCard({ product }: ProductCardProps) {
         {productAllergens.length > 0 && (
           <p className="text-[11px] text-gray-400 text-center mt-1">
             {t("allergens")}: {productAllergens.join(", ")}
+          </p>
+        )}
+        {product.is_alcoholic && (
+          <p className="text-[11px] font-medium text-amber-700 text-center mt-1">
+            {t("alcoholWarning")}
           </p>
         )}
 

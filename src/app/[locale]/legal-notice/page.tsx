@@ -1,6 +1,10 @@
 import { LegalPage, LegalSection } from "@/components/legal/LegalPage";
+import { getLegalHost, getLegalMediator } from "@/lib/legal";
 
 export default function LegalNoticePage() {
+  const host = getLegalHost();
+  const mediator = getLegalMediator();
+
   return (
     <LegalPage title="Mentions légales">
       <LegalSection title="Éditeur du site">
@@ -22,9 +26,28 @@ export default function LegalNoticePage() {
       </LegalSection>
       <LegalSection title="Hébergement">
         <p>
-          Le site est destiné à être hébergé par OVHcloud. Les coordonnées exactes de
-          l’hébergeur seront complétées dès la souscription de l’offre et du nom de domaine.
+          Le site est hébergé par {host.name}.<br />
+          Adresse : {host.address}<br />
+          Téléphone : {host.phone}<br />
+          Site : <a href={host.website} className="text-primary-700 underline">{host.website}</a>
         </p>
+      </LegalSection>
+      <LegalSection title="Médiation de la consommation">
+        {mediator ? (
+          <p>
+            Après une réclamation écrite préalable adressée à contact@lucianconnection.com,
+            le consommateur peut saisir gratuitement le médiateur suivant : {mediator.name}.<br />
+            Adresse : {mediator.address}<br />
+            {mediator.phone && <>Téléphone : {mediator.phone}<br /></>}
+            Site : <a href={mediator.website} className="text-primary-700 underline">{mediator.website}</a>
+          </p>
+        ) : (
+          <p>
+            Le médiateur de la consommation compétent et ses coordonnées doivent être renseignés
+            avant la mise en ligne du service. En attendant, toute réclamation peut être adressée
+            à contact@lucianconnection.com.
+          </p>
+        )}
       </LegalSection>
       <LegalSection title="Propriété intellectuelle">
         <p>

@@ -19,6 +19,7 @@ export function LegalPage({ title, children }: LegalPageProps) {
             <Link href="/privacy" className="hover:underline">Confidentialité</Link>
             <Link href="/cookies" className="hover:underline">Cookies</Link>
             <Link href="/legal-notice" className="hover:underline">Mentions légales</Link>
+            <Link href="/pickup-refunds" className="hover:underline">Retrait et remboursements</Link>
           </div>
           <div className="rounded-2xl bg-white p-6 shadow-sm sm:p-10">
             <h1 className="mb-8 text-3xl font-bold text-gray-900 font-display">{title}</h1>

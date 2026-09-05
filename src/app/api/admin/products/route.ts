@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
       stock,
       low_stock_threshold,
       track_stock,
+      is_alcoholic,
       is_active,
       is_featured,
       image_url,
@@ -98,6 +99,17 @@ export async function POST(request: NextRequest) {
       suffix += 1;
     }
 
+    let categoryIsAlcoholic = false;
+    if (category_id) {
+      const { data: category, error: categoryError } = await supabase
+        .from("categories")
+        .select("slug")
+        .eq("id", category_id)
+        .maybeSingle();
+      if (categoryError) throw categoryError;
+      categoryIsAlcoholic = category?.slug === "boissons-alcoolisees";
+    }
+
     const productData = {
       slug,
       translations: {
@@ -115,6 +127,7 @@ export async function POST(request: NextRequest) {
       stock: parseInt(stock) || 0,
       low_stock_threshold: parseInt(low_stock_threshold) || 5,
       track_stock: track_stock !== false,
+      is_alcoholic: is_alcoholic === true || categoryIsAlcoholic,
       is_active: is_active !== false,
       is_featured: is_featured === true,
       image_url: image_url || null,

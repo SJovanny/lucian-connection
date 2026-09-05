@@ -10,11 +10,17 @@ if (!migrationFile) {
 
 const envPath = path.join(process.cwd(), ".env.local");
 const env = fs.readFileSync(envPath, "utf8");
-const match = env.match(/^DATABASE_URL=(.+)$/m);
-if (!match) {
-  throw new Error("DATABASE_URL not found in .env.local");
+const getEnvValue = (name) => {
+  const match = env.match(new RegExp(`^${name}=(.+)$`, "m"));
+  if (!match) return null;
+
+  return match[1].trim().replace(/^("|')(.*)\1$/, "$2");
+};
+
+const connectionString = getEnvValue("DIRECT_URL") || getEnvValue("DATABASE_URL");
+if (!connectionString) {
+  throw new Error("DIRECT_URL or DATABASE_URL not found in .env.local");
 }
-const connectionString = match[1].trim();
 const sql = fs.readFileSync(path.join(process.cwd(), migrationFile), "utf8");
 
 async function main() {

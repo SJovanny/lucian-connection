@@ -83,6 +83,7 @@ export async function PUT(
       stock,
       low_stock_threshold,
       track_stock,
+      is_alcoholic,
       is_active,
       is_featured,
       image_url,
@@ -128,6 +129,7 @@ export async function PUT(
       updateData.low_stock_threshold = parseInt(low_stock_threshold);
     }
     if (track_stock !== undefined) updateData.track_stock = track_stock;
+    if (is_alcoholic !== undefined) updateData.is_alcoholic = is_alcoholic === true;
     if (is_active !== undefined) updateData.is_active = is_active;
     if (is_featured !== undefined) updateData.is_featured = is_featured;
     if (image_url !== undefined) updateData.image_url = image_url || null;
@@ -159,6 +161,16 @@ export async function PUT(
           description: description_en !== undefined ? description_en : currentTranslations.en?.description || "",
         },
       };
+    }
+
+    if (category_id !== undefined) {
+      const { data: category, error: categoryError } = await supabase
+        .from("categories")
+        .select("slug")
+        .eq("id", category_id)
+        .maybeSingle();
+      if (categoryError) throw categoryError;
+      if (category?.slug === "boissons-alcoolisees") updateData.is_alcoholic = true;
     }
 
     const { data, error } = await supabase

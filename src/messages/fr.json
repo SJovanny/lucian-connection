@@ -62,6 +62,7 @@
     "outOfStock": "Rupture de stock",
     "inStock": "En stock",
     "allergens": "Allergènes",
+    "alcoholWarning": "Vente réservée aux personnes majeures",
     "unit": {
       "each": "pièce",
       "kg": "kg",

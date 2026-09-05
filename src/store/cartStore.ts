@@ -8,6 +8,7 @@ export interface CartItem {
   quantity: number;
   image_url: string | null;
   unit: string;
+  is_alcoholic: boolean;
 }
 
 interface CartState {

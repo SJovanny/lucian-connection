@@ -14,8 +14,10 @@ export default function PrivacyPage() {
         <p>
           Nous pouvons traiter le nom, l’adresse email, le téléphone, les informations de compte,
           les commandes, les créneaux de retrait, les notes de commande et les échanges avec le
-          service client pour créer le compte, traiter la commande, gérer le paiement, organiser
-          le retrait, assurer le support et respecter nos obligations légales.
+          service client, ainsi que les dates de confirmation de majorité et de vérification lors
+          du retrait lorsqu’une commande contient de l’alcool, pour créer le compte, traiter la
+          commande, gérer le paiement, organiser le retrait, assurer le support et respecter nos
+          obligations légales.
         </p>
       </LegalSection>
       <LegalSection title="Bases légales">

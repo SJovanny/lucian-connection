@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await request.json();
-    const { items, phone, notes, locale, pickup_at, coupon_id, full_name, terms_accepted } = body;
+    const { items, phone, notes, locale, pickup_at, coupon_id, full_name, terms_accepted, age_confirmed } = body;
     if (!Array.isArray(items) || items.length === 0 || !pickup_at || !phone || !full_name || terms_accepted !== true) {
       return NextResponse.json({ error: "Missing order information" }, { status: 400 });
     }
@@ -40,17 +40,30 @@ export async function POST(request: NextRequest) {
     }
 
     const ids = items.map((item: { id: string }) => item.id);
-    const { data: products, error: productsError } = await (supabase as any)
-      .from("products_with_discount")
-      .select("id, price, discounted_price, translations")
-      .in("id", ids)
-      .eq("is_active", true);
-    if (productsError || !products || products.length !== ids.length) {
+    const [
+      { data: products, error: productsError },
+      { data: productFlags, error: productFlagsError },
+    ] = await Promise.all([
+      (supabase as any)
+        .from("products_with_discount")
+        .select("id, price, discounted_price, translations")
+        .in("id", ids)
+        .eq("is_active", true),
+      supabase
+        .from("products")
+        .select("id, is_alcoholic")
+        .in("id", ids)
+        .eq("is_active", true),
+    ]);
+    if (productsError || productFlagsError || !products || !productFlags || products.length !== ids.length || productFlags.length !== ids.length) {
       return NextResponse.json({ error: "One or more products are unavailable" }, { status: 400 });
     }
 
     const productRows = products as ProductRow[];
     const productById = new Map(productRows.map((product) => [product.id, product]));
+    const alcoholicProductIds = new Set(
+      productFlags.filter((product) => product.is_alcoholic).map((product) => product.id)
+    );
     const orderItems = items.map((item: { id: string; quantity: number }) => {
       const product = productById.get(item.id);
       if (!product) throw new Error("Product unavailable");
@@ -65,6 +78,10 @@ export async function POST(request: NextRequest) {
         total_price: unitPrice * quantity,
       };
     });
+    const containsAlcohol = orderItems.some((item) => alcoholicProductIds.has(item.product_id));
+    if (containsAlcohol && age_confirmed !== true) {
+      return NextResponse.json({ error: "ALCOHOL_AGE_REQUIRED" }, { status: 400 });
+    }
     const subtotal = orderItems.reduce((sum, item) => sum + item.total_price, 0);
 
     const { data: settings } = await (supabase as any)
@@ -91,6 +108,8 @@ export async function POST(request: NextRequest) {
         total_amount: total, phone, notes: notes || null, locale: locale || "fr",
         coupon_id: coupon_id || null, discount_amount: discount,
         pickup_at: new Date(pickup_at).toISOString(), terms_version: TERMS_VERSION,
+        contains_alcohol: containsAlcohol,
+        age_confirmed_at: containsAlcohol ? new Date().toISOString() : null,
       })
       .select("id").single();
     if (orderError) throw orderError;
@@ -104,6 +123,12 @@ export async function POST(request: NextRequest) {
       user_id: user.id, document_type: "terms", document_version: TERMS_VERSION, order_id: order.id,
       user_agent: request.headers.get("user-agent"),
     });
+    if (containsAlcohol) {
+      await (supabase as any).from("legal_acceptances").insert({
+        user_id: user.id, document_type: "alcohol_age", document_version: "1.0", order_id: order.id,
+        user_agent: request.headers.get("user-agent"),
+      });
+    }
 
     const stripe = getStripe();
     const stripeDiscount = discount > 0
