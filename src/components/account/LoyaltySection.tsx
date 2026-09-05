@@ -3,20 +3,39 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
 import type { LoyaltyLedgerEntry, LoyaltyReward } from "@/types/database.types";
-import { Check, LockKeyhole, Sparkles } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, LockKeyhole, Sparkles } from "lucide-react";
 
-type Payment = { id: string; subtotal: number; total_amount: number; created_at: string; payment_status: string };
-type LoyaltyData = { balance: number; ledger: LoyaltyLedgerEntry[]; rewards: LoyaltyReward[]; payments: Payment[]; redemptions: Array<{ id: string; created_at: string; points_spent: number; coupons?: { code: string } | null }> };
+type LoyaltyData = { balance: number; ledger: LoyaltyLedgerEntry[]; rewards: LoyaltyReward[]; redemptions: Array<{ id: string; created_at: string; points_spent: number; coupons?: { code: string } | null }> };
+
+const HISTORY_PREVIEW_COUNT = 5;
+const HISTORY_MODAL_PAGE_SIZE = 10;
 
 const currency = (value: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(value);
 const date = (value: string) => new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" }).format(new Date(value));
+
+function LedgerRow({ entry }: { entry: LoyaltyLedgerEntry }) {
+  return (
+    <div className="flex justify-between gap-3 border-b border-gray-100 py-2 text-sm">
+      <div>
+        <p className="text-gray-900">{entry.description}</p>
+        <p className="text-gray-500">{date(entry.created_at)}</p>
+      </div>
+      <span className={entry.points > 0 ? "font-semibold text-green-700" : "font-semibold text-red-700"}>
+        {entry.points > 0 ? "+" : ""}{entry.points}
+      </span>
+    </div>
+  );
+}
 
 export function LoyaltySection() {
   const [data, setData] = useState<LoyaltyData | null>(null);
   const [loading, setLoading] = useState(true);
   const [redeeming, setRedeeming] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
 
   const load = async () => {
     const response = await fetch("/api/loyalty");
@@ -44,10 +63,17 @@ export function LoyaltySection() {
     setRedeeming(null);
   };
 
+  const openHistoryModal = () => {
+    setHistoryPage(1);
+    setShowHistoryModal(true);
+  };
+
   if (loading) return <Card><CardContent><p className="text-gray-500">Chargement de votre fidélité...</p></CardContent></Card>;
   if (!data) return null;
-  const payments = data.payments.slice().sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5);
-  const ledger = data.ledger.slice(0, 8);
+  const ledger = data.ledger.slice(0, HISTORY_PREVIEW_COUNT);
+  const hasMoreHistory = data.ledger.length > HISTORY_PREVIEW_COUNT;
+  const totalHistoryPages = Math.max(1, Math.ceil(data.ledger.length / HISTORY_MODAL_PAGE_SIZE));
+  const paginatedLedger = data.ledger.slice((historyPage - 1) * HISTORY_MODAL_PAGE_SIZE, historyPage * HISTORY_MODAL_PAGE_SIZE);
   const rewards = data.rewards.slice().sort((a, b) => a.points_cost - b.points_cost);
   const nextReward = rewards.find((reward) => reward.points_cost > data.balance);
   const progress = rewards.length && nextReward
@@ -73,12 +99,51 @@ export function LoyaltySection() {
             {rewards.map((reward, index) => { const unlocked = data.balance >= reward.points_cost; const current = nextReward?.id === reward.id; return <div key={reward.id} className="relative flex min-w-0 flex-1 flex-col items-center text-center"><div className={`z-10 flex h-10 w-10 items-center justify-center rounded-full border-4 border-white ${unlocked ? "bg-accent-400 text-primary-900" : current ? "bg-primary-700 text-white ring-4 ring-primary-100" : "bg-primary-100 text-primary-400"}`}>{unlocked ? <Check className="h-4 w-4" /> : current ? <Sparkles className="h-4 w-4" /> : <LockKeyhole className="h-3.5 w-3.5" />}</div><p className="mt-3 text-sm font-bold text-gray-900">{reward.points_cost} pts</p><p className="mt-1 max-w-[120px] text-xs font-medium text-gray-700">{reward.name}</p><p className="mt-1 text-xs text-gray-500">{reward.discount_type === "percentage" ? `${reward.discount_value}%` : currency(reward.discount_value)}</p>{unlocked && <Button className="mt-3" size="sm" disabled={redeeming !== null} isLoading={redeeming === reward.id} onClick={() => redeem(reward.id)}>Échanger</Button>}{index < rewards.length - 1 && <span className="sr-only">Étape suivante</span>}</div>; })}
           </div></div>}
         </div>
-        <div className="grid lg:grid-cols-2 gap-6">
-          <div><h3 className="font-semibold text-gray-900 mb-3">Derniers paiements et points</h3><div className="space-y-2">{payments.length === 0 ? <p className="text-sm text-gray-500">Aucun paiement enregistré.</p> : payments.map((payment) => { const entry = data.ledger.find((item) => item.order_id === payment.id && item.type === "earn"); return <div key={payment.id} className="flex justify-between gap-3 border-b border-gray-100 py-2 text-sm"><div><p className="text-gray-900">Commande #{payment.id.slice(0, 8)}</p><p className="text-gray-500">{date(payment.created_at)} · {currency(payment.subtotal)} de produits</p></div><span className="font-semibold text-primary-700">+{entry?.points || 0} pts</span></div>; })}</div></div>
-          <div><h3 className="font-semibold text-gray-900 mb-3">Historique des points</h3><div className="space-y-2">{ledger.length === 0 ? <p className="text-sm text-gray-500">Aucun mouvement.</p> : ledger.map((entry) => <div key={entry.id} className="flex justify-between gap-3 border-b border-gray-100 py-2 text-sm"><div><p className="text-gray-900">{entry.description}</p><p className="text-gray-500">{date(entry.created_at)}</p></div><span className={entry.points > 0 ? "font-semibold text-green-700" : "font-semibold text-red-700"}>{entry.points > 0 ? "+" : ""}{entry.points}</span></div>)}</div></div>
+        <div>
+          <h3 className="font-semibold text-gray-900 mb-3">Historique des points</h3>
+          <div className="space-y-2">
+            {ledger.length === 0 ? <p className="text-sm text-gray-500">Aucun mouvement.</p> : ledger.map((entry) => <LedgerRow key={entry.id} entry={entry} />)}
+          </div>
+          {hasMoreHistory && (
+            <button
+              type="button"
+              onClick={openHistoryModal}
+              className="mt-3 text-sm font-semibold text-primary-700 hover:text-primary-800"
+            >
+              Voir tout l&apos;historique ({data.ledger.length})
+            </button>
+          )}
         </div>
         <div><h3 className="font-semibold text-gray-900 mb-3">Mes bons de réduction</h3>{data.redemptions.length ? <div className="grid sm:grid-cols-2 gap-3">{data.redemptions.map((redemption) => <div key={redemption.id} className="rounded-lg border border-gray-200 p-3 text-sm"><p className="font-medium text-gray-900">{redemption.coupons?.code || "Bon fidélité"}</p><p className="text-gray-500">Obtenu le {date(redemption.created_at)} · {redemption.points_spent} points</p></div>)}</div> : <p className="text-sm text-gray-500">Aucun bon obtenu pour le moment.</p>}</div>
       </CardContent>
+      <Modal isOpen={showHistoryModal} onClose={() => setShowHistoryModal(false)} title="Historique des points" size="lg">
+        <div className="space-y-2">
+          {paginatedLedger.map((entry) => <LedgerRow key={entry.id} entry={entry} />)}
+        </div>
+        {totalHistoryPages > 1 && (
+          <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4">
+            <button
+              type="button"
+              onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+              disabled={historyPage === 1}
+              className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Précédent
+            </button>
+            <span className="text-sm text-gray-500">Page {historyPage} / {totalHistoryPages}</span>
+            <button
+              type="button"
+              onClick={() => setHistoryPage((p) => Math.min(totalHistoryPages, p + 1))}
+              disabled={historyPage === totalHistoryPages}
+              className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Suivant
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </Modal>
     </Card>
   );
 }
