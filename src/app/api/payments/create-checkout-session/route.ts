@@ -19,6 +19,7 @@ function getStripe() {
 }
 
 export async function POST(request: NextRequest) {
+  let createdOrderId: string | null = null;
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -93,6 +94,7 @@ export async function POST(request: NextRequest) {
       })
       .select("id").single();
     if (orderError) throw orderError;
+    createdOrderId = order.id;
 
     const { error: itemsError } = await (supabase as any)
       .from("order_items").insert(orderItems.map((item: any) => ({ ...item, order_id: order.id })));
@@ -141,6 +143,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ url: session.url });
   } catch (error) {
     console.error("Payment session creation failed", error);
+    if (createdOrderId) {
+      try {
+        const supabase = await createClient();
+        await (supabase as any).from("orders").update({
+          status: "cancelled",
+          payment_status: "cancelled",
+        }).eq("id", createdOrderId).eq("payment_status", "pending_payment");
+      } catch (cleanupError) {
+        console.error("Unable to cancel failed payment order", cleanupError);
+      }
+    }
     return NextResponse.json({ error: "Unable to start payment" }, { status: 500 });
   }
 }

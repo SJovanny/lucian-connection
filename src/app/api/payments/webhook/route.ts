@@ -40,13 +40,38 @@ export async function POST(request: NextRequest) {
   const session = event.data.object as Stripe.Checkout.Session;
   const orderId = session.metadata?.order_id;
   if (orderId && event.type === "checkout.session.completed") {
-    const { data: order, error: orderFetchError } = await supabase.from("orders").select("user_id, subtotal, coupon_id").eq("id", orderId).single();
+    const stripe = new Stripe(key);
+    const verifiedSession = await stripe.checkout.sessions.retrieve(session.id);
+    const { data: order, error: orderFetchError } = await supabase
+      .from("orders")
+      .select("user_id, subtotal, total_amount, coupon_id, payment_status")
+      .eq("id", orderId)
+      .single();
     if (orderFetchError) console.error(`Webhook: unable to fetch order ${orderId}`, orderFetchError);
+    const expectedAmount = Math.round(Number(order?.total_amount || 0) * 100);
+    const isValidPayment = verifiedSession.status === "complete"
+      && verifiedSession.payment_status === "paid"
+      && verifiedSession.currency === "eur"
+      && verifiedSession.amount_total === expectedAmount
+      && verifiedSession.metadata?.order_id === orderId;
+    if (!order || !isValidPayment) {
+      console.error(`Webhook: payment verification failed for order ${orderId}`, {
+        sessionStatus: verifiedSession.status,
+        paymentStatus: verifiedSession.payment_status,
+        currency: verifiedSession.currency,
+        amountTotal: verifiedSession.amount_total,
+        expectedAmount,
+      });
+      return NextResponse.json({ error: "Payment verification failed" }, { status: 400 });
+    }
     const { error: orderUpdateError } = await supabase.from("orders").update({
       payment_status: "paid", paid_at: new Date().toISOString(),
-      payment_reference: session.payment_intent?.toString() || session.id,
+      payment_reference: verifiedSession.payment_intent?.toString() || verifiedSession.id,
     }).eq("id", orderId);
-    if (orderUpdateError) console.error(`Webhook: unable to mark order ${orderId} as paid`, orderUpdateError);
+    if (orderUpdateError) {
+      console.error(`Webhook: unable to mark order ${orderId} as paid`, orderUpdateError);
+      return NextResponse.json({ error: "Unable to update order" }, { status: 500 });
+    }
     if (order?.coupon_id) {
       const { data: couponApplied, error: couponError } = await supabase.rpc("use_coupon", {
         p_coupon_id: order.coupon_id,

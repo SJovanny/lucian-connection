@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
         *,
         order_items (*),
         profiles:user_id (full_name, phone)
-      `
+        `
       )
       .order("pickup_at", { ascending: true, nullsFirst: false });
 

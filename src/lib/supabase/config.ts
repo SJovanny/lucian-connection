@@ -27,14 +27,14 @@ export function requireSupabaseConfig() {
 }
 
 export function getSupabaseAdminConfig() {
-  const config = getSupabaseConfig();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!config || !serviceRoleKey) {
+  if (!url || !serviceRoleKey) {
     return null;
   }
 
-  return { url: config.url, key: serviceRoleKey };
+  return { url, key: serviceRoleKey };
 }
 
 export function requireSupabaseAdminConfig() {

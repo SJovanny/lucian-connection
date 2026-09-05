@@ -23,6 +23,21 @@ export async function PATCH(
       );
     }
 
+    if (["preparing", "ready", "completed"].includes(status)) {
+      const { data: order, error: orderError } = await supabase
+        .from("orders")
+        .select("payment_status")
+        .eq("id", id)
+        .single();
+      if (orderError) throw orderError;
+      if (order.payment_status !== "paid") {
+        return NextResponse.json(
+          { error: "Order must be paid before entering preparation" },
+          { status: 409 }
+        );
+      }
+    }
+
     const { data, error } = await supabase
       .from("orders")
       .update({ status })

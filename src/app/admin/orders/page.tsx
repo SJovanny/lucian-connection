@@ -2,7 +2,7 @@
 
 import { Card } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
-import { ChevronDown, Eye, RotateCcw, Search } from "lucide-react";
+import { AlertTriangle, ChevronDown, Eye, RotateCcw, Search } from "lucide-react";
 import { PickupSlotPicker } from "@/components/pickup/PickupSlotPicker";
 import type { Order, OrderItem, Profile } from "@/types/database.types";
 import { useState, useEffect } from "react";
@@ -83,6 +83,7 @@ export default function OrdersPage() {
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
   const [refundItemIds, setRefundItemIds] = useState<string[]>([]);
   const [isRefunding, setIsRefunding] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   // Load orders on mount
   useEffect(() => {
@@ -167,7 +168,12 @@ export default function OrdersPage() {
       });
 
       if (!res.ok) {
-        throw new Error("Failed to update order status");
+        const data = await res.json().catch(() => null);
+        if (res.status === 409 && data?.error === "Order must be paid before entering preparation") {
+          setStatusError("Cette commande est encore en attente de paiement. Elle ne peut pas passer en préparation tant que Stripe n’a pas confirmé le paiement.");
+          return;
+        }
+        throw new Error(data?.error || "Failed to update order status");
       }
 
       const { order: updatedOrder } = await res.json();
@@ -193,7 +199,7 @@ export default function OrdersPage() {
       }));
     } catch (error) {
       console.error("Error updating order status:", error);
-      alert("Erreur lors de la mise à jour du statut");
+      setStatusError("Le statut de la commande n’a pas pu être mis à jour. Réessayez dans quelques instants.");
     } finally {
       setIsLoadingStatus(false);
     }
@@ -551,6 +557,29 @@ export default function OrdersPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal
+        isOpen={statusError !== null}
+        onClose={() => setStatusError(null)}
+        title="Paiement en attente"
+        size="sm"
+      >
+        <div className="space-y-5">
+          <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
+            <p className="text-sm leading-6 text-amber-900">{statusError}</p>
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setStatusError(null)}
+              className="rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-600"
+            >
+              Compris
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

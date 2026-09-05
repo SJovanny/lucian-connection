@@ -45,6 +45,17 @@ export async function getAdminUser(): Promise<AdminUser | null> {
 
 export async function updateOrderStatus(orderId: string, status: string) {
   const admin = await createClient();
+  if (["preparing", "ready", "completed"].includes(status)) {
+    const { data: order, error: orderError } = await admin
+      .from("orders")
+      .select("payment_status")
+      .eq("id", orderId)
+      .single();
+    if (orderError) throw orderError;
+    if (order.payment_status !== "paid") {
+      throw new Error("Order must be paid before entering preparation");
+    }
+  }
   const updateData: Partial<Order> = { status: status as OrderStatus };
 
   const { data, error } = await admin
