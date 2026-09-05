@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import { getSupabaseConfig } from "@/lib/supabase/config";
 import type { Order, OrderItem, Profile } from "@/types/database.types";
 import { LoyaltySection } from "@/components/account/LoyaltySection";
+import { ChevronDown } from "lucide-react";
 
 const statusLabels: Record<string, string> = {
   pending: "En attente",
@@ -290,6 +291,7 @@ export default function AccountPage() {
                               type="button"
                               variant="secondary"
                               size="sm"
+                              className="!h-9 !w-9 !rounded-full !p-0"
                               onClick={() =>
                                 setExpandedOrders((prev) => ({
                                   ...prev,
@@ -297,8 +299,14 @@ export default function AccountPage() {
                                 }))
                               }
                               aria-expanded={!!expandedOrders[order.id]}
+                              aria-label={expandedOrders[order.id] ? "Masquer les détails" : "Voir les détails"}
                             >
-                              {expandedOrders[order.id] ? "Masquer" : "Voir"}
+                              <ChevronDown
+                                className={`h-4 w-4 transition-transform ${
+                                  expandedOrders[order.id] ? "rotate-180" : ""
+                                }`}
+                                aria-hidden="true"
+                              />
                             </Button>
                           </div>
                         </div>
@@ -327,6 +335,14 @@ export default function AccountPage() {
                               </ul>
                             ) : (
                               <p className="mt-2 text-sm text-gray-500">Aucun article disponible.</p>
+                            )}
+                            {order.delivery_fee > 0 && (
+                              <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3 text-sm">
+                                <span className="text-gray-600">Frais de préparation</span>
+                                <span className="font-semibold text-gray-900">
+                                  {formatCurrency(order.delivery_fee)}
+                                </span>
+                              </div>
                             )}
                           </div>
                         )}
