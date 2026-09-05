@@ -107,6 +107,13 @@
       "notes": "Order notes (optional)"
     }
   },
+  "pickup": {
+    "title": "Pickup location",
+    "description": "Choose your preferred app to open the directions.",
+    "directions": "Directions:",
+    "googleMaps": "Google Maps",
+    "waze": "Waze"
+  },
   "auth": {
     "login": {
       "title": "Login",

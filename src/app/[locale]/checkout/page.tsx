@@ -16,6 +16,7 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Locale } from "@/i18n/routing";
 import { PickupSlotPicker } from "@/components/pickup/PickupSlotPicker";
+import { PickupLocation } from "@/components/pickup/PickupLocation";
 
 export default function CheckoutPage() {
   const locale = useLocale() as Locale;
@@ -344,7 +345,8 @@ export default function CheckoutPage() {
                 </Card>
 
                 <Card>
-                  <CardContent className="p-6">
+                  <CardContent className="space-y-6 p-6">
+                    <PickupLocation />
                     <PickupSlotPicker
                       locale={locale}
                       value={pickupAt}

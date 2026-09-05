@@ -4,11 +4,10 @@ Le site a déjà une bonne base : catalogue, panier, paiement Stripe, Click & Co
 
 ## Must-have avant lancement
 
-- Stock réellement fiable : empêcher l’ajout ou l’achat au-delà du stock, bloquer les ruptures et décrémenter le stock après paiement.
-- Parcours paiement robuste : une commande non payée ne doit jamais arriver dans le flux de préparation. Vérifier le paiement Stripe côté serveur et nettoyer les commandes abandonnées.
+- Stock réellement fiable : empêcher l’ajout ou l’achat au-delà du stock, bloquer les ruptures et décrémenter le stock après paiement.(optionnel pour le moment)
 - Prix cohérents partout : le panier, le checkout et Stripe doivent afficher exactement le même total.
 - Notifications client et équipe : email de confirmation, confirmation du créneau, notification quand la commande est prête, et alerte interne à chaque commande payée.
-- Click & Collect clair et gérable : adresse précise, carte ou itinéraire, horaires, consignes de retrait, capacité maximale par créneau et délai de préparation.
+- Click & Collect clair et gérable : adresse précise et liens directs vers Google Maps et Waze ajoutés dans le checkout et le footer. À compléter : consignes de retrait, capacité maximale par créneau et affichage du délai de préparation.
 - Fiches produit détaillées : photos, quantité ou format, ingrédients, allergènes, origine, conservation et disponibilité.
 - Légal finalisé : mentions légales, hébergeur, médiateur, politique de retrait et remboursement. Si alcool, ajouter le contrôle d’âge à la commande et au retrait.
 - Support visible : téléphone, WhatsApp ou contact rapide.

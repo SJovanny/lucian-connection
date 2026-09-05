@@ -107,6 +107,13 @@
       "notes": "Notes pour la commande (optionnel)"
     }
   },
+  "pickup": {
+    "title": "Lieu de retrait",
+    "description": "Choisissez votre application préférée pour ouvrir l’itinéraire.",
+    "directions": "Itinéraire :",
+    "googleMaps": "Google Maps",
+    "waze": "Waze"
+  },
   "auth": {
     "login": {
       "title": "Connexion",

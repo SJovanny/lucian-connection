@@ -1,6 +1,7 @@
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/routing";
-import { Facebook, Instagram, Twitter, Mail, Phone, MapPin } from "lucide-react";
+import { Facebook, Instagram, Twitter, Mail, Phone } from "lucide-react";
+import { PickupLocation } from "@/components/pickup/PickupLocation";
 
 export function Footer() {
   const t = useTranslations("footer");
@@ -72,9 +73,8 @@ export function Footer() {
           <div>
             <h3 className="font-semibold mb-4">{t("contact")}</h3>
             <ul className="space-y-3 text-primary-200 text-sm">
-              <li className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-accent-400" />
-                <span>119 rue Lamartine, 97200 Fort-de-France, Martinique</span>
+              <li>
+                <PickupLocation compact />
               </li>
               <li className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-accent-400" />
