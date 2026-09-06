@@ -19,7 +19,7 @@ export default function PickupRefundsPage() {
       <LegalSection title="Commande non retirée">
         <p>
           En cas de retard ou d’empêchement, le client doit contacter rapidement
-          contact@lucianconnection.com ou le +596 696 94 96 52. Une nouvelle organisation du
+          contact@lucianconnection.fr ou le +596 696 94 96 52. Une nouvelle organisation du
           retrait pourra être proposée selon la nature des produits et leur conservation.
         </p>
         <p>
@@ -54,7 +54,7 @@ export default function PickupRefundsPage() {
           ne limite pas les garanties légales de conformité et contre les vices cachés.
         </p>
         <p>
-          Toute réclamation doit être adressée à contact@lucianconnection.com avec le numéro de
+          Toute réclamation doit être adressée à contact@lucianconnection.fr avec le numéro de
           commande, les produits concernés et, si utile, des photographies.
         </p>
       </LegalSection>

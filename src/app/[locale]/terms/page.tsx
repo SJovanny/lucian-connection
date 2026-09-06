@@ -64,7 +64,7 @@ export default function TermsPage() {
       </LegalSection>
       <LegalSection title="8. Réclamations et médiation">
         <p>
-          Toute réclamation peut être adressée à contact@lucianconnection.com. Après réclamation
+          Toute réclamation peut être adressée à contact@lucianconnection.fr. Après réclamation
           écrite préalable et en l’absence de solution, le consommateur peut recourir gratuitement
           au médiateur de la consommation.
         </p>

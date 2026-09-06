@@ -7,7 +7,7 @@ export default function PrivacyPage() {
       <LegalSection title="Responsable du traitement">
         <p>
           Le responsable du traitement est Ginny SIMON, entrepreneur individuel, joignable à
-          contact@lucianconnection.com ou au +596 696 94 96 52.
+          contact@lucianconnection.fr ou au +596 696 94 96 52.
         </p>
       </LegalSection>
       <LegalSection title="Données collectées et finalités">
@@ -48,7 +48,7 @@ export default function PrivacyPage() {
         <p>
           Vous pouvez demander l’accès, la rectification, l’effacement, la limitation ou la
           portabilité de vos données, ou vous opposer à certains traitements, en écrivant à
-          contact@lucianconnection.com. Vous pouvez également introduire une réclamation auprès
+          contact@lucianconnection.fr. Vous pouvez également introduire une réclamation auprès
           de la CNIL.
         </p>
       </LegalSection>

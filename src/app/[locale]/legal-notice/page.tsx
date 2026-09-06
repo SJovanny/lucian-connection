@@ -17,7 +17,7 @@ export default function LegalNoticePage() {
           Adresse : 119 rue Lamartine, 97200 Fort-de-France, Martinique.<br />
           SIREN : 483 748 042<br />
           SIRET de l’établissement : 483 748 042 00049<br />
-          Email : contact@lucianconnection.com<br />
+          Email : contact@lucianconnection.fr<br />
           Téléphone : +596 696 94 96 52
         </p>
       </LegalSection>
@@ -35,7 +35,7 @@ export default function LegalNoticePage() {
       <LegalSection title="Médiation de la consommation">
         {mediator ? (
           <p>
-            Après une réclamation écrite préalable adressée à contact@lucianconnection.com,
+            Après une réclamation écrite préalable adressée à contact@lucianconnection.fr,
             le consommateur peut saisir gratuitement le médiateur suivant : {mediator.name}.<br />
             Adresse : {mediator.address}<br />
             {mediator.phone && <>Téléphone : {mediator.phone}<br /></>}
@@ -45,7 +45,7 @@ export default function LegalNoticePage() {
           <p>
             Le médiateur de la consommation compétent et ses coordonnées doivent être renseignés
             avant la mise en ligne du service. En attendant, toute réclamation peut être adressée
-            à contact@lucianconnection.com.
+            à contact@lucianconnection.fr.
           </p>
         )}
       </LegalSection>
