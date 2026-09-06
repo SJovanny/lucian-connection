@@ -435,8 +435,8 @@ export default function CheckoutPage() {
                           className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
                           placeholder={
                             locale === "fr"
-                              ? "Instructions spéciales pour la livraison..."
-                              : "Special delivery instructions..."
+                             ? "Instructions spéciales pour le retrait..."
+                             : "Special pickup instructions..."
                           }
                         />
                       </div>

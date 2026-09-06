@@ -20,7 +20,7 @@
   },
   "header": {
     "searchPlaceholder": "Rechercher produits, légumes, viandes...",
-    "deliveryBadge": "Choisissez votre créneau de retrait, dès 30 min.",
+    "deliveryBadge": "Click & Collect : choisissez votre créneau de retrait.",
     "cart": "Panier",
     "login": "Connexion",
     "register": "Inscription",
@@ -34,7 +34,7 @@
       "titleBefore": "Tout ce dont vous avez ",
       "titleHighlight": "besoin",
       "titleAfter": ", au même endroit.",
-      "subtitle": "Alimentation, boissons, beauté, maison et bien plus. Commandez en ligne et récupérez votre commande en magasin.",
+      "subtitle": "Click & Collect : commandez en ligne et récupérez votre commande en magasin.",
       "cta": "Commander maintenant"
     },
     "categories": {
@@ -46,7 +46,7 @@
       "dairy": "Produits laitiers",
       "drinks": "Boissons",
       "localMarket": "Marché local",
-      "inStoreDelivery": "Livraison en magasin",
+      "inStoreDelivery": "Click & Collect",
       "comicalFree": "Sans additifs",
       "frozenMeal": "Surgelés",
       "processFood": "Produits transformés"
@@ -149,12 +149,12 @@
       "preparing": "En préparation",
       "ready": "Prête",
       "completed": "Terminée",
-      "delivered": "Livrée",
+      "delivered": "Retirée",
       "cancelled": "Annulée"
     }
   },
   "footer": {
-    "tagline": "Votre épicerie caribéenne en ligne",
+    "tagline": "Votre épicerie caribéenne en Click & Collect",
     "contact": "Contact",
     "followUs": "Suivez-nous",
     "quickLinks": "Liens rapides",

@@ -23,8 +23,8 @@ export async function generateMetadata({ params }: Props) {
   };
 
   const descriptions: Record<Locale, string> = {
-    fr: "Votre épicerie caribéenne en ligne. Produits frais de Sainte-Lucie livrés chez vous.",
-    en: "Your Caribbean grocery store online. Fresh products from Saint Lucia delivered to you.",
+    fr: "Votre épicerie caribéenne en ligne en Click & Collect. Produits frais de Sainte-Lucie à retirer en magasin.",
+    en: "Your Caribbean grocery store with Click & Collect. Fresh products from Saint Lucia, ready for in-store pickup.",
   };
 
   return {

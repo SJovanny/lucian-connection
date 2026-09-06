@@ -20,7 +20,7 @@
   },
   "header": {
     "searchPlaceholder": "Search for products, vegetables, meat...",
-    "deliveryBadge": "Choose your pickup slot, from 30 min onward.",
+    "deliveryBadge": "Click & Collect: choose your pickup slot.",
     "cart": "Cart",
     "login": "Login",
     "register": "Sign up",
@@ -34,7 +34,7 @@
       "titleBefore": "Everything you ",
       "titleHighlight": "need",
       "titleAfter": ", in one place.",
-      "subtitle": "Shop food, drinks, beauty, home essentials, and more. Order online and pick up in store.",
+      "subtitle": "Click & Collect: order online and pick up in store.",
       "cta": "Shop now"
     },
     "categories": {
@@ -46,7 +46,7 @@
       "dairy": "Milk & Dairy",
       "drinks": "Drinks",
       "localMarket": "Local market",
-      "inStoreDelivery": "In store delivery",
+      "inStoreDelivery": "Click & Collect",
       "comicalFree": "Additive free",
       "frozenMeal": "Frozen meals",
       "processFood": "Processed food"
@@ -149,12 +149,12 @@
       "preparing": "Preparing",
       "ready": "Ready",
       "completed": "Completed",
-      "delivered": "Delivered",
+      "delivered": "Picked up",
       "cancelled": "Cancelled"
     }
   },
   "footer": {
-    "tagline": "Your Caribbean grocery store online",
+    "tagline": "Your Caribbean grocery store with Click & Collect",
     "contact": "Contact",
     "followUs": "Follow us",
     "quickLinks": "Quick links",

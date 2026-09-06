@@ -18,8 +18,8 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: "Lucian Connection - Épicerie caribéenne en ligne",
   description:
-    "Votre épicerie caribéenne en ligne. Produits frais de Sainte-Lucie livrés chez vous.",
-  keywords: ["épicerie", "caribéen", "sainte-lucie", "livraison", "produits frais"],
+    "Votre épicerie caribéenne en ligne en Click & Collect. Produits frais de Sainte-Lucie à retirer en magasin.",
+  keywords: ["épicerie", "caribéen", "sainte-lucie", "click and collect", "produits frais"],
   icons: {
     icon: "/logo_lc.svg",
     apple: "/logo_lc.svg",

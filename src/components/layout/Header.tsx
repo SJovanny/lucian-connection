@@ -101,7 +101,7 @@ export function Header() {
 
           {/* Right section */}
           <div className="flex items-center gap-4">
-            {/* Delivery badge - Desktop */}
+            {/* Click & Collect badge - Desktop */}
             <div className="hidden xl:flex items-center gap-2 text-white">
               <Zap className="w-5 h-5 text-accent-400" />
               <span className="text-sm">
