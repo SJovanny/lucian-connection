@@ -19,6 +19,12 @@ export async function middleware(request: NextRequest) {
     },
   });
 
+  // The OAuth route exchanges the PKCE code and writes the session cookies itself.
+  // It must not be redirected by next-intl before that exchange happens.
+  if (pathname === '/auth/callback' || pathname === '/auth/callback/') {
+    return response;
+  }
+
   const supabaseConfig = getSupabaseConfig();
 
   // Auth is optional for public preview pages when Supabase is not configured.

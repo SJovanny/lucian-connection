@@ -126,6 +126,8 @@
       "email": "Email",
       "password": "Password",
       "submit": "Sign in",
+      "oauthCancelled": "Google sign-in was cancelled.",
+      "oauthFailed": "Google sign-in failed. Please try again.",
       "forgotPassword": "Forgot password?",
       "noAccount": "Don't have an account?",
       "register": "Create account"
@@ -137,9 +139,16 @@
       "password": "Password",
       "confirmPassword": "Confirm password",
       "submit": "Sign up",
+      "successTitle": "Account created successfully!",
+      "redirecting": "Redirecting...",
+      "checkEmailTitle": "Check your email address",
+      "checkEmailMessage": "A confirmation link was sent before your first sign-in.",
       "hasAccount": "Already have an account?",
       "login": "Sign in"
     },
+    "or": "or",
+    "continueWithGoogle": "Continue with Google",
+    "oauthError": "Google sign-in is temporarily unavailable.",
     "forgotPassword": {
       "title": "Forgot password",
       "description": "Enter your email address to receive a password reset link.",
@@ -156,6 +165,7 @@
       "confirmPassword": "Confirm password",
       "submit": "Save password",
       "success": "Your password has been updated.",
+      "invalidLink": "This link is invalid or expired. Request a new password reset link.",
       "minimumLength": "Password must be at least 6 characters",
       "passwordsDoNotMatch": "Passwords do not match",
       "backToLogin": "Back to sign in"

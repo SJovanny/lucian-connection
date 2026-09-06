@@ -126,6 +126,8 @@
       "email": "Email",
       "password": "Mot de passe",
       "submit": "Se connecter",
+      "oauthCancelled": "La connexion Google a été annulée.",
+      "oauthFailed": "La connexion avec Google a échoué. Veuillez réessayer.",
       "forgotPassword": "Mot de passe oublié?",
       "noAccount": "Pas de compte?",
       "register": "Créer un compte"
@@ -137,9 +139,16 @@
       "password": "Mot de passe",
       "confirmPassword": "Confirmer le mot de passe",
       "submit": "S'inscrire",
+      "successTitle": "Compte créé avec succès !",
+      "redirecting": "Redirection en cours...",
+      "checkEmailTitle": "Vérifiez votre adresse email",
+      "checkEmailMessage": "Un lien de confirmation vous a été envoyé avant votre première connexion.",
       "hasAccount": "Déjà un compte?",
       "login": "Se connecter"
     },
+    "or": "ou",
+    "continueWithGoogle": "Continuer avec Google",
+    "oauthError": "La connexion avec Google est momentanément indisponible.",
     "forgotPassword": {
       "title": "Mot de passe oublié",
       "description": "Saisissez votre adresse email pour recevoir un lien de réinitialisation.",
@@ -156,6 +165,7 @@
       "confirmPassword": "Confirmer le mot de passe",
       "submit": "Enregistrer le mot de passe",
       "success": "Votre mot de passe a été mis à jour.",
+      "invalidLink": "Ce lien est invalide ou a expiré. Demandez un nouveau lien de réinitialisation.",
       "minimumLength": "Le mot de passe doit contenir au moins 6 caractères",
       "passwordsDoNotMatch": "Les mots de passe ne correspondent pas",
       "backToLogin": "Retour à la connexion"

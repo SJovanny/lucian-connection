@@ -11,6 +11,8 @@ import { Link, useRouter } from "@/i18n/routing";
 import { getSafeRedirectPath } from "@/lib/auth-redirect";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { GoogleOAuthButton } from "@/components/auth/GoogleOAuthButton";
+import type { Locale } from "@/i18n/routing";
 
 export default function RegisterPage() {
   const locale = useLocale();
@@ -19,6 +21,7 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
   const [redirectPath, setRedirectPath] = useState("/");
 
   useEffect(() => {
@@ -70,8 +73,16 @@ export default function RegisterPage() {
         return;
       }
 
-      if (data.user) {
-        setSuccess(true);
+      if (!data.user) {
+        setError(locale === "fr" ? "Impossible de créer le compte" : "Unable to create the account");
+        return;
+      }
+
+      const hasSession = Boolean(data.session);
+      setNeedsEmailConfirmation(!hasSession);
+      setSuccess(true);
+
+      if (hasSession) {
         // Give the session cookie time to settle before returning to checkout.
         setTimeout(() => {
           router.push(redirectPath);
@@ -101,10 +112,10 @@ export default function RegisterPage() {
             {success ? (
               <div className="p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 text-center">
                 <p className="font-medium">
-                  {locale === "fr" ? "Compte créé avec succès !" : "Account created successfully!"}
+                  {needsEmailConfirmation ? t("checkEmailTitle") : t("successTitle")}
                 </p>
                 <p className="text-sm mt-1">
-                  {locale === "fr" ? "Redirection en cours..." : "Redirecting..."}
+                  {needsEmailConfirmation ? t("checkEmailMessage") : t("redirecting")}
                 </p>
               </div>
             ) : (
@@ -174,6 +185,15 @@ export default function RegisterPage() {
                   {t("submit")}
                 </Button>
               </form>
+            )}
+
+            {!success && (
+              <GoogleOAuthButton
+                locale={locale as Locale}
+                redirectPath={redirectPath}
+                disabled={isLoading}
+                onError={setError}
+              />
             )}
 
             <div className="mt-6 text-center text-sm text-gray-600">

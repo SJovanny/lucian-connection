@@ -19,12 +19,60 @@ export default function ResetPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isUpdated, setIsUpdated] = useState(false);
+  const [isCheckingRecovery, setIsCheckingRecovery] = useState(true);
+  const [isRecoveryReady, setIsRecoveryReady] = useState(false);
   const [redirectPath, setRedirectPath] = useState("/");
 
   useEffect(() => {
     setRedirectPath(
       getSafeRedirectPath(new URLSearchParams(window.location.search).get("next"))
     );
+
+    let isMounted = true;
+    let supabase: ReturnType<typeof createClient> | null = null;
+
+    try {
+      supabase = createClient();
+    } catch {
+      setIsCheckingRecovery(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const checkRecoverySession = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (isMounted && session) {
+          setIsRecoveryReady(true);
+        }
+      } catch {
+        // The page will show the invalid-link state when no recovery session exists.
+      } finally {
+        if (isMounted) {
+          setIsCheckingRecovery(false);
+        }
+      }
+    };
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (isMounted && (event === "PASSWORD_RECOVERY" || session)) {
+        setIsRecoveryReady(true);
+        setIsCheckingRecovery(false);
+      }
+    });
+
+    void checkRecoverySession();
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -49,6 +97,11 @@ export default function ResetPasswordPage() {
     }
 
     try {
+      if (!isRecoveryReady) {
+        setError(t("invalidLink"));
+        return;
+      }
+
       const { error: updateError } = await createClient().auth.updateUser({ password });
 
       if (updateError) {
@@ -91,6 +144,11 @@ export default function ResetPasswordPage() {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
+                {!isCheckingRecovery && !isRecoveryReady && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+                    {t("invalidLink")}
+                  </div>
+                )}
                 {error && (
                   <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
                     {error}
@@ -117,6 +175,7 @@ export default function ResetPasswordPage() {
                   variant="primary"
                   className="w-full"
                   isLoading={isLoading}
+                  disabled={isCheckingRecovery || !isRecoveryReady}
                 >
                   {t("submit")}
                 </Button>

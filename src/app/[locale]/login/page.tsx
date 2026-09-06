@@ -11,6 +11,8 @@ import { Link, useRouter } from "@/i18n/routing";
 import { getSafeRedirectPath } from "@/lib/auth-redirect";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { GoogleOAuthButton } from "@/components/auth/GoogleOAuthButton";
+import type { Locale } from "@/i18n/routing";
 
 export default function LoginPage() {
   const locale = useLocale();
@@ -21,10 +23,16 @@ export default function LoginPage() {
   const [redirectPath, setRedirectPath] = useState("/");
 
   useEffect(() => {
-    setRedirectPath(
-      getSafeRedirectPath(new URLSearchParams(window.location.search).get("next"))
-    );
-  }, []);
+    const searchParams = new URLSearchParams(window.location.search);
+    setRedirectPath(getSafeRedirectPath(searchParams.get("next")));
+
+    const oauthError = searchParams.get("oauth");
+    if (oauthError === "cancelled") {
+      setError(t("oauthCancelled"));
+    } else if (oauthError === "failed") {
+      setError(t("oauthFailed"));
+    }
+  }, [t]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -126,6 +134,13 @@ export default function LoginPage() {
                 {t("submit")}
               </Button>
             </form>
+
+            <GoogleOAuthButton
+              locale={locale as Locale}
+              redirectPath={redirectPath}
+              disabled={isLoading}
+              onError={setError}
+            />
 
             <div className="mt-6 text-center text-sm text-gray-600">
               {t("noAccount")}{" "}
