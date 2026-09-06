@@ -97,6 +97,11 @@
     "deliveryFee": "Frais de préparation",
     "total": "Total",
     "placeOrder": "Confirmer la commande",
+    "checkingAccess": "Vérification de votre accès...",
+    "accountRequiredTitle": "Compte requis pour commander",
+    "accountRequiredMessage": "Créez un compte ou connectez-vous pour poursuivre votre commande. Votre panier sera conservé.",
+    "signIn": "Se connecter",
+    "createAccount": "Créer un compte",
     "orderSuccess": "Commande confirmée!",
     "orderSuccessMessage": "Votre commande est prête à être préparée. Vous recevrez une confirmation par email.",
     "form": {
@@ -134,6 +139,26 @@
       "submit": "S'inscrire",
       "hasAccount": "Déjà un compte?",
       "login": "Se connecter"
+    },
+    "forgotPassword": {
+      "title": "Mot de passe oublié",
+      "description": "Saisissez votre adresse email pour recevoir un lien de réinitialisation.",
+      "email": "Email",
+      "submit": "Envoyer le lien",
+      "successTitle": "Email envoyé",
+      "successMessage": "Si un compte existe avec cette adresse, vous recevrez un lien pour réinitialiser votre mot de passe.",
+      "backToLogin": "Retour à la connexion"
+    },
+    "resetPassword": {
+      "title": "Nouveau mot de passe",
+      "description": "Choisissez un nouveau mot de passe pour votre compte.",
+      "password": "Nouveau mot de passe",
+      "confirmPassword": "Confirmer le mot de passe",
+      "submit": "Enregistrer le mot de passe",
+      "success": "Votre mot de passe a été mis à jour.",
+      "minimumLength": "Le mot de passe doit contenir au moins 6 caractères",
+      "passwordsDoNotMatch": "Les mots de passe ne correspondent pas",
+      "backToLogin": "Retour à la connexion"
     }
   },
   "orders": {

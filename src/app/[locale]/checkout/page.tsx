@@ -1,7 +1,6 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { CartDrawer } from "@/components/cart/CartDrawer";
@@ -10,15 +9,18 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useCartStore } from "@/store/cartStore";
 import { fetchPricingQuote } from "@/lib/client-pricing";
+import { getSafeRedirectPath } from "@/lib/auth-redirect";
 import { formatPriceCents } from "@/lib/utils";
 import type { PricingQuote } from "@/lib/pricing-types";
 import { ShoppingBag, ArrowLeft, X } from "lucide-react";
-import { Link } from "@/i18n/routing";
+import { Link, useRouter } from "@/i18n/routing";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Locale } from "@/i18n/routing";
 import { PickupSlotPicker } from "@/components/pickup/PickupSlotPicker";
 import { PickupLocation } from "@/components/pickup/PickupLocation";
+
+type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
 export default function CheckoutPage() {
   const locale = useLocale() as Locale;
@@ -26,6 +28,7 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { items } = useCartStore();
 
+  const [authStatus, setAuthStatus] = useState<AuthStatus>("loading");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [paymentCancelled, setPaymentCancelled] = useState(false);
@@ -69,6 +72,30 @@ export default function CheckoutPage() {
   }, []);
 
   useEffect(() => {
+    let isCurrent = true;
+
+    const loadAuthState = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (isCurrent) setAuthStatus(user ? "authenticated" : "unauthenticated");
+      } catch (error) {
+        console.error("Failed to load authentication state", error);
+        if (isCurrent) setAuthStatus("unauthenticated");
+      }
+    };
+
+    loadAuthState();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (authStatus !== "authenticated") return;
+
     const loadContactInfo = async () => {
       try {
         const supabase = createClient();
@@ -93,7 +120,7 @@ export default function CheckoutPage() {
     };
 
     loadContactInfo();
-  }, []);
+  }, [authStatus]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -247,7 +274,7 @@ export default function CheckoutPage() {
 
       if (!user) {
         console.log("[checkout] 4) no user -> redirect /login");
-        router.push("/login");
+        router.push(`/login?next=${encodeURIComponent("/checkout")}`);
         return;
       }
 
@@ -338,6 +365,62 @@ export default function CheckoutPage() {
                 {locale === "fr" ? "Voir les produits" : "View products"}
               </Button>
             </Link>
+          </Card>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (authStatus === "loading") {
+    return (
+      <div className="min-h-screen flex flex-col bg-gray-50">
+        <Header />
+        <CartDrawer />
+        <main className="flex-1 flex items-center justify-center p-4">
+          <Card padding="lg" className="max-w-md w-full text-center">
+            <p className="text-gray-600">{t("checkingAccess")}</p>
+          </Card>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (authStatus === "unauthenticated") {
+    const checkoutPath = getSafeRedirectPath("/checkout");
+    const loginPath = `/login?next=${encodeURIComponent(checkoutPath)}`;
+    const registerPath = `/register?next=${encodeURIComponent(checkoutPath)}`;
+
+    return (
+      <div className="min-h-screen flex flex-col bg-gray-50">
+        <Header />
+        <CartDrawer />
+        <main className="flex-1 flex items-center justify-center p-4">
+          <Card padding="lg" className="max-w-md w-full text-center">
+            <h1 className="text-2xl font-bold text-gray-900 font-display mb-3">
+              {t("accountRequiredTitle")}
+            </h1>
+            <p className="text-gray-600 mb-6">
+              {t("accountRequiredMessage")}
+            </p>
+            <div className="space-y-3">
+              <Button
+                type="button"
+                className="w-full"
+                onClick={() => router.push(loginPath)}
+              >
+                {t("signIn")}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                onClick={() => router.push(registerPath)}
+              >
+                {t("createAccount")}
+              </Button>
+            </div>
           </Card>
         </main>
         <Footer />

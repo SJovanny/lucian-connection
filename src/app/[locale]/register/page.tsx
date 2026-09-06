@@ -8,7 +8,8 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Link, useRouter } from "@/i18n/routing";
-import { useState } from "react";
+import { getSafeRedirectPath } from "@/lib/auth-redirect";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function RegisterPage() {
@@ -18,6 +19,13 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [redirectPath, setRedirectPath] = useState("/");
+
+  useEffect(() => {
+    setRedirectPath(
+      getSafeRedirectPath(new URLSearchParams(window.location.search).get("next"))
+    );
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -64,9 +72,9 @@ export default function RegisterPage() {
 
       if (data.user) {
         setSuccess(true);
-        // Redirect after short delay
+        // Give the session cookie time to settle before returning to checkout.
         setTimeout(() => {
-          router.push("/");
+          router.push(redirectPath);
         }, 2000);
       }
     } catch {
@@ -85,9 +93,6 @@ export default function RegisterPage() {
         <Card className="w-full max-w-md">
           <CardContent className="p-8">
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <span className="text-3xl">🛒</span>
-              </div>
               <h1 className="text-2xl font-bold text-gray-900 font-display">
                 {t("title")}
               </h1>
@@ -174,7 +179,7 @@ export default function RegisterPage() {
             <div className="mt-6 text-center text-sm text-gray-600">
               {t("hasAccount")}{" "}
               <Link
-                href="/login"
+                href={`/login${redirectPath === "/" ? "" : `?next=${encodeURIComponent(redirectPath)}`}`}
                 className="text-primary-500 font-medium hover:underline"
               >
                 {t("login")}

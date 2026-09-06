@@ -8,7 +8,8 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Link, useRouter } from "@/i18n/routing";
-import { useState } from "react";
+import { getSafeRedirectPath } from "@/lib/auth-redirect";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -17,6 +18,13 @@ export default function LoginPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [redirectPath, setRedirectPath] = useState("/");
+
+  useEffect(() => {
+    setRedirectPath(
+      getSafeRedirectPath(new URLSearchParams(window.location.search).get("next"))
+    );
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -46,7 +54,7 @@ export default function LoginPage() {
       }
 
       if (data.user) {
-        router.push("/");
+        router.push(redirectPath);
         router.refresh();
       }
     } catch {
@@ -65,10 +73,7 @@ export default function LoginPage() {
         <Card className="w-full max-w-md">
           <CardContent className="p-8">
             <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <span className="text-3xl">🛒</span>
-              </div>
-              <h1 className="text-2xl font-bold text-gray-900 font-display">
+              <h1 className="text-4xl font-bold text-gray-900 font-display">
                 {t("title")}
               </h1>
             </div>
@@ -104,9 +109,12 @@ export default function LoginPage() {
                     {locale === "fr" ? "Se souvenir de moi" : "Remember me"}
                   </span>
                 </label>
-                <a href="#" className="text-primary-500 hover:underline">
+                <Link
+                  href={`/forgot-password${redirectPath === "/" ? "" : `?next=${encodeURIComponent(redirectPath)}`}`}
+                  className="text-primary-500 hover:underline"
+                >
                   {t("forgotPassword")}
-                </a>
+                </Link>
               </div>
 
               <Button
@@ -122,7 +130,7 @@ export default function LoginPage() {
             <div className="mt-6 text-center text-sm text-gray-600">
               {t("noAccount")}{" "}
               <Link
-                href="/register"
+                href={`/register${redirectPath === "/" ? "" : `?next=${encodeURIComponent(redirectPath)}`}`}
                 className="text-primary-500 font-medium hover:underline"
               >
                 {t("register")}
