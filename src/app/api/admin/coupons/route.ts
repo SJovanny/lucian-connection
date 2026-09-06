@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminSupabase } from "@/lib/admin-auth";
+import { CouponRuleError, normalizeCouponData } from "@/lib/coupon-rules";
 
 // GET - Récupérer tous les coupons
 export async function GET(request: NextRequest) {
@@ -36,33 +37,28 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
-    const {
-      code,
-      description,
-      discount_type,
-      discount_value,
-      min_order_amount,
-      max_discount_amount,
-      starts_at,
-      expires_at,
-      usage_limit,
-      is_first_order_only,
-      is_active,
-    } = body;
-
-    // Validation basique
-    if (!code || !discount_type || discount_value === undefined) {
+    if (!body || typeof body !== "object") {
       return NextResponse.json(
-        { error: "Missing required fields: code, discount_type, discount_value" },
+        { error: "Invalid coupon payload" },
         { status: 400 }
       );
+    }
+
+    let couponData;
+    try {
+      couponData = normalizeCouponData(body);
+    } catch (error) {
+      if (error instanceof CouponRuleError) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      throw error;
     }
 
     // Vérifier si le code existe déjà
     const { data: existingCoupon } = await supabase
       .from("coupons")
       .select("id")
-      .eq("code", code.toUpperCase())
+      .eq("code", couponData.code)
       .single();
 
     if (existingCoupon) {
@@ -71,20 +67,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const couponData = {
-      code: code.toUpperCase(),
-      description: description || null,
-      discount_type,
-      discount_value: parseFloat(discount_value),
-      min_order_amount: parseFloat(min_order_amount) || 0,
-      max_discount_amount: max_discount_amount ? parseFloat(max_discount_amount) : null,
-      starts_at: starts_at || new Date().toISOString(),
-      expires_at: expires_at || null,
-      usage_limit: usage_limit ? parseInt(usage_limit) : null,
-      is_first_order_only: is_first_order_only === true,
-      is_active: is_active !== false,
-    };
 
     const { data, error } = await supabase
       .from("coupons")

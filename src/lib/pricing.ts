@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Coupon } from "@/types/database.types";
 import {
+  MIN_ORDER_AMOUNT_CENTS,
   PRICING_CURRENCY,
   type PricingQuote,
   type PricingQuoteItem,
@@ -31,7 +32,8 @@ export type PricingErrorCode =
   | "COUPON_USAGE_LIMIT"
   | "COUPON_FIRST_ORDER_ONLY"
   | "COUPON_LOGIN_REQUIRED"
-  | "COUPON_MINIMUM_NOT_MET";
+  | "COUPON_MINIMUM_NOT_MET"
+  | "MIN_ORDER_NOT_MET";
 
 export class PricingError extends Error {
   constructor(
@@ -87,13 +89,18 @@ async function getCoupon(
   couponId?: string | null,
   couponCode?: string | null
 ): Promise<Coupon | null> {
-  if (!couponId && !couponCode) return null;
+  const normalizedCouponId = typeof couponId === "string" ? couponId.trim() : "";
+  const normalizedCouponCode = typeof couponCode === "string"
+    ? couponCode.trim().toUpperCase()
+    : "";
+
+  if (!normalizedCouponId && !normalizedCouponCode) return null;
 
   const query = supabase.from("coupons_active").select("*");
 
-  const { data, error } = couponId
-    ? await query.eq("id", couponId).maybeSingle()
-    : await query.eq("code", couponCode as string).maybeSingle();
+  const { data, error } = normalizedCouponId
+    ? await query.eq("id", normalizedCouponId).maybeSingle()
+    : await query.eq("code", normalizedCouponCode).maybeSingle();
 
   if (error || !data) {
     throw new PricingError("COUPON_UNAVAILABLE", "Coupon unavailable");
@@ -106,8 +113,27 @@ async function assertCouponAllowed(
   supabase: PricingClient,
   coupon: Coupon,
   userId: string | null | undefined,
-  subtotalCents: number
+  subtotalCents: number,
+  locale: string | null | undefined
 ) {
+  const discountValue = Number(coupon.discount_value);
+  const minimumOrderAmount = Number(coupon.min_order_amount);
+  const maximumDiscountAmount = coupon.max_discount_amount === null
+    ? null
+    : Number(coupon.max_discount_amount);
+
+  if (
+    !Number.isFinite(discountValue)
+    || discountValue <= 0
+    || (coupon.discount_type === "percentage" && discountValue > 100)
+    || (coupon.discount_type !== "percentage" && coupon.discount_type !== "fixed")
+    || !Number.isFinite(minimumOrderAmount)
+    || minimumOrderAmount < 0
+    || (maximumDiscountAmount !== null && (!Number.isFinite(maximumDiscountAmount) || maximumDiscountAmount < 0))
+  ) {
+    throw new PricingError("COUPON_UNAVAILABLE", "Coupon unavailable");
+  }
+
   if (coupon.user_id && coupon.user_id !== userId) {
     throw new PricingError("COUPON_NOT_ALLOWED", "Coupon unavailable");
   }
@@ -133,11 +159,11 @@ async function assertCouponAllowed(
     }
   }
 
-  const minimumCents = toCents(coupon.min_order_amount || 0);
+  const minimumCents = toCents(minimumOrderAmount);
   if (subtotalCents < minimumCents) {
     throw new PricingError(
       "COUPON_MINIMUM_NOT_MET",
-      `Minimum order of ${fromCents(minimumCents).toFixed(2)} required`
+      formatMinimumOrderMessage(minimumCents, locale)
     );
   }
 }
@@ -152,6 +178,13 @@ function calculateDiscountCents(coupon: Coupon, subtotalCents: number): number {
   }
 
   return Math.min(Math.max(0, discountCents), subtotalCents);
+}
+
+function formatMinimumOrderMessage(minimumCents: number, locale: string | null | undefined): string {
+  const amount = fromCents(minimumCents).toFixed(2).replace(".", locale === "fr" ? "," : ".");
+  return locale === "en"
+    ? `Minimum order of €${amount} required`
+    : `Le minimum de commande est de ${amount} €`;
 }
 
 export async function getPricingQuote(
@@ -178,7 +211,7 @@ export async function getPricingQuote(
       .eq("is_active", true),
     supabase
       .from("store_settings")
-      .select("preparation_fee")
+      .select("preparation_fee, min_order_amount")
       .limit(1)
       .maybeSingle(),
   ]);
@@ -222,11 +255,24 @@ export async function getPricingQuote(
     0
   );
   const preparationFeeCents = toCents(settings?.preparation_fee || 0);
+
+  // The store setting may increase the threshold, but never lower the €10 floor.
+  const configuredMinimumCents = settings?.min_order_amount === null || settings?.min_order_amount === undefined
+    ? MIN_ORDER_AMOUNT_CENTS
+    : toCents(settings.min_order_amount, "SETTINGS_UNAVAILABLE");
+  const minimumOrderCents = Math.max(MIN_ORDER_AMOUNT_CENTS, configuredMinimumCents);
+  if (subtotalCents < minimumOrderCents) {
+    throw new PricingError(
+      "MIN_ORDER_NOT_MET",
+      formatMinimumOrderMessage(minimumOrderCents, options.locale)
+    );
+  }
+
   const coupon = await getCoupon(supabase, options.couponId, options.couponCode);
   let discountCents = 0;
 
   if (coupon) {
-    await assertCouponAllowed(supabase, coupon, options.userId, subtotalCents);
+    await assertCouponAllowed(supabase, coupon, options.userId, subtotalCents, options.locale);
     discountCents = calculateDiscountCents(coupon, subtotalCents);
   }
 

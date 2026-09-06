@@ -20,11 +20,13 @@ function getStripe() {
 
 export async function POST(request: NextRequest) {
   let createdOrderId: string | null = null;
+  let orderUserId: string | null = null;
 
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    orderUserId = user.id;
 
     const body = await request.json();
     const {
@@ -53,7 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     const quote = await getPricingQuote(supabase, items, {
-      couponId: coupon_id || null,
+      couponId: typeof coupon_id === "string" ? coupon_id.trim() || null : null,
       userId: user.id,
       locale: locale || "fr",
     });
@@ -123,6 +125,21 @@ export async function POST(request: NextRequest) {
       .single();
     if (orderError) throw orderError;
     createdOrderId = order.id;
+
+    if (quote.coupon?.id) {
+      const { data: reservationCreated, error: reservationError } = await supabase.rpc("reserve_coupon", {
+        p_coupon_id: quote.coupon.id,
+        p_order_id: order.id,
+        p_user_id: user.id,
+      });
+      if (reservationError) {
+        console.error("Unable to reserve coupon for payment order", reservationError);
+        throw new PricingError("COUPON_UNAVAILABLE", "Coupon unavailable");
+      }
+      if (reservationCreated !== true) {
+        throw new PricingError("COUPON_USAGE_LIMIT", "Coupon usage limit reached");
+      }
+    }
 
     const { error: itemsError } = await (supabase as any)
       .from("order_items")
@@ -210,17 +227,13 @@ export async function POST(request: NextRequest) {
       .eq("id", order.id);
     return NextResponse.json({ url: session.url, quote });
   } catch (error) {
-    if (error instanceof PricingError) {
-      return NextResponse.json(
-        { error: error.code, details: error.message },
-        { status: 400 }
-      );
-    }
-
-    console.error("Payment session creation failed", error);
     if (createdOrderId) {
       try {
         const supabase = await createClient();
+        await supabase.rpc("release_coupon_reservation", {
+          p_order_id: createdOrderId,
+          p_user_id: orderUserId,
+        });
         await (supabase as any).from("orders").update({
           status: "cancelled",
           payment_status: "cancelled",
@@ -229,6 +242,15 @@ export async function POST(request: NextRequest) {
         console.error("Unable to cancel failed payment order", cleanupError);
       }
     }
+
+    if (error instanceof PricingError) {
+      return NextResponse.json(
+        { error: error.code, details: error.message },
+        { status: 400 }
+      );
+    }
+
+    console.error("Payment session creation failed", error);
     return NextResponse.json({ error: "Unable to start payment" }, { status: 500 });
   }
 }

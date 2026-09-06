@@ -1,4 +1,5 @@
 export const PRICING_CURRENCY = "eur" as const;
+export const MIN_ORDER_AMOUNT_CENTS = 1000;
 
 export type PricingQuoteItem = {
   product_id: string;

@@ -6,7 +6,7 @@ import { Link } from "@/i18n/routing";
 import { useCartStore, CartItem } from "@/store/cartStore";
 import { X, Minus, Plus, ShoppingBag, Package } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { fetchPricingQuote } from "@/lib/client-pricing";
+import { fetchPricingQuote, getPricingErrorMessage, PricingQuoteRequestError } from "@/lib/client-pricing";
 import { formatPriceCents } from "@/lib/utils";
 import type { PricingQuote } from "@/lib/pricing-types";
 import { useEffect, useState } from "react";
@@ -53,7 +53,9 @@ export function CartDrawer() {
         if (isCurrent) {
           setQuoteError({
             key: requestKey,
-            message: error instanceof Error ? error.message : "Unable to calculate the total",
+            message: error instanceof PricingQuoteRequestError
+              ? getPricingErrorMessage(error.code, error.message, locale)
+              : error instanceof Error ? error.message : getPricingErrorMessage("QUOTE_UNAVAILABLE", undefined, locale),
           });
         }
       });

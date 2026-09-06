@@ -8,7 +8,11 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useCartStore } from "@/store/cartStore";
-import { fetchPricingQuote } from "@/lib/client-pricing";
+import {
+  fetchPricingQuote,
+  getPricingErrorMessage,
+  PricingQuoteRequestError,
+} from "@/lib/client-pricing";
 import { getSafeRedirectPath } from "@/lib/auth-redirect";
 import { formatPriceCents } from "@/lib/utils";
 import type { PricingQuote } from "@/lib/pricing-types";
@@ -174,7 +178,9 @@ export default function CheckoutPage() {
         if (!isCurrent) return;
         setQuoteError({
           key: quoteKey,
-          message: error instanceof Error ? error.message : "Unable to calculate the total",
+          message: error instanceof PricingQuoteRequestError
+            ? getPricingErrorMessage(error.code, error.message, locale)
+            : error instanceof Error ? error.message : getPricingErrorMessage("QUOTE_UNAVAILABLE", undefined, locale),
         });
       });
 
@@ -323,8 +329,8 @@ export default function CheckoutPage() {
           setFormError(locale === "fr" ? "La confirmation de majorité est requise pour cette commande." : "Age confirmation is required for this order.");
           setCatalogContainsAlcohol(true);
           setAgeConfirmed(false);
-       } else {
-          setFormError(data?.details || data?.error || "Erreur lors de la préparation du paiement");
+        } else {
+           setFormError(getPricingErrorMessage(data?.error || "CHECKOUT_UNAVAILABLE", data?.details || data?.error, locale));
         }
         return;
       }
@@ -336,7 +342,9 @@ export default function CheckoutPage() {
        window.location.assign(data.url);
     } catch (error) {
       console.error("[checkout] unexpected error:", error);
-      setFormError("Erreur lors de la création de la commande");
+      setFormError(error instanceof PricingQuoteRequestError
+        ? getPricingErrorMessage(error.code, error.message, locale)
+        : locale === "fr" ? "Erreur lors de la création de la commande" : "Unable to create the order");
     } finally {
       setIsSubmitting(false);
       console.log("[checkout] 8) submit finished");

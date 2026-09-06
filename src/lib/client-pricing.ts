@@ -16,6 +16,21 @@ export class PricingQuoteRequestError extends Error {
   }
 }
 
+export function getPricingErrorMessage(
+  code: string,
+  fallback: string | undefined,
+  locale: string
+): string {
+  if (code === "MIN_ORDER_NOT_MET") {
+    if (fallback) return fallback;
+    return locale === "en"
+      ? "The minimum order amount is €10.00."
+      : "Le minimum de commande est de 10,00 €.";
+  }
+
+  return fallback || (locale === "en" ? "Unable to calculate the order total" : "Impossible de calculer le total de la commande");
+}
+
 export async function fetchPricingQuote(options: {
   items: QuoteItem[];
   locale?: string;

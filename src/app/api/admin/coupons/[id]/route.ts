@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminSupabase } from "@/lib/admin-auth";
+import { CouponRuleError, normalizeCouponData } from "@/lib/coupon-rules";
 
 // PATCH - Mettre à jour un coupon
 export async function PATCH(
@@ -14,25 +15,14 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-
-    const {
-      code,
-      description,
-      discount_type,
-      discount_value,
-      min_order_amount,
-      max_discount_amount,
-      starts_at,
-      expires_at,
-      usage_limit,
-      is_first_order_only,
-      is_active,
-    } = body;
+    if (!body || typeof body !== "object") {
+      return NextResponse.json({ error: "Invalid coupon payload" }, { status: 400 });
+    }
 
     // Vérifier si le coupon existe
     const { data: existingCoupon } = await supabase
       .from("coupons")
-      .select("id, code")
+      .select("*")
       .eq("id", id)
       .single();
 
@@ -43,12 +33,22 @@ export async function PATCH(
       );
     }
 
+    let couponData;
+    try {
+      couponData = normalizeCouponData(body, existingCoupon);
+    } catch (error) {
+      if (error instanceof CouponRuleError) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      throw error;
+    }
+
     // Si le code est modifié, vérifier qu'il n'existe pas déjà
-    if (code && code.toUpperCase() !== existingCoupon.code) {
+    if (couponData.code !== existingCoupon.code) {
       const { data: duplicateCoupon } = await supabase
         .from("coupons")
         .select("id")
-        .eq("code", code.toUpperCase())
+        .eq("code", couponData.code)
         .single();
 
       if (duplicateCoupon) {
@@ -58,21 +58,6 @@ export async function PATCH(
         );
       }
     }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const couponData: any = {};
-
-    if (code !== undefined) couponData.code = code.toUpperCase();
-    if (description !== undefined) couponData.description = description || null;
-    if (discount_type !== undefined) couponData.discount_type = discount_type;
-    if (discount_value !== undefined) couponData.discount_value = parseFloat(discount_value);
-    if (min_order_amount !== undefined) couponData.min_order_amount = parseFloat(min_order_amount) || 0;
-    if (max_discount_amount !== undefined) couponData.max_discount_amount = max_discount_amount ? parseFloat(max_discount_amount) : null;
-    if (starts_at !== undefined) couponData.starts_at = starts_at;
-    if (expires_at !== undefined) couponData.expires_at = expires_at || null;
-    if (usage_limit !== undefined) couponData.usage_limit = usage_limit ? parseInt(usage_limit) : null;
-    if (is_first_order_only !== undefined) couponData.is_first_order_only = is_first_order_only === true;
-    if (is_active !== undefined) couponData.is_active = is_active !== false;
 
     const { data, error } = await supabase
       .from("coupons")

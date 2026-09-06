@@ -6,11 +6,23 @@ import { NextResponse } from "next/server";
 export async function POST(request: Request) {
   try {
     const { code, items, locale } = await request.json();
+    const normalizedCode = typeof code === "string" ? code.trim().toUpperCase() : "";
+    if (!normalizedCode) {
+      return NextResponse.json(
+        {
+          valid: false,
+          error: "COUPON_CODE_REQUIRED",
+          message: locale === "en" ? "Please enter a promo code." : "Veuillez saisir un code promo.",
+        },
+        { status: 400 }
+      );
+    }
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     const quote = await getPricingQuote(supabase, items, {
-      couponCode: String(code || "").trim().toUpperCase(),
+      couponCode: normalizedCode,
       userId: user?.id || null,
       locale: locale || "fr",
     });

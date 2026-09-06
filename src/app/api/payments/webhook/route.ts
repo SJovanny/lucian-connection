@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
       });
       if (couponError) {
         console.error(`Webhook: unable to record coupon usage for order ${orderId}`, couponError);
+        return NextResponse.json({ error: "Unable to record coupon usage" }, { status: 500 });
       } else if (couponApplied) {
         console.log(`Webhook: recorded usage of coupon ${order.coupon_id} for order ${orderId}`);
       } else {
@@ -111,6 +112,13 @@ export async function POST(request: NextRequest) {
     }
   }
   if (orderId && (event.type === "checkout.session.expired" || event.type === "checkout.session.async_payment_failed")) {
+    const { error: reservationError } = await supabase.rpc("release_coupon_reservation", {
+      p_order_id: orderId,
+      p_user_id: null,
+    });
+    if (reservationError) {
+      console.error(`Webhook: unable to release coupon reservation for order ${orderId}`, reservationError);
+    }
     await supabase.from("orders").update({ payment_status: "cancelled" }).eq("id", orderId);
   }
 

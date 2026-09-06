@@ -27,6 +27,7 @@ export function AdminSettingsForm({
   const [phone, setPhone] = useState(initialPhone);
   const [dashboardLocale, setDashboardLocale] = useState(initialDashboardLocale);
   const [preparationFee, setPreparationFee] = useState<string>("0");
+  const [minOrderAmount, setMinOrderAmount] = useState<string>("10");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -40,10 +41,11 @@ export function AdminSettingsForm({
   useEffect(() => {
     const fetchSettings = async () => {
       const supabase = createClient();
-      const { data } = await supabase.from("store_settings").select("preparation_fee").single();
-      const typedSettings = data as Pick<StoreSettings, "preparation_fee"> | null;
+      const { data } = await supabase.from("store_settings").select("preparation_fee, min_order_amount").single();
+      const typedSettings = data as Pick<StoreSettings, "preparation_fee" | "min_order_amount"> | null;
       if (typedSettings) {
         setPreparationFee(typedSettings.preparation_fee.toString());
+        setMinOrderAmount(Math.max(10, typedSettings.min_order_amount).toString());
       }
     };
     fetchSettings();
@@ -160,6 +162,7 @@ export function AdminSettingsForm({
       // Update store settings
       const settingsUpdate: Partial<StoreSettings> = {
         preparation_fee: parseFloat(preparationFee),
+        min_order_amount: Math.max(10, parseFloat(minOrderAmount) || 10),
         updated_at: new Date().toISOString(),
         updated_by: userId,
       };
@@ -180,7 +183,7 @@ export function AdminSettingsForm({
       } else {
         const { error: settingsError } = await supabase.from("store_settings").insert({
           preparation_fee: parseFloat(preparationFee),
-          min_order_amount: 0,
+          min_order_amount: Math.max(10, parseFloat(minOrderAmount) || 10),
           updated_by: userId,
         });
 
@@ -375,6 +378,16 @@ export function AdminSettingsForm({
             min="0"
             step="0.01"
             helperText="Montant ajouté au total de chaque commande (Click & Collect)."
+          />
+          <Input
+            label="Minimum de commande"
+            type="number"
+            value={minOrderAmount}
+            onChange={(e) => setMinOrderAmount(e.target.value)}
+            placeholder="10.00"
+            min="10"
+            step="0.01"
+            helperText="Le minimum serveur ne peut pas être inférieur à 10,00 €."
           />
         </div>
       </Card>

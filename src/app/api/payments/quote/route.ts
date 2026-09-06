@@ -7,10 +7,14 @@ export async function POST(request: Request) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     const body = await request.json();
+    const couponId = typeof body.couponId === "string" ? body.couponId.trim() || null : null;
+    const couponCode = typeof body.couponCode === "string"
+      ? body.couponCode.trim().toUpperCase() || null
+      : null;
 
     const quote = await getPricingQuote(supabase, body.items, {
-      couponId: body.couponId || null,
-      couponCode: body.couponCode || null,
+      couponId,
+      couponCode,
       userId: user?.id || null,
       locale: body.locale || "fr",
     });
