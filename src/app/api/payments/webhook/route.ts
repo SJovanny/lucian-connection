@@ -49,10 +49,14 @@ export async function POST(request: NextRequest) {
       .single();
     if (orderFetchError) console.error(`Webhook: unable to fetch order ${orderId}`, orderFetchError);
     const expectedAmount = Math.round(Number(order?.total_amount || 0) * 100);
+    const metadataAmount = Number(verifiedSession.metadata?.total_cents);
+    const metadataMatches = verifiedSession.metadata?.total_cents === undefined
+      || (Number.isInteger(metadataAmount) && metadataAmount === expectedAmount);
     const isValidPayment = verifiedSession.status === "complete"
       && verifiedSession.payment_status === "paid"
       && verifiedSession.currency === "eur"
       && verifiedSession.amount_total === expectedAmount
+      && metadataMatches
       && verifiedSession.metadata?.order_id === orderId;
     if (!order || !isValidPayment) {
       console.error(`Webhook: payment verification failed for order ${orderId}`, {
@@ -61,6 +65,7 @@ export async function POST(request: NextRequest) {
         currency: verifiedSession.currency,
         amountTotal: verifiedSession.amount_total,
         expectedAmount,
+        metadataAmount,
       });
       return NextResponse.json({ error: "Payment verification failed" }, { status: 400 });
     }

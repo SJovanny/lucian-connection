@@ -1,23 +1,72 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/routing";
 import { useCartStore, CartItem } from "@/store/cartStore";
 import { X, Minus, Plus, ShoppingBag, Package } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { formatPrice } from "@/lib/utils";
+import { fetchPricingQuote } from "@/lib/client-pricing";
+import { formatPriceCents } from "@/lib/utils";
+import type { PricingQuote } from "@/lib/pricing-types";
+import { useEffect, useState } from "react";
 
 export function CartDrawer() {
   const t = useTranslations("cart");
-  const { items, isOpen, closeCart, updateQuantity, removeItem, getSubtotal } =
+  const locale = useLocale();
+  const { items, isOpen, closeCart, updateQuantity, removeItem } =
     useCartStore();
+  const [quoteState, setQuoteState] = useState<{
+    key: string;
+    quote: PricingQuote;
+  } | null>(null);
+  const [quoteError, setQuoteError] = useState<{
+    key: string;
+    message: string;
+  } | null>(null);
+  const quoteKey = items
+    .map((item) => `${item.id}:${item.quantity}`)
+    .sort()
+    .join("|");
+  const requestKey = `${locale}|${quoteKey}`;
 
-  const subtotal = getSubtotal();
-  const deliveryFee = subtotal > 0 ? 5.0 : 0;
-  const total = subtotal + deliveryFee;
+  useEffect(() => {
+    let isCurrent = true;
+
+    if (items.length === 0) {
+      return () => {
+        isCurrent = false;
+      };
+    }
+
+    fetchPricingQuote({
+      items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
+      locale,
+    })
+      .then((nextQuote) => {
+        if (isCurrent) {
+          setQuoteState({ key: requestKey, quote: nextQuote });
+          setQuoteError(null);
+        }
+      })
+      .catch((error: unknown) => {
+        if (isCurrent) {
+          setQuoteError({
+            key: requestKey,
+            message: error instanceof Error ? error.message : "Unable to calculate the total",
+          });
+        }
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [items, locale, requestKey]);
 
   if (!isOpen) return null;
+
+  const displayQuote = quoteState?.key === requestKey ? quoteState.quote : null;
+  const currentQuoteError = quoteError?.key === requestKey ? quoteError.message : null;
 
   return (
     <>
@@ -59,6 +108,8 @@ export function CartDrawer() {
                 <CartItemRow
                   key={item.id}
                   item={item}
+                   quoteItem={displayQuote?.items.find((quoteItem) => quoteItem.product_id === item.id)}
+                   locale={locale}
                   onUpdateQuantity={updateQuantity}
                   onRemove={removeItem}
                 />
@@ -71,24 +122,38 @@ export function CartDrawer() {
         {items.length > 0 && (
           <div className="border-t border-gray-200 bg-gray-50 p-6">
             <div className="space-y-2 mb-4">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">{t("subtotal")}</span>
-                <span className="font-medium">{formatPrice(subtotal)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">{t("deliveryFee")}</span>
-                <span className="font-medium">{formatPrice(deliveryFee)}</span>
-              </div>
-              <div className="flex justify-between text-base font-bold pt-2 border-t border-gray-200">
-                <span>{t("total")}</span>
-                <span className="text-primary-600">{formatPrice(total)}</span>
-              </div>
+              {!displayQuote && !currentQuoteError ? (
+                <p className="text-sm text-gray-500">{locale === "fr" ? "Calcul du total..." : "Calculating total..."}</p>
+              ) : currentQuoteError ? (
+                <p className="text-sm text-red-600">{currentQuoteError}</p>
+              ) : displayQuote ? (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">{t("subtotal")}</span>
+                    <span className="font-medium">{formatPriceCents(displayQuote.subtotal_cents, locale)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">{t("deliveryFee")}</span>
+                    <span className="font-medium">{formatPriceCents(displayQuote.preparation_fee_cents, locale)}</span>
+                  </div>
+                  <div className="flex justify-between text-base font-bold pt-2 border-t border-gray-200">
+                    <span>{t("total")}</span>
+                    <span className="text-primary-600">{formatPriceCents(displayQuote.total_cents, locale)}</span>
+                  </div>
+                </>
+              ) : null}
             </div>
-            <Link href="/checkout" onClick={closeCart}>
-              <Button variant="primary" className="w-full">
+            {displayQuote && !currentQuoteError ? (
+              <Link href="/checkout" onClick={closeCart}>
+                <Button variant="primary" className="w-full">
+                  {t("checkout")}
+                </Button>
+              </Link>
+            ) : (
+              <Button variant="primary" className="w-full" disabled={!displayQuote || !!currentQuoteError}>
                 {t("checkout")}
               </Button>
-            </Link>
+            )}
           </div>
         )}
       </div>
@@ -98,11 +163,13 @@ export function CartDrawer() {
 
 interface CartItemRowProps {
   item: CartItem;
+  quoteItem?: PricingQuote["items"][number];
+  locale: string;
   onUpdateQuantity: (id: string, quantity: number) => void;
   onRemove: (id: string) => void;
 }
 
-function CartItemRow({ item, onUpdateQuantity, onRemove }: CartItemRowProps) {
+function CartItemRow({ item, quoteItem, locale, onUpdateQuantity, onRemove }: CartItemRowProps) {
   return (
     <div className="flex gap-4 p-4">
       {/* Image */}
@@ -125,7 +192,7 @@ function CartItemRow({ item, onUpdateQuantity, onRemove }: CartItemRowProps) {
         </h3>
         <p className="text-xs text-gray-500">{item.unit}</p>
         <p className="font-semibold text-gray-900 mt-1">
-          {formatPrice(item.price)}
+          {quoteItem ? formatPriceCents(quoteItem.unit_price_cents, locale) : "..."}
         </p>
       </div>
 

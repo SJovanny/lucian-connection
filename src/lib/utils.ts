@@ -12,6 +12,10 @@ export function formatPrice(price: number, locale: string = "fr"): string {
   }).format(price);
 }
 
+export function formatPriceCents(cents: number, locale: string = "fr"): string {
+  return formatPrice(cents / 100, locale);
+}
+
 export function formatPriceParts(price: number): { whole: string; decimal: string } {
   const [whole, decimal] = price.toFixed(2).split(".");
   return { whole, decimal };

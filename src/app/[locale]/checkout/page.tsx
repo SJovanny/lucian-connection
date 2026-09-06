@@ -9,7 +9,9 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useCartStore } from "@/store/cartStore";
-import { formatPrice } from "@/lib/utils";
+import { fetchPricingQuote } from "@/lib/client-pricing";
+import { formatPriceCents } from "@/lib/utils";
+import type { PricingQuote } from "@/lib/pricing-types";
 import { ShoppingBag, ArrowLeft, X } from "lucide-react";
 import { Link } from "@/i18n/routing";
 import { useState, useEffect } from "react";
@@ -22,7 +24,7 @@ export default function CheckoutPage() {
   const locale = useLocale() as Locale;
   const t = useTranslations("checkout");
   const router = useRouter();
-  const { items, getSubtotal } = useCartStore();
+  const { items } = useCartStore();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -38,28 +40,29 @@ export default function CheckoutPage() {
     phone: "",
   });
 
-  // Settings & Fees
-  const [preparationFee, setPreparationFee] = useState(0);
+  const [quoteState, setQuoteState] = useState<{
+    key: string;
+    quote: PricingQuote;
+  } | null>(null);
+  const [quoteError, setQuoteError] = useState<{
+    key: string;
+    message: string;
+  } | null>(null);
 
   // Coupon State
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{
     code: string;
-    discount_amount: number;
     id: string;
   } | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
 
-  // Fetch settings on mount
-  useEffect(() => {
-    fetch("/api/store-settings")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.preparation_fee) setPreparationFee(Number(data.preparation_fee));
-      })
-      .catch((err) => console.error("Failed to fetch settings", err));
-  }, []);
+  const quoteKey = [
+    locale,
+    appliedCoupon?.id || "",
+    ...items.map((item) => `${item.id}:${item.quantity}`).sort(),
+  ].join("|");
 
   useEffect(() => {
     setPaymentCancelled(new URLSearchParams(window.location.search).get("payment") === "cancelled");
@@ -120,10 +123,43 @@ export default function CheckoutPage() {
     };
   }, [items]);
 
-  const subtotal = getSubtotal();
-  const totalBeforeDiscount = subtotal + preparationFee;
-  const discount = appliedCoupon ? appliedCoupon.discount_amount : 0;
-  const total = Math.max(0, totalBeforeDiscount - discount);
+  useEffect(() => {
+    let isCurrent = true;
+
+    if (items.length === 0) {
+      return () => {
+        isCurrent = false;
+      };
+    }
+
+    fetchPricingQuote({
+      items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
+      couponId: appliedCoupon?.id || null,
+      locale,
+    })
+      .then((nextQuote) => {
+        if (isCurrent) {
+          setQuoteState({ key: quoteKey, quote: nextQuote });
+          setQuoteError(null);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!isCurrent) return;
+        setQuoteError({
+          key: quoteKey,
+          message: error instanceof Error ? error.message : "Unable to calculate the total",
+        });
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [items, appliedCoupon?.id, locale, quoteKey]);
+
+  const displayQuote = quoteState?.key === quoteKey ? quoteState.quote : null;
+  const currentQuoteError = quoteError?.key === quoteKey ? quoteError.message : null;
+  const subtotalCents = displayQuote?.subtotal_cents || 0;
+  const totalCents = displayQuote?.total_cents || 0;
   const containsAlcohol = catalogContainsAlcohol || items.some((item) => item.is_alcoholic === true);
 
   useEffect(() => {
@@ -142,8 +178,9 @@ export default function CheckoutPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          code: couponCode,
-          orderTotal: subtotal // Discount usually applies to subtotal
+          code: couponCode.trim().toUpperCase(),
+          items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
+          locale,
         }),
       });
 
@@ -155,7 +192,6 @@ export default function CheckoutPage() {
         setAppliedCoupon({
           id: data.coupon.id,
           code: data.coupon.code,
-          discount_amount: data.discountAmount
         });
         setCouponCode(""); // Clear input on success
       }
@@ -197,6 +233,13 @@ export default function CheckoutPage() {
     }
 
     try {
+      const currentQuote = await fetchPricingQuote({
+        items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
+        couponId: appliedCoupon?.id || null,
+        locale,
+      });
+      setQuoteState({ key: quoteKey, quote: currentQuote });
+
       const supabase = createClient();
       console.log("[checkout] 2) fetching user session");
       const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -222,7 +265,7 @@ export default function CheckoutPage() {
         notes,
         locale,
         coupon_id: appliedCoupon?.id || null,
-        discount_amount: appliedCoupon?.discount_amount || 0,
+        quote_total_cents: currentQuote.total_cents,
         full_name,
         email,
         terms_accepted: acceptedTerms,
@@ -240,7 +283,12 @@ export default function CheckoutPage() {
       console.log("[checkout] payment session response status:", res.status);
       if (!res.ok) {
         console.error("[checkout] Payment session creation failed:", data);
-        if (data?.error === "PICKUP_SLOT_UNAVAILABLE") {
+        if (data?.error === "PRICE_CHANGED" || data?.error === "COUPON_UNAVAILABLE") {
+          if (data.quote) setQuoteState({ key: quoteKey, quote: data.quote });
+          setFormError(locale === "fr"
+            ? "Le total a changé. Vérifiez le récapitulatif avant de réessayer."
+            : "The total changed. Review the summary before trying again.");
+        } else if (data?.error === "PICKUP_SLOT_UNAVAILABLE") {
           setPickupAt(null);
           setAvailabilityReloadToken((value) => value + 1);
           setFormError(locale === "fr" ? "Ce créneau n'est plus disponible. Choisissez-en un autre." : "This slot is no longer available. Please choose another one.");
@@ -248,7 +296,7 @@ export default function CheckoutPage() {
           setFormError(locale === "fr" ? "La confirmation de majorité est requise pour cette commande." : "Age confirmation is required for this order.");
           setCatalogContainsAlcohol(true);
           setAgeConfirmed(false);
-        } else {
+       } else {
           setFormError(data?.details || data?.error || "Erreur lors de la préparation du paiement");
         }
         return;
@@ -476,19 +524,30 @@ export default function CheckoutPage() {
                       {t("orderSummary")}
                     </h2>
 
-                    {/* Items */}
-                    <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
-                      {items.map((item) => (
+                     {currentQuoteError && (
+                       <p className="mb-4 text-sm text-red-600" role="alert">
+                         {currentQuoteError}
+                       </p>
+                     )}
+
+                     {/* Items */}
+                     <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
+                       {items.map((item) => (
                         <div
                           key={item.id}
                           className="flex justify-between text-sm"
                         >
-                          <span className="text-gray-600">
-                            {item.name} × {item.quantity}
-                          </span>
-                          <span className="font-medium">
-                            {formatPrice(item.price * item.quantity)}
-                          </span>
+                           <span className="text-gray-600">
+                             {item.name} × {item.quantity}
+                           </span>
+                           <span className="font-medium">
+                             {displayQuote
+                               ? formatPriceCents(
+                                   displayQuote.items.find((quoteItem) => quoteItem.product_id === item.id)?.total_price_cents || 0,
+                                   locale
+                                 )
+                               : "..."}
+                           </span>
                         </div>
                       ))}
                     </div>
@@ -527,9 +586,9 @@ export default function CheckoutPage() {
                             <p className="text-green-700 font-medium text-sm">
                               {appliedCoupon.code}
                             </p>
-                            <p className="text-green-600 text-xs">
-                              -{formatPrice(appliedCoupon.discount_amount)}
-                            </p>
+                             <p className="text-green-600 text-xs">
+                               -{displayQuote ? formatPriceCents(displayQuote.discount_cents, locale) : "..."}
+                             </p>
                           </div>
                           <button
                             type="button"
@@ -542,37 +601,37 @@ export default function CheckoutPage() {
                       )}
                     </div>
 
-                    <div className="border-t border-gray-200 pt-4 space-y-2 mt-4">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">{t("subtotal")}</span>
-                        <span className="font-medium">
-                          {formatPrice(subtotal)}
-                        </span>
-                      </div>
+                     <div className="border-t border-gray-200 pt-4 space-y-2 mt-4">
+                       <div className="flex justify-between text-sm">
+                         <span className="text-gray-600">{t("subtotal")}</span>
+                         <span className="font-medium">
+                           {displayQuote ? formatPriceCents(subtotalCents, locale) : "..."}
+                         </span>
+                       </div>
 
-                      {preparationFee > 0 && (
-                        <div className="flex justify-between text-sm">
+                        {displayQuote && displayQuote.preparation_fee_cents > 0 && (
+                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">
                             {t("deliveryFee")}
-                          </span>
-                          <span className="font-medium">
-                            {formatPrice(preparationFee)}
-                          </span>
-                        </div>
-                      )}
+                           </span>
+                           <span className="font-medium">
+                              {formatPriceCents(displayQuote.preparation_fee_cents, locale)}
+                           </span>
+                         </div>
+                       )}
 
-                      {appliedCoupon && (
-                        <div className="flex justify-between text-sm text-green-600">
-                          <span>Reduction</span>
-                          <span>-{formatPrice(appliedCoupon.discount_amount)}</span>
-                        </div>
-                      )}
+                       {displayQuote && displayQuote.discount_cents > 0 && (
+                         <div className="flex justify-between text-sm text-green-600">
+                           <span>Reduction</span>
+                           <span>-{formatPriceCents(displayQuote.discount_cents, locale)}</span>
+                         </div>
+                       )}
 
                       <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-200">
-                        <span>{t("total")}</span>
-                        <span className="text-primary-600">
-                          {formatPrice(total)}
-                        </span>
+                         <span>{t("total")}</span>
+                         <span className="text-primary-600">
+                            {displayQuote ? formatPriceCents(totalCents, locale) : "..."}
+                         </span>
                       </div>
                     </div>
 
@@ -624,6 +683,7 @@ export default function CheckoutPage() {
                       variant="primary"
                       className="w-full mt-6"
                       isLoading={isSubmitting}
+                      disabled={!displayQuote || !!currentQuoteError}
                     >
                       {t("placeOrder")}
                     </Button>

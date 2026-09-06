@@ -2,15 +2,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@/lib/supabase/server";
+import {
+  fromCents,
+  getPricingQuote,
+  PricingError,
+} from "@/lib/pricing";
+import { PRICING_CURRENCY } from "@/lib/pricing-types";
 import { validatePickupAt } from "@/lib/pickup-rules";
 
 const TERMS_VERSION = "1.0";
-type ProductRow = {
-  id: string;
-  price: number;
-  discounted_price: number | null;
-  translations: Record<string, { name?: string }>;
-};
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -20,13 +20,26 @@ function getStripe() {
 
 export async function POST(request: NextRequest) {
   let createdOrderId: string | null = null;
+
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await request.json();
-    const { items, phone, notes, locale, pickup_at, coupon_id, full_name, terms_accepted, age_confirmed } = body;
+    const {
+      items,
+      phone,
+      notes,
+      locale,
+      pickup_at,
+      coupon_id,
+      quote_total_cents,
+      full_name,
+      terms_accepted,
+      age_confirmed,
+    } = body;
+
     if (!Array.isArray(items) || items.length === 0 || !pickup_at || !phone || !full_name || terms_accepted !== true) {
       return NextResponse.json({ error: "Missing order information" }, { status: 400 });
     }
@@ -39,134 +52,171 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "PICKUP_SLOT_UNAVAILABLE" }, { status: 400 });
     }
 
-    const ids = items.map((item: { id: string }) => item.id);
-    const [
-      { data: products, error: productsError },
-      { data: productFlags, error: productFlagsError },
-    ] = await Promise.all([
-      (supabase as any)
-        .from("products_with_discount")
-        .select("id, price, discounted_price, translations")
-        .in("id", ids)
-        .eq("is_active", true),
-      supabase
-        .from("products")
-        .select("id, is_alcoholic")
-        .in("id", ids)
-        .eq("is_active", true),
-    ]);
-    if (productsError || productFlagsError || !products || !productFlags || products.length !== ids.length || productFlags.length !== ids.length) {
+    const quote = await getPricingQuote(supabase, items, {
+      couponId: coupon_id || null,
+      userId: user.id,
+      locale: locale || "fr",
+    });
+
+    const ids = quote.items.map((item) => item.product_id);
+    const { data: productFlags, error: productFlagsError } = await supabase
+      .from("products")
+      .select("id, is_alcoholic")
+      .in("id", ids)
+      .eq("is_active", true);
+
+    if (productFlagsError || !productFlags || productFlags.length !== ids.length) {
       return NextResponse.json({ error: "One or more products are unavailable" }, { status: 400 });
     }
 
-    const productRows = products as ProductRow[];
-    const productById = new Map(productRows.map((product) => [product.id, product]));
+    if (
+      quote_total_cents !== undefined
+      && (!Number.isInteger(Number(quote_total_cents)) || Number(quote_total_cents) !== quote.total_cents)
+    ) {
+      return NextResponse.json(
+        { error: "PRICE_CHANGED", details: "The order total changed", quote },
+        { status: 409 }
+      );
+    }
+
     const alcoholicProductIds = new Set(
       productFlags.filter((product) => product.is_alcoholic).map((product) => product.id)
     );
-    const orderItems = items.map((item: { id: string; quantity: number }) => {
-      const product = productById.get(item.id);
-      if (!product) throw new Error("Product unavailable");
-      const quantity = Number(item.quantity);
-      if (!Number.isInteger(quantity) || quantity < 1) throw new Error("Invalid quantity");
-      const unitPrice = Number(product.discounted_price ?? product.price);
-      return {
-        product_id: item.id,
-        product_name: product.translations?.[locale === "en" ? "en" : "fr"]?.name || product.id,
-        quantity,
-        unit_price: unitPrice,
-        total_price: unitPrice * quantity,
-      };
-    });
-    const containsAlcohol = orderItems.some((item) => alcoholicProductIds.has(item.product_id));
+    const containsAlcohol = quote.items.some((item) => alcoholicProductIds.has(item.product_id));
     if (containsAlcohol && age_confirmed !== true) {
       return NextResponse.json({ error: "ALCOHOL_AGE_REQUIRED" }, { status: 400 });
     }
-    const subtotal = orderItems.reduce((sum, item) => sum + item.total_price, 0);
 
-    const { data: settings } = await (supabase as any)
-      .from("store_settings").select("preparation_fee").limit(1).maybeSingle();
-    const preparationFee = Number(settings?.preparation_fee || 0);
-    let discount = 0;
-    if (coupon_id) {
-      const { data: coupon } = await (supabase as any)
-        .from("coupons_active").select("*").eq("id", coupon_id).maybeSingle();
-      if (coupon && (!coupon.user_id || coupon.user_id === user.id)) {
-        discount = coupon.discount_type === "percentage"
-          ? subtotal * Number(coupon.discount_value) / 100
-          : Number(coupon.discount_value);
-        if (coupon.max_discount_amount) discount = Math.min(discount, Number(coupon.max_discount_amount));
-        discount = Math.min(Math.max(0, discount), subtotal + preparationFee);
-      } else if (coupon) return NextResponse.json({ error: "Coupon unavailable" }, { status: 400 });
-    }
-    const total = Math.max(0, subtotal + preparationFee - discount);
+    const orderItems = quote.items.map((item) => ({
+      product_id: item.product_id,
+      product_name: item.product_name,
+      quantity: item.quantity,
+      unit_price: fromCents(item.unit_price_cents),
+      total_price: fromCents(item.total_price_cents),
+    }));
+    const subtotal = fromCents(quote.subtotal_cents);
+    const preparationFee = fromCents(quote.preparation_fee_cents);
+    const discount = fromCents(quote.discount_cents);
+    const total = fromCents(quote.total_cents);
+
     const { data: order, error: orderError } = await (supabase as any)
       .from("orders")
       .insert({
-        user_id: user.id, status: "pending", payment_status: "pending_payment",
-        payment_provider: "stripe", subtotal, delivery_fee: preparationFee,
-        total_amount: total, phone, notes: notes || null, locale: locale || "fr",
-        coupon_id: coupon_id || null, discount_amount: discount,
-        pickup_at: new Date(pickup_at).toISOString(), terms_version: TERMS_VERSION,
+        user_id: user.id,
+        status: "pending",
+        payment_status: "pending_payment",
+        payment_provider: "stripe",
+        subtotal,
+        delivery_fee: preparationFee,
+        total_amount: total,
+        phone,
+        notes: notes || null,
+        locale: locale || "fr",
+        coupon_id: quote.coupon?.id || null,
+        discount_amount: discount,
+        pickup_at: new Date(pickup_at).toISOString(),
+        terms_version: TERMS_VERSION,
         contains_alcohol: containsAlcohol,
         age_confirmed_at: containsAlcohol ? new Date().toISOString() : null,
       })
-      .select("id").single();
+      .select("id")
+      .single();
     if (orderError) throw orderError;
     createdOrderId = order.id;
 
     const { error: itemsError } = await (supabase as any)
-      .from("order_items").insert(orderItems.map((item: any) => ({ ...item, order_id: order.id })));
+      .from("order_items")
+      .insert(orderItems.map((item) => ({ ...item, order_id: order.id })));
     if (itemsError) throw itemsError;
 
     await (supabase as any).from("legal_acceptances").insert({
-      user_id: user.id, document_type: "terms", document_version: TERMS_VERSION, order_id: order.id,
+      user_id: user.id,
+      document_type: "terms",
+      document_version: TERMS_VERSION,
+      order_id: order.id,
       user_agent: request.headers.get("user-agent"),
     });
     if (containsAlcohol) {
       await (supabase as any).from("legal_acceptances").insert({
-        user_id: user.id, document_type: "alcohol_age", document_version: "1.0", order_id: order.id,
+        user_id: user.id,
+        document_type: "alcohol_age",
+        document_version: "1.0",
+        order_id: order.id,
         user_agent: request.headers.get("user-agent"),
       });
     }
 
     const stripe = getStripe();
-    const stripeDiscount = discount > 0
-      ? [{ coupon: (await stripe.coupons.create({
-          amount_off: Math.round(discount * 100), currency: "eur", duration: "once",
-        })).id }]
+    const stripeProducts = await Promise.all(
+      quote.items.map((item) => stripe.products.create({
+        name: item.product_name,
+        metadata: { order_id: order.id, product_id: item.product_id },
+      }))
+    );
+    const feeProduct = quote.preparation_fee_cents > 0
+      ? await stripe.products.create({
+          name: locale === "en" ? "Preparation fee" : "Frais de préparation",
+          metadata: { order_id: order.id, type: "preparation_fee" },
+        })
+      : null;
+
+    const stripeDiscount = quote.discount_cents > 0
+      ? [{
+          coupon: (await stripe.coupons.create({
+            amount_off: quote.discount_cents,
+            currency: PRICING_CURRENCY,
+            duration: "once",
+            applies_to: { products: stripeProducts.map((product) => product.id) },
+          })).id,
+        }]
       : undefined;
-    const sessionLineItems = orderItems.map((item: any) => ({
+
+    const sessionLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = quote.items.map((item, index) => ({
       quantity: item.quantity,
       price_data: {
-        currency: "eur" as const,
-        unit_amount: Math.round(item.unit_price * 100),
-        product_data: { name: item.product_name },
+        currency: PRICING_CURRENCY,
+        unit_amount: item.unit_price_cents,
+        product: stripeProducts[index].id,
       },
     }));
-    if (preparationFee > 0) {
+    if (feeProduct) {
       sessionLineItems.push({
         quantity: 1,
         price_data: {
-          currency: "eur",
-          unit_amount: Math.round(preparationFee * 100),
-          product_data: { name: locale === "en" ? "Preparation fee" : "Frais de préparation" },
+          currency: PRICING_CURRENCY,
+          unit_amount: quote.preparation_fee_cents,
+          product: feeProduct.id,
         },
       });
     }
+
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       customer_email: user.email,
       line_items: sessionLineItems,
       discounts: stripeDiscount,
-      metadata: { order_id: order.id, user_id: user.id },
+      metadata: {
+        order_id: order.id,
+        user_id: user.id,
+        total_cents: String(quote.total_cents),
+      },
       success_url: `${process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin}/${locale || "fr"}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin}/${locale || "fr"}/checkout?payment=cancelled`,
     });
 
-    await (supabase as any).from("orders").update({ payment_reference: session.id }).eq("id", order.id);
-    return NextResponse.json({ url: session.url });
+    await (supabase as any)
+      .from("orders")
+      .update({ payment_reference: session.id })
+      .eq("id", order.id);
+    return NextResponse.json({ url: session.url, quote });
   } catch (error) {
+    if (error instanceof PricingError) {
+      return NextResponse.json(
+        { error: error.code, details: error.message },
+        { status: 400 }
+      );
+    }
+
     console.error("Payment session creation failed", error);
     if (createdOrderId) {
       try {
