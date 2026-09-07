@@ -208,14 +208,22 @@ export type LoyaltyRedemption = {
   coupons?: Coupon;
 };
 
+export type OrderRefundItem = {
+  order_item_id?: string;
+  product_id?: string | null;
+  quantity: number;
+  amount: number;
+};
+
 export type OrderRefund = {
   id: string;
   order_id: string;
   user_id: string;
+  request_key: string | null;
   stripe_refund_id: string | null;
   amount: number;
   product_amount: number;
-  items: Array<{ product_id: string; quantity: number; amount: number }>;
+  items: OrderRefundItem[];
   status: "pending" | "succeeded" | "failed" | "canceled";
   points_reversed: number;
   reason: string | null;

@@ -25,6 +25,27 @@ export async function GET(request: NextRequest) {
       throw ordersError;
     }
 
+    const refundsByOrder = new Map<string, Array<{ id: string; order_id: string; status: string; items: unknown }>>();
+    const orderIds = (orders || []).map((order) => order.id);
+    if (orderIds.length > 0) {
+      const { data: refunds, error: refundsError } = await supabase
+        .from("order_refunds")
+        .select("id, order_id, status, items")
+        .in("order_id", orderIds);
+      if (refundsError) throw refundsError;
+
+      for (const refund of refunds || []) {
+        const orderRefunds = refundsByOrder.get(refund.order_id) || [];
+        orderRefunds.push(refund);
+        refundsByOrder.set(refund.order_id, orderRefunds);
+      }
+    }
+
+    const ordersWithRefunds = (orders || []).map((order) => ({
+      ...order,
+      order_refunds: refundsByOrder.get(order.id) || [],
+    }));
+
     // Calculate status counts
     const statusCounts = {
       pending: 0,
@@ -35,13 +56,13 @@ export async function GET(request: NextRequest) {
       refunded: 0,
     };
 
-    orders?.forEach((order: any) => {
+    ordersWithRefunds.forEach((order: any) => {
       statusCounts[order.status as keyof typeof statusCounts]++;
     });
 
     return NextResponse.json(
       {
-        orders: orders || [],
+        orders: ordersWithRefunds,
         statusCounts,
       },
       { status: 200 }

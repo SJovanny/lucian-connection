@@ -24,7 +24,7 @@ export async function POST(
       return NextResponse.json({ verified: false, message: "Age verification is not required" });
     }
 
-    if (order.payment_status !== "paid") {
+    if (!["paid", "partially_refunded"].includes(order.payment_status)) {
       return NextResponse.json({ error: "Order must be paid before pickup" }, { status: 409 });
     }
 

@@ -356,13 +356,6 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
                 >
                   Annulée
                 </button>
-                <button
-                  onClick={() => handleStatusChange("refunded")}
-                  disabled={isUpdating || selectedOrder.status === "refunded"}
-                  className="px-3 py-2 text-sm bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 transition-colors disabled:opacity-50"
-                >
-                  Remboursement
-                </button>
               </div>
               <button
                 onClick={handleCloseModal}

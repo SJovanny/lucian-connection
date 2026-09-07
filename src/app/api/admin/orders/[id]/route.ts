@@ -15,7 +15,7 @@ export async function PATCH(
     const { status } = await request.json();
 
     // Validate status
-    const validStatuses = ["pending", "preparing", "ready", "completed", "cancelled", "refunded"];
+    const validStatuses = ["pending", "preparing", "ready", "completed", "cancelled"];
     if (!validStatuses.includes(status)) {
       return NextResponse.json(
         { error: "Invalid status" },
@@ -30,7 +30,7 @@ export async function PATCH(
         .eq("id", id)
         .single();
       if (orderError) throw orderError;
-      if (order.payment_status !== "paid") {
+      if (!["paid", "partially_refunded"].includes(order.payment_status)) {
         return NextResponse.json(
           { error: "Order must be paid before entering preparation" },
           { status: 409 }

@@ -4,11 +4,12 @@ import { Card } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
 import { AlertTriangle, ChevronDown, Eye, RotateCcw, Search } from "lucide-react";
 import { PickupSlotPicker } from "@/components/pickup/PickupSlotPicker";
-import type { Order, OrderItem, Profile } from "@/types/database.types";
+import type { Order, OrderItem, OrderRefund, Profile } from "@/types/database.types";
 import { useState, useEffect } from "react";
 
 type OrderWithDetails = Order & {
   order_items: OrderItem[];
+  order_refunds: Pick<OrderRefund, "id" | "status" | "items">[];
   profiles: Pick<Profile, "full_name" | "phone"> | null;
 };
 
@@ -28,6 +29,14 @@ const statusOptions: Array<keyof typeof statusConfig> = [
   "completed",
   "cancelled",
   "refunded",
+];
+
+const editableStatusOptions: Array<keyof typeof statusConfig> = [
+  "pending",
+  "preparing",
+  "ready",
+  "completed",
+  "cancelled",
 ];
 
 function formatDate(dateString: string): string {
@@ -57,6 +66,46 @@ function orderMonthKey(dateString: string): string {
     year: "numeric",
     month: "2-digit",
   }).format(new Date(dateString));
+}
+
+function getRefundedQuantities(order: OrderWithDetails): Map<string, number> {
+  const quantities = new Map<string, number>();
+  if (order.payment_status === "refunded") {
+    for (const item of order.order_items) quantities.set(item.id, item.quantity);
+    return quantities;
+  }
+
+  const orderItemIds = new Set(order.order_items.map((item) => item.id));
+  const uniqueOrderItemIdByProductId = new Map<string, string>();
+  const duplicateProductIds = new Set<string>();
+  for (const item of order.order_items) {
+    if (!item.product_id || duplicateProductIds.has(item.product_id)) continue;
+    if (uniqueOrderItemIdByProductId.has(item.product_id)) {
+      uniqueOrderItemIdByProductId.delete(item.product_id);
+      duplicateProductIds.add(item.product_id);
+    } else {
+      uniqueOrderItemIdByProductId.set(item.product_id, item.id);
+    }
+  }
+
+  for (const refund of order.order_refunds) {
+    if (refund.status !== "succeeded") continue;
+    if (!Array.isArray(refund.items)) continue;
+    for (const refundedItem of refund.items) {
+      if (!Number.isFinite(refundedItem.quantity) || refundedItem.quantity <= 0) continue;
+      const orderItemId = refundedItem.order_item_id && orderItemIds.has(refundedItem.order_item_id)
+        ? refundedItem.order_item_id
+        : refundedItem.product_id && orderItemIds.has(refundedItem.product_id)
+          ? refundedItem.product_id
+          : refundedItem.product_id
+            ? uniqueOrderItemIdByProductId.get(refundedItem.product_id)
+            : undefined;
+      if (!orderItemId) continue;
+      quantities.set(orderItemId, (quantities.get(orderItemId) || 0) + refundedItem.quantity);
+    }
+  }
+
+  return quantities;
 }
 
 export default function OrdersPage() {
@@ -115,6 +164,7 @@ export default function OrdersPage() {
     const matchesMonth = !filterMonth || orderMonthKey(order.created_at) === filterMonth;
     return matchesSearch && matchesStatus && matchesMonth;
   });
+  const selectedRefundedQuantities = selectedOrder ? getRefundedQuantities(selectedOrder) : new Map<string, number>();
 
   const hasActiveFilters = searchTerm !== "" || filterStatus !== "pending" || filterMonth !== "";
 
@@ -138,15 +188,32 @@ export default function OrdersPage() {
     const selectedItems = selectedOrder.order_items.filter((item) => refundItemIds.includes(item.id));
     const grossSelected = fullOrder ? selectedOrder.subtotal : selectedItems.reduce((sum, item) => sum + Number(item.total_price), 0);
     const productAmount = fullOrder ? selectedOrder.total_amount - selectedOrder.delivery_fee : grossSelected * (selectedOrder.subtotal ? (selectedOrder.subtotal - selectedOrder.discount_amount) / selectedOrder.subtotal : 1);
-    if (!productAmount || !confirm(`Confirmer le remboursement de ${productAmount.toFixed(2)} € (hors frais de préparation) ?`)) return;
+    const refundAmount = fullOrder ? selectedOrder.total_amount : productAmount;
+    const refundLabel = fullOrder ? " (frais de préparation inclus)" : " (hors frais de préparation)";
+    if (!refundAmount || !confirm(`Confirmer le remboursement de ${refundAmount.toFixed(2)} €${refundLabel} ?`)) return;
     setIsRefunding(true);
     try {
       const response = await fetch(`/api/admin/orders/${selectedOrder.id}/refund`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: productAmount, product_amount: productAmount, items: fullOrder ? [] : selectedItems.map((item) => ({ product_id: item.product_id, quantity: item.quantity, amount: item.total_price })) }),
+        body: JSON.stringify({
+          full_order: fullOrder,
+          item_ids: fullOrder ? [] : selectedItems.map((item) => item.id),
+        }),
       });
-      if (!response.ok) throw new Error("refund");
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "refund");
+      const refund = data.refund as Pick<OrderRefund, "id" | "status" | "items">;
+      const refundOrder = data.order as Pick<Order, "payment_status" | "status"> | null;
+      const applyRefund = (order: OrderWithDetails): OrderWithDetails => ({
+        ...order,
+        ...(refundOrder || {}),
+        order_refunds: [...order.order_refunds.filter((existingRefund) => existingRefund.id !== refund.id), refund],
+      });
+      setOrders((previousOrders) => previousOrders.map((order) => (
+        order.id === selectedOrder.id ? applyRefund(order) : order
+      )));
+      setSelectedOrder((previousOrder) => previousOrder ? applyRefund(previousOrder) : previousOrder);
       alert("Remboursement envoyé à Stripe. Les points seront ajustés après confirmation.");
       setRefundItemIds([]);
     } catch (error) {
@@ -563,24 +630,37 @@ export default function OrdersPage() {
             <div>
               <h3 className="font-semibold text-gray-900 mb-3">Articles</h3>
               <div className="space-y-2 bg-gray-50 rounded-lg p-4">
-                {selectedOrder.order_items?.map((item) => (
-                  <label key={item.id} className="flex items-center justify-between text-sm gap-3">
-                    <span className="flex items-center gap-2 text-gray-600">
-                      <input type="checkbox" checked={refundItemIds.includes(item.id)} onChange={() => setRefundItemIds((ids) => ids.includes(item.id) ? ids.filter((id) => id !== item.id) : [...ids, item.id])} />
-                      {item.product_name} × {item.quantity}
-                    </span>
-                    <span className="font-medium text-gray-900">
-                      ${(item.total_price as number).toFixed(2)}
-                    </span>
-                  </label>
-                ))}
+                {selectedOrder.order_items?.map((item) => {
+                  const refundedQuantity = Math.min(item.quantity, selectedRefundedQuantities.get(item.id) || 0);
+                  const isFullyRefunded = refundedQuantity >= item.quantity;
+                  const isPartiallyRefunded = refundedQuantity > 0 && !isFullyRefunded;
+
+                  return (
+                    <label key={item.id} className={`flex items-center justify-between text-sm gap-3 ${isFullyRefunded ? "cursor-not-allowed" : ""}`}>
+                      <span className={`flex items-center gap-2 ${isFullyRefunded ? "text-gray-400" : "text-gray-600"}`}>
+                        <input
+                          type="checkbox"
+                          checked={isFullyRefunded || refundItemIds.includes(item.id)}
+                          disabled={isFullyRefunded}
+                          onChange={() => setRefundItemIds((ids) => ids.includes(item.id) ? ids.filter((id) => id !== item.id) : [...ids, item.id])}
+                        />
+                        <span className={isFullyRefunded ? "line-through" : ""}>{item.product_name} × {item.quantity}</span>
+                        {isFullyRefunded && <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700 no-underline">Remboursé</span>}
+                        {isPartiallyRefunded && <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">Remboursé {refundedQuantity}/{item.quantity}</span>}
+                      </span>
+                      <span className={`font-medium ${isFullyRefunded ? "text-gray-400 line-through" : "text-gray-900"}`}>
+                        ${(item.total_price as number).toFixed(2)}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
 
             <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 space-y-3">
-              <div><p className="font-semibold text-orange-900">Remboursement</p><p className="text-sm text-orange-800">Les frais de préparation sont toujours exclus. La confirmation Stripe déterminera la mise à jour des points.</p></div>
+              <div><p className="font-semibold text-orange-900">Remboursement</p><p className="text-sm text-orange-800">Une annulation complète rembourse aussi les frais de préparation. Une sélection d’articles reste limitée aux produits concernés.</p></div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => handleRefund(true)} disabled={isRefunding || !["paid", "partially_refunded"].includes(selectedOrder.payment_status)} className="rounded-lg bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50">{isRefunding ? "Traitement..." : "Rembourser les produits"}</button>
+                <button type="button" onClick={() => handleRefund(true)} disabled={isRefunding || !["paid", "partially_refunded"].includes(selectedOrder.payment_status)} className="rounded-lg bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50">{isRefunding ? "Traitement..." : "Rembourser la commande"}</button>
                 <button type="button" onClick={() => handleRefund(false)} disabled={isRefunding || refundItemIds.length === 0 || !["paid", "partially_refunded"].includes(selectedOrder.payment_status)} className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-orange-700 border border-orange-300 hover:bg-orange-100 disabled:opacity-50">Rembourser la sélection</button>
               </div>
             </div>
@@ -597,7 +677,7 @@ export default function OrdersPage() {
             <div>
               <h3 className="font-semibold text-gray-900 mb-3">Changer le statut</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {statusOptions.map((status) => (
+                {editableStatusOptions.map((status) => (
                   <button
                     key={status}
                     onClick={() => handleStatusChange(status)}

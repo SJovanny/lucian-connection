@@ -52,7 +52,7 @@ export async function updateOrderStatus(orderId: string, status: string) {
       .eq("id", orderId)
       .single();
     if (orderError) throw orderError;
-    if (order.payment_status !== "paid") {
+    if (!["paid", "partially_refunded"].includes(order.payment_status)) {
       throw new Error("Order must be paid before entering preparation");
     }
     if (status === "completed" && order.contains_alcohol && !order.pickup_age_verified_at) {
