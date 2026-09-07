@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { createClient } from "@/lib/supabase/client";
 import { getSupabaseConfig } from "@/lib/supabase/config";
-import type { Order, OrderItem, Profile } from "@/types/database.types";
+import type { Order, OrderItem, OrderRefund, Profile } from "@/types/database.types";
 import { LoyaltySection } from "@/components/account/LoyaltySection";
 import { ChevronDown } from "lucide-react";
 
@@ -58,6 +58,81 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
+function toCents(value: number) {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : 0;
+}
+
+type SucceededRefund = Pick<OrderRefund, "id" | "order_id" | "amount" | "product_amount" | "items">;
+
+type RefundLine = {
+  id: string;
+  label: string;
+  amount: number;
+};
+
+function getRefundLines(refund: SucceededRefund, orderItems: OrderItem[]): RefundLine[] {
+  const totalAmount = toCents(refund.amount);
+  const productAmount = Math.min(totalAmount, toCents(refund.product_amount));
+  const orderItemsById = new Map(orderItems.map((item) => [item.id, item]));
+  const orderItemsByProductId = new Map<string, OrderItem[]>();
+
+  for (const item of orderItems) {
+    if (!item.product_id) continue;
+    const matchingItems = orderItemsByProductId.get(item.product_id) || [];
+    matchingItems.push(item);
+    orderItemsByProductId.set(item.product_id, matchingItems);
+  }
+
+  const productLines: RefundLine[] = [];
+  let itemizedAmount = 0;
+  for (const [index, refundedItem] of (Array.isArray(refund.items) ? refund.items : []).entries()) {
+    const matchingProductItems = refundedItem.product_id
+      ? orderItemsByProductId.get(refundedItem.product_id)
+      : undefined;
+    const orderItem = (refundedItem.order_item_id && orderItemsById.get(refundedItem.order_item_id))
+      || (refundedItem.product_id && orderItemsById.get(refundedItem.product_id))
+      || (matchingProductItems?.length === 1 ? matchingProductItems[0] : undefined);
+    const amount = toCents(refundedItem.amount);
+    if (!orderItem || amount <= 0 || itemizedAmount + amount > productAmount) {
+      return [{ id: `${refund.id}:refund`, label: "Remboursement", amount: totalAmount }];
+    }
+
+    const quantity = Number.isFinite(refundedItem.quantity) && refundedItem.quantity > 0
+      ? ` × ${refundedItem.quantity}`
+      : "";
+    productLines.push({
+      id: `${refund.id}:${refundedItem.order_item_id || refundedItem.product_id || index}`,
+      label: `Remboursement : ${orderItem.product_name}${quantity}`,
+      amount,
+    });
+    itemizedAmount += amount;
+  }
+
+  if (productLines.length === 0) {
+    return [{ id: `${refund.id}:refund`, label: "Remboursement", amount: totalAmount }];
+  }
+
+  const remainingProductAmount = productAmount - itemizedAmount;
+  const preparationFeeAmount = totalAmount - productAmount;
+  if (remainingProductAmount > 0) {
+    productLines.push({
+      id: `${refund.id}:products`,
+      label: "Remboursement",
+      amount: remainingProductAmount,
+    });
+  }
+  if (preparationFeeAmount > 0) {
+    productLines.push({
+      id: `${refund.id}:preparation-fee`,
+      label: "Remboursement : Frais de préparation",
+      amount: preparationFeeAmount,
+    });
+  }
+
+  return productLines;
+}
+
 export default function AccountPage() {
   const locale = useLocale();
   const router = useRouter();
@@ -77,6 +152,7 @@ export default function AccountPage() {
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderItemsByOrderId, setOrderItemsByOrderId] = useState<Record<string, OrderItem[]>>({});
+  const [refundsByOrderId, setRefundsByOrderId] = useState<Record<string, SucceededRefund[]>>({});
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
   const [page, setPage] = useState(1);
   const [totalOrders, setTotalOrders] = useState(0);
@@ -134,12 +210,20 @@ export default function AccountPage() {
 
       if (safeOrders.length > 0) {
         const orderIds = safeOrders.map((order) => order.id);
-        const { data: orderItems } = await supabase
-          .from("order_items")
-          .select("*")
-          .in("order_id", orderIds);
+        const [{ data: orderItems }, { data: refunds }] = await Promise.all([
+          supabase
+            .from("order_items")
+            .select("*")
+            .in("order_id", orderIds),
+          supabase
+            .from("order_refunds")
+            .select("id, order_id, amount, product_amount, items")
+            .in("order_id", orderIds)
+            .eq("status", "succeeded"),
+        ]);
 
         const typedOrderItems = (orderItems || []) as OrderItem[];
+        const typedRefunds = (refunds || []) as SucceededRefund[];
 
         const grouped = typedOrderItems.reduce<Record<string, OrderItem[]>>(
           (acc, item) => {
@@ -152,8 +236,16 @@ export default function AccountPage() {
         );
 
         setOrderItemsByOrderId(grouped);
+        setRefundsByOrderId(
+          typedRefunds.reduce<Record<string, SucceededRefund[]>>((groupedRefunds, refund) => {
+            groupedRefunds[refund.order_id] = groupedRefunds[refund.order_id] || [];
+            groupedRefunds[refund.order_id].push(refund);
+            return groupedRefunds;
+          }, {})
+        );
       } else {
         setOrderItemsByOrderId({});
+        setRefundsByOrderId({});
       }
       setIsLoading(false);
     };
@@ -263,91 +355,130 @@ export default function AccountPage() {
                   <p className="text-gray-500">Aucune commande pour le moment</p>
                 ) : (
                   <div className="space-y-3">
-                    {orders.map((order) => (
-                      <div
-                        key={order.id}
-                        className="flex flex-col gap-3 p-3 border border-gray-100 rounded-lg"
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                          <div>
-                            <p className="text-sm text-gray-500">#{order.id.slice(0, 8)}</p>
-                            <p className="text-sm text-gray-600">{formatDate(order.created_at)}</p>
-                            <p className="text-sm font-medium text-primary-700">
-                              Retrait : {formatPickupDate(order.pickup_at)}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-semibold text-gray-900">
-                              {formatCurrency(order.total_amount)}
-                            </span>
-                            <span
-                              className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                statusColors[order.status]
-                              }`}
-                            >
-                              {statusLabels[order.status]}
-                            </span>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="sm"
-                              className="!h-9 !w-9 !rounded-full !p-0"
-                              onClick={() =>
-                                setExpandedOrders((prev) => ({
-                                  ...prev,
-                                  [order.id]: !prev[order.id],
-                                }))
-                              }
-                              aria-expanded={!!expandedOrders[order.id]}
-                              aria-label={expandedOrders[order.id] ? "Masquer les détails" : "Voir les détails"}
-                            >
-                              <ChevronDown
-                                className={`h-4 w-4 transition-transform ${
-                                  expandedOrders[order.id] ? "rotate-180" : ""
-                                }`}
-                                aria-hidden="true"
-                              />
-                            </Button>
-                          </div>
-                        </div>
-                        {expandedOrders[order.id] && (
-                          <div className="border-t border-dashed pt-3">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                              Articles
-                            </p>
-                            {orderItemsByOrderId[order.id]?.length ? (
-                              <ul className="mt-2 space-y-2">
-                                {orderItemsByOrderId[order.id].map((item) => (
-                                  <li key={item.id} className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <p className="text-sm font-medium text-gray-900">
-                                        {item.product_name}
-                                      </p>
-                                      <p className="text-xs text-gray-500">
-                                        {item.quantity} × {formatCurrency(item.unit_price)}
-                                      </p>
-                                    </div>
-                                    <span className="text-sm font-semibold text-gray-900">
-                                      {formatCurrency(item.total_price)}
-                                    </span>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <p className="mt-2 text-sm text-gray-500">Aucun article disponible.</p>
-                            )}
-                            {order.delivery_fee > 0 && (
-                              <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3 text-sm">
-                                <span className="text-gray-600">Frais de préparation</span>
-                                <span className="font-semibold text-gray-900">
-                                  {formatCurrency(order.delivery_fee)}
+                    {orders.map((order) => {
+                      const refunds = refundsByOrderId[order.id] || [];
+                      const refundedAmount = refunds.reduce((total, refund) => total + toCents(refund.amount), 0);
+                      const totalAmount = toCents(order.total_amount);
+                      const hasRefund = refundedAmount > 0;
+                      const remainingAmount = Math.max(0, totalAmount - refundedAmount) / 100;
+                      const refundLines = refunds.flatMap((refund) => (
+                        getRefundLines(refund, orderItemsByOrderId[order.id] || [])
+                      ));
+
+                      return (
+                        <div
+                          key={order.id}
+                          className="flex flex-col gap-3 p-3 border border-gray-100 rounded-lg"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                            <div>
+                              <p className="text-sm text-gray-500">#{order.id.slice(0, 8)}</p>
+                              <p className="text-sm text-gray-600">{formatDate(order.created_at)}</p>
+                              <p className="text-sm font-medium text-primary-700">
+                                Retrait : {formatPickupDate(order.pickup_at)}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap items-center justify-end gap-3">
+                              {hasRefund ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-sm font-medium text-gray-400 line-through">
+                                    {formatCurrency(order.total_amount)}
+                                  </span>
+                                  <span className="text-sm font-semibold text-gray-900">
+                                    {formatCurrency(remainingAmount)}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-sm font-semibold text-gray-900">
+                                  {formatCurrency(order.total_amount)}
                                 </span>
-                              </div>
-                            )}
+                              )}
+                              <span
+                                className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                  statusColors[order.status]
+                                }`}
+                              >
+                                {statusLabels[order.status]}
+                              </span>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                className="!h-9 !w-9 !rounded-full !p-0"
+                                onClick={() =>
+                                  setExpandedOrders((prev) => ({
+                                    ...prev,
+                                    [order.id]: !prev[order.id],
+                                  }))
+                                }
+                                aria-expanded={!!expandedOrders[order.id]}
+                                aria-label={expandedOrders[order.id] ? "Masquer les détails" : "Voir les détails"}
+                              >
+                                <ChevronDown
+                                  className={`h-4 w-4 transition-transform ${
+                                    expandedOrders[order.id] ? "rotate-180" : ""
+                                  }`}
+                                  aria-hidden="true"
+                                />
+                              </Button>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    ))}
+                          {expandedOrders[order.id] && (
+                            <div className="border-t border-dashed pt-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                Articles
+                              </p>
+                              {orderItemsByOrderId[order.id]?.length ? (
+                                <ul className="mt-2 space-y-2">
+                                  {orderItemsByOrderId[order.id].map((item) => (
+                                    <li key={item.id} className="flex items-start justify-between gap-3">
+                                      <div>
+                                        <p className="text-sm font-medium text-gray-900">
+                                          {item.product_name}
+                                        </p>
+                                        <p className="text-xs text-gray-500">
+                                          {item.quantity} × {formatCurrency(item.unit_price)}
+                                        </p>
+                                      </div>
+                                      <span className="text-sm font-semibold text-gray-900">
+                                        {formatCurrency(item.total_price)}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <p className="mt-2 text-sm text-gray-500">Aucun article disponible.</p>
+                              )}
+                              {order.delivery_fee > 0 && (
+                                <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3 text-sm">
+                                  <span className="text-gray-600">Frais de préparation</span>
+                                  <span className="font-semibold text-gray-900">
+                                    {formatCurrency(order.delivery_fee)}
+                                  </span>
+                                </div>
+                              )}
+                              {refundLines.length > 0 && (
+                                <div className="mt-3 border-t border-gray-100 pt-3">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">
+                                    Remboursements
+                                  </p>
+                                  <ul className="mt-2 space-y-2">
+                                    {refundLines.map((refundLine) => (
+                                      <li key={refundLine.id} className="flex items-start justify-between gap-3 text-sm">
+                                        <span className="font-medium text-orange-700">{refundLine.label}</span>
+                                        <span className="font-semibold text-orange-700">
+                                          -{formatCurrency(refundLine.amount / 100)}
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                     {Math.ceil(totalOrders / pageSize) > 1 && (
                       <div className="flex items-center justify-between pt-4">
                         <p className="text-sm text-gray-500">
