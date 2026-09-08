@@ -121,7 +121,7 @@ export function ProductsContent({
     <div className="flex gap-8">
       {/* Sidebar des filtres - Desktop */}
       <aside className="hidden lg:block w-72 flex-shrink-0">
-        <div className="sticky top-24">
+        <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto pr-2">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             {locale === "fr" ? "Catégories" : "Categories"}
           </h2>
