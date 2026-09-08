@@ -220,12 +220,12 @@ export function ProductsContent({
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="mt-10 flex items-center justify-center gap-1">
+              <div className="mt-10 flex flex-wrap items-center justify-center gap-1.5">
                 {/* Bouton précédent */}
                 <button
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
-                  className="w-10 h-10 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-primary-300 hover:text-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-primary-300 hover:text-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   aria-label={locale === "fr" ? "Page précédente" : "Previous page"}
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -247,14 +247,14 @@ export function ProductsContent({
                   }
                   return pages.map((page, idx) =>
                     page === "..." ? (
-                      <span key={`ellipsis-${idx}`} className="w-10 h-10 flex items-center justify-center text-gray-400 text-sm">
+                      <span key={`ellipsis-${idx}`} className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-gray-400 text-sm">
                         …
                       </span>
                     ) : (
                       <button
                         key={page}
                         onClick={() => setCurrentPage(page)}
-                        className={`w-10 h-10 rounded-lg text-sm font-medium transition-colors ${
+                        className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg text-sm font-medium transition-colors ${
                           currentPage === page
                             ? "bg-primary-600 text-white shadow-sm"
                             : "border border-gray-200 text-gray-700 hover:border-primary-300 hover:text-primary-600"
@@ -270,7 +270,7 @@ export function ProductsContent({
                 <button
                   onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages}
-                  className="w-10 h-10 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-primary-300 hover:text-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:border-primary-300 hover:text-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   aria-label={locale === "fr" ? "Page suivante" : "Next page"}
                 >
                   <ChevronRight className="w-4 h-4" />

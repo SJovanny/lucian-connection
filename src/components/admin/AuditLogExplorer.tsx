@@ -266,7 +266,7 @@ export function AuditLogExplorer({ initialLogs, initialTotal, pageSize, actorOpt
 
       {totalPages > 1 && (
         <Card padding="md">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-gray-500">
               Page {page} sur {totalPages} ({total} entrées)
             </div>

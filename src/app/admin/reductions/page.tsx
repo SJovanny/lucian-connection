@@ -14,7 +14,7 @@ export default async function AdminReductionsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 font-display">Réductions</h1>
           <p className="text-gray-500 mt-1">Gérez vos réductions sur les produits et catégories.</p>

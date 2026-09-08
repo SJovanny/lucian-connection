@@ -414,7 +414,7 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
       </Card>
 
       {/* Actions */}
-      <div className="flex justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
         <div>
           {isEditing && (
             <Button
@@ -429,7 +429,7 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
             </Button>
           )}
         </div>
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-4">
           <Button
             type="button"
             variant="secondary"

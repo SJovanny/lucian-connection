@@ -91,9 +91,9 @@ export default function LoginPage() {
 
       <main className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
-          <CardContent className="p-8">
+          <CardContent className="p-6 sm:p-8">
             <div className="text-center mb-8">
-              <h1 className="text-4xl font-bold text-gray-900 font-display">
+              <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 font-display">
                 {t("title")}
               </h1>
             </div>

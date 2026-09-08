@@ -133,7 +133,7 @@ export default async function AdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Produits</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">
                   {stats.totalProducts}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
@@ -152,7 +152,7 @@ export default async function AdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Valeur stock</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">
                   ${stats.totalStockValue.toFixed(0)}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
@@ -171,7 +171,7 @@ export default async function AdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">À la Une</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">
                   {stats.featuredCount}
                 </p>
                 <Link href="/admin/products?filter=featured" className="text-xs text-primary-500 mt-1">
@@ -190,7 +190,7 @@ export default async function AdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Alertes stock</p>
-                <p className={`text-3xl font-bold mt-1 ${stats.lowStockCount > 0 ? "text-red-600" : "text-gray-900"}`}>
+                <p className={`text-2xl sm:text-3xl font-bold mt-1 ${stats.lowStockCount > 0 ? "text-red-600" : "text-gray-900"}`}>
                   {stats.lowStockCount}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
@@ -343,7 +343,7 @@ export default async function AdminDashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-5 gap-3">
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
               {stats.topProducts.map((product) => (
                 <div key={product.id} className="text-center">
                   {product.image_url ? (
@@ -365,7 +365,7 @@ export default async function AdminDashboard() {
                 </div>
               ))}
               {stats.topProducts.length === 0 && (
-                <div className="col-span-5 text-center py-6 text-gray-500">
+                <div className="col-span-3 sm:col-span-5 text-center py-6 text-gray-500">
                   <Star className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                   <p className="text-sm">Aucun produit vedette</p>
                   <Link href="/admin/products" className="text-primary-500 text-sm">

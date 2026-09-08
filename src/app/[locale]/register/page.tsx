@@ -118,7 +118,7 @@ export default function RegisterPage() {
 
       <main className="flex-1 flex items-center justify-center p-4 py-12">
         <Card className="w-full max-w-md">
-          <CardContent className="p-8">
+          <CardContent className="p-6 sm:p-8">
             <div className="text-center mb-8">
               <h1 className="text-2xl font-bold text-gray-900 font-display">
                 {t("title")}

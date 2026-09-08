@@ -412,13 +412,13 @@ export default function InventoryManager({
       {/* Pagination */}
       {totalPages > 1 && (
         <Card padding="md">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-gray-500">
               Affichage de {startIndex + 1} à{" "}
               {Math.min(startIndex + ITEMS_PER_PAGE, filteredProducts.length)} sur{" "}
               {filteredProducts.length} produits
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-center gap-2">
               <button
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}

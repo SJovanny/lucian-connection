@@ -67,7 +67,9 @@ export function HCaptcha({ onVerify, onExpire, resetKey }: HCaptchaProps) {
         strategy="afterInteractive"
         onLoad={() => window.dispatchEvent(new Event("hcaptcha-ready"))}
       />
-      <div ref={containerRef} id={containerId} />
+      <div className="flex justify-center overflow-x-auto">
+        <div ref={containerRef} id={containerId} />
+      </div>
     </>
   );
 }

@@ -94,10 +94,118 @@ export function LoyaltySection() {
             <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-600">Vos paliers</p><h3 className="mt-1 text-xl font-bold text-gray-900">Votre progression fidélité</h3></div>
             {nextReward ? <p className="text-sm text-gray-600">Encore <strong className="text-primary-700">{nextReward.points_cost - data.balance} points</strong> pour {nextReward.name}</p> : <p className="text-sm font-medium text-accent-700">Tous les paliers sont débloqués</p>}
           </div>
-          {rewards.length === 0 ? <p className="text-sm text-gray-500">Les récompenses seront bientôt disponibles.</p> : <div className="overflow-x-auto pb-2"><div className="relative flex min-w-[620px] items-start px-3 sm:px-8">
-            <div className="absolute left-10 right-10 top-5 h-1 rounded-full bg-primary-100" aria-hidden="true"><div className="h-full rounded-full bg-accent-400 transition-all duration-500" style={{ width: `${progress}%` }} /></div>
-            {rewards.map((reward, index) => { const unlocked = data.balance >= reward.points_cost; const current = nextReward?.id === reward.id; return <div key={reward.id} className="relative flex min-w-0 flex-1 flex-col items-center text-center"><div className={`z-10 flex h-10 w-10 items-center justify-center rounded-full border-4 border-white ${unlocked ? "bg-accent-400 text-primary-900" : current ? "bg-primary-700 text-white ring-4 ring-primary-100" : "bg-primary-100 text-primary-400"}`}>{unlocked ? <Check className="h-4 w-4" /> : current ? <Sparkles className="h-4 w-4" /> : <LockKeyhole className="h-3.5 w-3.5" />}</div><p className="mt-3 text-sm font-bold text-gray-900">{reward.points_cost} pts</p><p className="mt-1 max-w-[120px] text-xs font-medium text-gray-700">{reward.name}</p><p className="mt-1 text-xs text-gray-500">{reward.discount_type === "percentage" ? `${reward.discount_value}%` : currency(reward.discount_value)}</p>{unlocked && <Button className="mt-3" size="sm" disabled={redeeming !== null} isLoading={redeeming === reward.id} onClick={() => redeem(reward.id)}>Échanger</Button>}{index < rewards.length - 1 && <span className="sr-only">Étape suivante</span>}</div>; })}
-          </div></div>}
+          {rewards.length === 0 ? (
+            <p className="text-sm text-gray-500">Les récompenses seront bientôt disponibles.</p>
+          ) : (
+            <>
+              {/* Mobile: vertical stacked steps (no horizontal scroll) */}
+              <div className="flex flex-col gap-2 sm:hidden">
+                {rewards.map((reward) => {
+                  const unlocked = data.balance >= reward.points_cost;
+                  const current = nextReward?.id === reward.id;
+                  return (
+                    <div
+                      key={reward.id}
+                      className={`flex items-center gap-3 rounded-lg border p-3 ${
+                        current ? "border-primary-300 bg-primary-50" : "border-gray-100"
+                      }`}
+                    >
+                      <div
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                          unlocked
+                            ? "bg-accent-400 text-primary-900"
+                            : current
+                            ? "bg-primary-700 text-white ring-4 ring-primary-100"
+                            : "bg-primary-100 text-primary-400"
+                        }`}
+                      >
+                        {unlocked ? (
+                          <Check className="h-4 w-4" />
+                        ) : current ? (
+                          <Sparkles className="h-4 w-4" />
+                        ) : (
+                          <LockKeyhole className="h-3.5 w-3.5" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-gray-900">{reward.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {reward.points_cost} pts ·{" "}
+                          {reward.discount_type === "percentage"
+                            ? `${reward.discount_value}%`
+                            : currency(reward.discount_value)}
+                        </p>
+                      </div>
+                      {unlocked && (
+                        <Button
+                          size="sm"
+                          className="shrink-0"
+                          disabled={redeeming !== null}
+                          isLoading={redeeming === reward.id}
+                          onClick={() => redeem(reward.id)}
+                        >
+                          Échanger
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop/tablet: horizontal timeline */}
+              <div className="hidden overflow-x-auto pb-2 sm:block">
+                <div className="relative flex min-w-[620px] items-start px-3 sm:px-8">
+                  <div className="absolute left-10 right-10 top-5 h-1 rounded-full bg-primary-100" aria-hidden="true">
+                    <div className="h-full rounded-full bg-accent-400 transition-all duration-500" style={{ width: `${progress}%` }} />
+                  </div>
+                  {rewards.map((reward, index) => {
+                    const unlocked = data.balance >= reward.points_cost;
+                    const current = nextReward?.id === reward.id;
+                    return (
+                      <div key={reward.id} className="relative flex min-w-0 flex-1 flex-col items-center text-center">
+                        <div
+                          className={`z-10 flex h-10 w-10 items-center justify-center rounded-full border-4 border-white ${
+                            unlocked
+                              ? "bg-accent-400 text-primary-900"
+                              : current
+                              ? "bg-primary-700 text-white ring-4 ring-primary-100"
+                              : "bg-primary-100 text-primary-400"
+                          }`}
+                        >
+                          {unlocked ? (
+                            <Check className="h-4 w-4" />
+                          ) : current ? (
+                            <Sparkles className="h-4 w-4" />
+                          ) : (
+                            <LockKeyhole className="h-3.5 w-3.5" />
+                          )}
+                        </div>
+                        <p className="mt-3 text-sm font-bold text-gray-900">{reward.points_cost} pts</p>
+                        <p className="mt-1 max-w-[120px] text-xs font-medium text-gray-700">{reward.name}</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {reward.discount_type === "percentage"
+                            ? `${reward.discount_value}%`
+                            : currency(reward.discount_value)}
+                        </p>
+                        {unlocked && (
+                          <Button
+                            className="mt-3"
+                            size="sm"
+                            disabled={redeeming !== null}
+                            isLoading={redeeming === reward.id}
+                            onClick={() => redeem(reward.id)}
+                          >
+                            Échanger
+                          </Button>
+                        )}
+                        {index < rewards.length - 1 && <span className="sr-only">Étape suivante</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
         </div>
         <div>
           <h3 className="font-semibold text-gray-900 mb-3">Historique des points</h3>

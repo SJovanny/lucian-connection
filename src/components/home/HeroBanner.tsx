@@ -8,7 +8,7 @@ export function HeroBanner() {
   const t = useTranslations("home.hero");
 
   return (
-    <section className="relative isolate min-h-[560px] w-full overflow-hidden bg-primary-900 lg:min-h-[480px]" aria-labelledby="hero-title">
+    <section className="relative isolate min-h-[440px] w-full overflow-hidden bg-primary-900 sm:min-h-[520px] lg:min-h-[480px]" aria-labelledby="hero-title">
       <picture className="absolute inset-0 -z-10 block">
         <source media="(max-width: 767px)" srcSet="/hero-section_mobile.png" />
         <img
@@ -18,7 +18,7 @@ export function HeroBanner() {
         />
       </picture>
       <div className="absolute inset-0 -z-0 bg-gradient-to-r from-primary-950/90 via-primary-950/55 to-transparent md:via-primary-950/35" aria-hidden="true" />
-      <div className="relative z-10 mx-auto flex min-h-[560px] w-full max-w-7xl items-center px-5 py-10 sm:px-8 sm:py-12 lg:min-h-[480px] lg:items-end lg:px-12 lg:py-14">
+      <div className="relative z-10 mx-auto flex min-h-[440px] w-full max-w-7xl items-center px-5 py-10 sm:min-h-[520px] sm:px-8 sm:py-12 lg:min-h-[480px] lg:items-end lg:px-12 lg:py-14">
         <div className="flex max-w-[500px] flex-col items-start text-left text-white">
           <div className="border-l-2 border-accent pl-4">
             <p className="font-mono text-[11px] font-semibold tracking-[0.18em] text-accent uppercase">

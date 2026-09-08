@@ -7,8 +7,8 @@ export function UsersTable({ users }: { users: StaffUser[] }) {
       {users.length === 0 ? <p className="p-6 text-gray-500">Aucun utilisateur staff.</p> : (
         <div className="divide-y divide-gray-100">
           {users.map((user) => <div key={user.id} className="px-6 py-4 flex items-center justify-between gap-4">
-            <div><p className="font-medium text-gray-900">{user.full_name || user.email}</p><p className="text-sm text-gray-500">{user.email}</p></div>
-            <span className="px-3 py-1 rounded-full bg-primary-50 text-primary-700 text-sm capitalize">{user.role}</span>
+            <div className="min-w-0"><p className="font-medium text-gray-900 truncate">{user.full_name || user.email}</p><p className="text-sm text-gray-500 truncate">{user.email}</p></div>
+            <span className="shrink-0 px-3 py-1 rounded-full bg-primary-50 text-primary-700 text-sm capitalize">{user.role}</span>
           </div>)}
         </div>
       )}
