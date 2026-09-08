@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   const origin = request.nextUrl.origin;
   const adminClient = createAdminClient();
   const { data, error } = await adminClient.auth.admin.inviteUserByEmail(parsed.data.email, {
-    redirectTo: `${origin}/auth/callback?next=/auth/set-password`,
+    redirectTo: `${origin}/auth/set-password`,
   });
 
   if (error) {
