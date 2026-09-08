@@ -21,7 +21,12 @@ export async function middleware(request: NextRequest) {
 
   // The OAuth route exchanges the PKCE code and writes the session cookies itself.
   // It must not be redirected by next-intl before that exchange happens.
-  if (pathname === '/auth/callback' || pathname === '/auth/callback/') {
+  if (
+    pathname === '/auth/callback' ||
+    pathname === '/auth/callback/' ||
+    pathname === '/auth/set-password' ||
+    pathname === '/auth/set-password/'
+  ) {
     return response;
   }
 
@@ -70,7 +75,7 @@ export async function middleware(request: NextRequest) {
           .eq('id', user.id)
           .single();
 
-        if (String(profile?.role) === 'admin') {
+        if (['admin', 'employee'].includes(String(profile?.role))) {
           return NextResponse.redirect(new URL('/admin', request.url));
         }
       }
@@ -88,8 +93,14 @@ export async function middleware(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    if (String(profile?.role) !== 'admin') {
+    if (!['admin', 'employee'].includes(String(profile?.role))) {
       return NextResponse.redirect(new URL('/admin/login', request.url));
+    }
+
+    if (pathname === '/admin/users' || pathname.startsWith('/admin/users/')) {
+      if (String(profile?.role) !== 'admin') {
+        return NextResponse.redirect(new URL('/admin', request.url));
+      }
     }
 
     return response;

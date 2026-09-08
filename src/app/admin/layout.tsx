@@ -1,5 +1,6 @@
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { headers } from "next/headers";
+import { getAdminUser } from "@/lib/admin-actions";
 
 export const metadata = {
   title: "Admin - Lucian Connection",
@@ -25,9 +26,11 @@ export default async function AdminLayout({
     return <div className="admin-no-motion">{children}</div>;
   }
 
+  const adminUser = await getAdminUser();
+
   return (
     <div className="min-h-screen flex bg-gray-50 admin-no-motion">
-      <AdminSidebar />
+      <AdminSidebar isAdmin={adminUser?.profile.role === "admin"} />
       <main className="min-w-0 flex-1 lg:ml-0">
         <div className="p-6 lg:p-8">{children}</div>
       </main>

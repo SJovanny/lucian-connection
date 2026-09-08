@@ -65,7 +65,9 @@ export async function GET(request: NextRequest) {
       return getLoginRedirect(request, locale, nextPath, "failed");
     }
 
-    const destination = getLocalizedRedirectPath(locale, nextPath);
+   const destination = nextPath.startsWith("/admin")
+     ? nextPath
+     : getLocalizedRedirectPath(locale, nextPath);
     return NextResponse.redirect(new URL(destination, request.url));
   } catch {
     return getLoginRedirect(request, locale, nextPath, "failed");

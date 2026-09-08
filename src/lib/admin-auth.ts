@@ -51,6 +51,27 @@ export async function checkAdmin(request?: NextRequest) {
   return String(profile?.role) === "admin";
 }
 
+export async function checkStaff(request?: NextRequest) {
+  const supabase = request
+    ? createClientFromRequest(request)
+    : await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return false;
+
+  const { data } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  const profile = data as { role: string } | null;
+  return ["admin", "employee"].includes(String(profile?.role));
+}
+
 /**
  * For API routes: verify admin AND return the authenticated Supabase client.
  * Returns the same client used for auth checking, so a single JWT session
@@ -73,9 +94,27 @@ export async function getAdminSupabase(request: NextRequest) {
     .single();
 
   const profile = data as { role: string } | null;
-  if (String(profile?.role) !== "admin") return null;
+  if (!["admin", "employee"].includes(String(profile?.role))) return null;
 
   return supabase;
+}
+
+export async function getStrictAdminSupabase(request: NextRequest) {
+  const supabase = createClientFromRequest(request);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return null;
+
+  const { data } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  const profile = data as { role: string } | null;
+  return profile?.role === "admin" ? supabase : null;
 }
 
 export async function verifyAdminAuth() {

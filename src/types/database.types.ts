@@ -54,7 +54,7 @@ export type Profile = {
   phone: string | null;
   address: string | null;
   dashboard_locale: string;
-  role: "customer" | "admin";
+  role: "customer" | "admin" | "employee";
   loyalty_points_balance: number;
   created_at: string;
   updated_at: string;
@@ -285,7 +285,7 @@ export type Database = {
       reserve_coupon: { Args: { p_coupon_id: string; p_order_id: string; p_user_id: string }; Returns: boolean };
       release_coupon_reservation: { Args: { p_order_id: string; p_user_id: string | null }; Returns: boolean };
     };
-    Enums: { role: "customer" | "admin" };
+    Enums: { role: "customer" | "admin" | "employee" };
     CompositeTypes: Record<string, never>;
   };
 };

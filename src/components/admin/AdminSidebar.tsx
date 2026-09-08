@@ -16,6 +16,7 @@ import {
   Home,
   Percent,
   Gift,
+  Users,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -69,7 +70,7 @@ const navItems = [
   },
 ];
 
-export function AdminSidebar() {
+export function AdminSidebar({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -128,7 +129,10 @@ export function AdminSidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+           {[
+             ...navItems,
+             ...(isAdmin ? [{ label: "Utilisateurs", href: "/admin/users", icon: Users }] : []),
+           ].map((item) => {
             const isActive =
               pathname === item.href ||
               (item.href !== "/admin" && pathname.startsWith(item.href));

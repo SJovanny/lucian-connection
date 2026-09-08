@@ -72,7 +72,7 @@ export default function AdminLoginPage() {
           return;
         }
 
-        if (profileData.role !== "admin") {
+        if (!["admin", "employee"].includes(profileData.role)) {
           setError("Accès refusé. Vous n'avez pas les droits administrateur.");
           await supabase.auth.signOut();
           setIsLoading(false);

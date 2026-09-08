@@ -33,7 +33,7 @@ export async function getAdminUser(): Promise<AdminUser | null> {
 
   const profile = data as Profile | null;
 
-  if (!profile || String(profile.role) !== "admin") {
+  if (!profile || !["admin", "employee"].includes(String(profile.role))) {
     return null;
   }
 

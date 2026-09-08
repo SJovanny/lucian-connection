@@ -15,9 +15,11 @@ const sql = `
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'role_enum') THEN
-    CREATE TYPE public.role_enum AS ENUM ('customer', 'admin');
+    CREATE TYPE public.role_enum AS ENUM ('customer', 'admin', 'employee');
   END IF;
 END $$;
+
+ALTER TYPE public.role_enum ADD VALUE IF NOT EXISTS 'employee';
 
 -- Drop policies that reference profiles.role directly
 DROP POLICY IF EXISTS "Coupons editable by admins" ON coupons;
