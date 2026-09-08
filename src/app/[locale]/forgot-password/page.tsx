@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/Input";
 import { Link } from "@/i18n/routing";
 import { getSafeRedirectPath } from "@/lib/auth-redirect";
 import { createClient } from "@/lib/supabase/client";
+import { HCaptcha } from "@/components/auth/HCaptcha";
 
 export default function ForgotPasswordPage() {
   const locale = useLocale();
@@ -19,6 +20,8 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [redirectPath, setRedirectPath] = useState("/");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
 
   useEffect(() => {
     setRedirectPath(
@@ -36,16 +39,25 @@ export default function ForgotPasswordPage() {
     const formData = new FormData(event.currentTarget);
     const email = String(formData.get("email") || "").trim();
 
+    if (process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY && !captchaToken) {
+      setError(locale === "fr" ? "Veuillez valider le captcha." : "Please complete the captcha.");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const resetUrl = new URL(`/${locale}/reset-password`, window.location.origin);
       if (redirectPath !== "/") resetUrl.searchParams.set("next", redirectPath);
 
       const { error: resetError } = await createClient().auth.resetPasswordForEmail(email, {
         redirectTo: resetUrl.toString(),
+        captchaToken: captchaToken ?? undefined,
       });
 
       if (resetError) {
         setError(resetError.message);
+        setCaptchaToken(null);
+        setCaptchaResetKey((value) => value + 1);
         return;
       }
 
@@ -94,11 +106,17 @@ export default function ForgotPasswordPage() {
                   placeholder="email@example.com"
                   autoComplete="email"
                 />
+                <HCaptcha
+                  onVerify={setCaptchaToken}
+                  onExpire={() => setCaptchaToken(null)}
+                  resetKey={captchaResetKey}
+                />
                 <Button
                   type="submit"
                   variant="primary"
                   className="w-full"
                   isLoading={isLoading}
+                  disabled={Boolean(process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY && !captchaToken)}
                 >
                   {t("submit")}
                 </Button>
