@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminSupabase } from "@/lib/admin-auth";
+import { recordAudit } from "@/lib/audit";
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -20,6 +21,12 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    const { data: existingProduct } = await supabase
+      .from("products")
+      .select("stock, translations")
+      .eq("id", productId)
+      .single();
+
     const { data, error } = await supabase
       .from("products")
       .update({ stock })
@@ -34,6 +41,14 @@ export async function PATCH(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    await recordAudit(supabase, {
+      action: "product.stock_adjusted",
+      entityType: "product",
+      entityId: productId,
+      summary: `Stock ajusté : ${data.translations.fr.name}`,
+      changes: [{ field: "stock", old: existingProduct?.stock ?? null, new: stock }],
+    });
 
     return NextResponse.json(data);
   } catch (error) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getStrictAdminSupabase } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAudit } from "@/lib/audit";
 
 const userSchema = z.object({
   email: z.string().trim().email(),
@@ -62,6 +63,14 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  await recordAudit(supabase, {
+    action: "user.invited",
+    entityType: "user",
+    entityId: data.user.id,
+    summary: `Utilisateur invité : ${data.user.email} (${parsed.data.role})`,
+    metadata: { email: data.user.email, role: parsed.data.role },
+  });
 
   return NextResponse.json({ user: { id: data.user.id, email: data.user.email } }, { status: 201 });
 }

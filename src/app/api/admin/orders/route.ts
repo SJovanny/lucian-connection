@@ -25,12 +25,28 @@ export async function GET(request: NextRequest) {
       throw ordersError;
     }
 
-    const refundsByOrder = new Map<string, Array<{ id: string; order_id: string; status: string; items: unknown }>>();
+    const refundsByOrder = new Map<string, Array<{
+      id: string;
+      order_id: string;
+      status: string;
+      stripe_status: string | null;
+      failure_reason: string | null;
+      pending_reason: string | null;
+      stripe_refund_id: string | null;
+      stripe_reference: string | null;
+      stripe_reference_status: string | null;
+      stripe_reference_type: string | null;
+      amount: number;
+      product_amount: number;
+      items: unknown;
+      created_at: string;
+      last_stripe_sync_at: string | null;
+    }>>();
     const orderIds = (orders || []).map((order) => order.id);
     if (orderIds.length > 0) {
       const { data: refunds, error: refundsError } = await supabase
         .from("order_refunds")
-        .select("id, order_id, status, items")
+        .select("id, order_id, status, stripe_status, failure_reason, pending_reason, stripe_refund_id, stripe_reference, stripe_reference_status, stripe_reference_type, amount, product_amount, items, created_at, last_stripe_sync_at")
         .in("order_id", orderIds);
       if (refundsError) throw refundsError;
 

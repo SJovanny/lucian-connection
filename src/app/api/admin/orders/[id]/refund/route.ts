@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import Stripe from "stripe";
 import { getAdminSupabase } from "@/lib/admin-auth";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { syncStripeRefund } from "@/lib/stripe-refunds";
+import { recordAudit } from "@/lib/audit";
 
 type RefundItem = {
   order_item_id?: string;
@@ -28,16 +31,6 @@ function toCents(value: unknown): number {
 
 function fromCents(value: number): number {
   return value / 100;
-}
-
-function getRefundStatus(status: string | null): RefundStatus {
-  return status === "succeeded" || status === "failed" || status === "canceled" ? status : "pending";
-}
-
-function getRefundStatusRank(status: RefundStatus): number {
-  if (status === "succeeded") return 2;
-  if (status === "failed" || status === "canceled") return 1;
-  return 0;
 }
 
 function sumRefunds(refunds: ExistingRefund[], field: "amount" | "product_amount"): number {
@@ -101,6 +94,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!supabase) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) return NextResponse.json({ error: "Stripe is not configured" }, { status: 503 });
+  const refundSyncSupabase = (() => {
+    try {
+      return createAdminClient();
+    } catch {
+      return null;
+    }
+  })();
+  if (!refundSyncSupabase) {
+    return NextResponse.json({ error: "Refund synchronization is not configured" }, { status: 503 });
+  }
 
   try {
     const { id } = await params;
@@ -137,147 +140,214 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })).digest("hex");
     const requestKeyPrefix = `admin-refund:${requestFingerprint}:`;
     const matchingRefunds = refunds.filter((refund) => refund.request_key?.startsWith(requestKeyPrefix));
+    const pendingRefund = matchingRefunds.find((refund) => refund.status === "pending") || null;
+    if (pendingRefund?.stripe_refund_id) {
+      const synced = await syncStripeRefund({
+        supabase: refundSyncSupabase,
+        stripe: new Stripe(key),
+        stripeRefundId: pendingRefund.stripe_refund_id,
+        localRefundId: pendingRefund.id,
+      });
+      return NextResponse.json(synced, { status: synced.refund.status === "pending" ? 202 : 200 });
+    }
+
+    if (pendingRefund) {
+      if (!pendingRefund.request_key) throw new Error("Pending refund is missing its idempotency key");
+      const stripe = new Stripe(key);
+      let paymentIntent = order.payment_reference;
+      if (!paymentIntent.startsWith("pi_")) {
+        const session = await stripe.checkout.sessions.retrieve(paymentIntent);
+        paymentIntent = typeof session.payment_intent === "string" ? session.payment_intent : "";
+      }
+      if (!paymentIntent.startsWith("pi_")) return NextResponse.json({ error: "Payment intent not found" }, { status: 400 });
+
+      const refund = await stripe.refunds.create({
+        payment_intent: paymentIntent,
+        amount: toCents(pendingRefund.amount),
+        metadata: {
+          order_id: id,
+          order_refund_id: pendingRefund.id,
+          product_amount: Number(pendingRefund.product_amount).toFixed(2),
+        },
+      }, { idempotencyKey: pendingRefund.request_key });
+      const synced = await syncStripeRefund({
+        supabase: refundSyncSupabase,
+        stripe,
+        stripeRefundId: refund.id,
+        localRefundId: pendingRefund.id,
+      });
+      return NextResponse.json(synced, { status: synced.refund.status === "pending" ? 202 : 201 });
+    }
+
     const completedRefund = matchingRefunds.find((refund) => refund.status === "succeeded");
-    if (completedRefund) {
-      const { data: succeededRefunds, error: succeededRefundsError } = await supabase
-        .from("order_refunds")
-        .select("amount")
-        .eq("order_id", id)
-        .eq("status", "succeeded");
-      if (succeededRefundsError) throw succeededRefundsError;
-
-      const fullyRefunded = (succeededRefunds || []).reduce(
-        (sum, succeededRefund) => sum + toCents(succeededRefund.amount),
-        0
-      ) >= toCents(order.total_amount);
-      const { data: updatedOrder, error: orderUpdateError } = await supabase
-        .from("orders")
-        .update({
-          payment_status: fullyRefunded ? "refunded" : "partially_refunded",
-          refunded_at: new Date().toISOString(),
-          ...(fullyRefunded ? { status: "refunded" } : {}),
-        })
-        .eq("id", id)
-        .select("payment_status, status")
-        .single();
-      if (orderUpdateError) throw orderUpdateError;
-
-      return NextResponse.json({ refund: completedRefund, order: updatedOrder });
+    if (completedRefund?.stripe_refund_id) {
+      const synced = await syncStripeRefund({
+        supabase: refundSyncSupabase,
+        stripe: new Stripe(key),
+        stripeRefundId: completedRefund.stripe_refund_id,
+        localRefundId: completedRefund.id,
+      });
+      return NextResponse.json(synced);
     }
 
-    let reservation = matchingRefunds.find((refund) => refund.status === "pending") || null;
-    if (reservation?.stripe_refund_id) {
-      return NextResponse.json({ refund: reservation, order: null }, { status: 202 });
-    }
-
-    const heldRefunds = refunds.filter(
-      (refund) => refund.status === "pending" || refund.status === "succeeded"
-    );
+    const activeRefunds = refunds.filter((refund) => refund.status === "succeeded");
     const totalCents = toCents(order.total_amount);
     const subtotalCents = toCents(order.subtotal);
     const discountCents = Math.min(subtotalCents, toCents(order.discount_amount));
     const productTotalCents = Math.min(totalCents, Math.max(0, subtotalCents - discountCents));
-    const refundedAmountCents = sumRefunds(heldRefunds, "amount");
-    const refundedProductCents = sumRefunds(heldRefunds, "product_amount");
+    const refundedAmountCents = sumRefunds(activeRefunds, "amount");
+    const refundedProductCents = sumRefunds(activeRefunds, "product_amount");
     const remainingAmountCents = Math.max(0, totalCents - refundedAmountCents);
     const remainingProductCents = Math.max(0, productTotalCents - refundedProductCents);
-    let amountCents = reservation ? toCents(reservation.amount) : 0;
-    let productAmountCents = reservation ? toCents(reservation.product_amount) : 0;
-    let items = reservation?.items || [];
+    if (remainingAmountCents === 0) return NextResponse.json({ error: "Order is already fully refunded" }, { status: 400 });
+    if (refunds.some((refund) => refund.status === "pending")) {
+      return NextResponse.json({ error: "Another refund is already being processed" }, { status: 409 });
+    }
 
-    if (!reservation) {
-      if (remainingAmountCents === 0) return NextResponse.json({ error: "Order is already fully refunded" }, { status: 400 });
-      if (heldRefunds.some((refund) => refund.status === "pending")) {
+    let amountCents = 0;
+    let productAmountCents = 0;
+    let items: RefundItem[] = [];
+    if (fullOrder) {
+      amountCents = remainingAmountCents;
+      productAmountCents = remainingProductCents;
+      const refundedQuantities = getRefundedQuantities(activeRefunds, orderItems);
+      const productAmountsByOrderItem = getProductAmountsByOrderItem(orderItems, productTotalCents);
+      const remainingItems = orderItems
+        .filter((item) => (refundedQuantities.get(item.id) || 0) < item.quantity)
+        .map((item) => ({
+          order_item_id: item.id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          amount: fromCents(productAmountsByOrderItem.get(item.id) || 0),
+        }))
+        .filter((item) => item.amount > 0);
+      const itemizedProductCents = remainingItems.reduce(
+        (sum, item) => sum + toCents(item.amount),
+        0
+      );
+      items = itemizedProductCents === productAmountCents ? remainingItems : [];
+    } else {
+      const selectedItems = orderItems.filter((item) => itemIds.includes(item.id));
+      if (selectedItems.length !== itemIds.length) {
+        return NextResponse.json({ error: "One or more order items were not found" }, { status: 400 });
+      }
+
+      const hasUnitemizedRefund = activeRefunds.some((refund) => !Array.isArray(refund.items) || refund.items.length === 0);
+      if (hasUnitemizedRefund) {
+        return NextResponse.json({ error: "The remaining refund must be processed for the full order" }, { status: 400 });
+      }
+
+      const refundedQuantities = getRefundedQuantities(activeRefunds, orderItems);
+      const productAmountsByOrderItem = getProductAmountsByOrderItem(orderItems, productTotalCents);
+      const selectedRefundItems: RefundItem[] = [];
+      for (const item of selectedItems) {
+        const alreadyRefundedQuantity = refundedQuantities.get(item.id) || 0;
+        if (alreadyRefundedQuantity + item.quantity > item.quantity) {
+          return NextResponse.json({ error: "One or more selected items were already refunded" }, { status: 400 });
+        }
+
+        const itemProductCents = productAmountsByOrderItem.get(item.id) || 0;
+        productAmountCents += itemProductCents;
+        selectedRefundItems.push({
+          order_item_id: item.id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          amount: fromCents(itemProductCents),
+        });
+      }
+
+      amountCents = productAmountCents;
+      items = selectedRefundItems;
+    }
+
+    if (amountCents <= 0 || amountCents > remainingAmountCents || productAmountCents > remainingProductCents) {
+      return NextResponse.json({ error: "Refund exceeds order amount" }, { status: 400 });
+    }
+
+    const attempts = matchingRefunds.reduce((maximum, refund) => {
+      const attempt = Number(refund.request_key?.slice(requestKeyPrefix.length));
+      return Number.isInteger(attempt) && attempt > maximum ? attempt : maximum;
+    }, 0);
+    const requestKey = `${requestKeyPrefix}${attempts + 1}`;
+    const { data: createdReservation, error: reservationError } = await supabase
+      .from("order_refunds")
+      .insert({
+        order_id: id,
+        user_id: order.user_id,
+        request_key: requestKey,
+        amount: fromCents(amountCents),
+        product_amount: fromCents(productAmountCents),
+        items,
+        status: "pending",
+        created_by: (await supabase.auth.getUser()).data.user?.id,
+      })
+      .select("id, request_key, stripe_refund_id, amount, product_amount, status, items")
+      .single();
+    if (reservationError) {
+      if (reservationError.code !== "23505") throw reservationError;
+      const { data: concurrentReservation, error: concurrentReservationError } = await supabase
+        .from("order_refunds")
+        .select("id, request_key, stripe_refund_id, amount, product_amount, status, items")
+        .eq("request_key", requestKey)
+        .maybeSingle();
+      if (concurrentReservationError) throw concurrentReservationError;
+      if (!concurrentReservation) {
+        return NextResponse.json({ error: "Another refund is already being processed" }, { status: 409 });
+      }
+      if (concurrentReservation.stripe_refund_id) {
+        const synced = await syncStripeRefund({
+          supabase: refundSyncSupabase,
+          stripe: new Stripe(key),
+          stripeRefundId: concurrentReservation.stripe_refund_id,
+          localRefundId: concurrentReservation.id,
+        });
+        return NextResponse.json(synced, { status: synced.refund.status === "pending" ? 202 : 200 });
+      }
+      if (!concurrentReservation.request_key) {
         return NextResponse.json({ error: "Another refund is already being processed" }, { status: 409 });
       }
 
-      if (fullOrder) {
-        amountCents = remainingAmountCents;
-        productAmountCents = remainingProductCents;
-        items = [];
-      } else {
-        const selectedItems = orderItems.filter((item) => itemIds.includes(item.id));
-        if (selectedItems.length !== itemIds.length) {
-          return NextResponse.json({ error: "One or more order items were not found" }, { status: 400 });
-        }
-
-        const hasUnitemizedRefund = heldRefunds.some((refund) => !Array.isArray(refund.items) || refund.items.length === 0);
-        if (hasUnitemizedRefund) {
-          return NextResponse.json({ error: "The remaining refund must be processed for the full order" }, { status: 400 });
-        }
-
-        const refundedQuantities = getRefundedQuantities(heldRefunds, orderItems);
-        const productAmountsByOrderItem = getProductAmountsByOrderItem(orderItems, productTotalCents);
-        let selectedProductCents = 0;
-        const selectedRefundItems: RefundItem[] = [];
-        for (const item of selectedItems) {
-          const alreadyRefundedQuantity = refundedQuantities.get(item.id) || 0;
-          if (alreadyRefundedQuantity + item.quantity > item.quantity) {
-            return NextResponse.json({ error: "One or more selected items were already refunded" }, { status: 400 });
-          }
-
-          const itemProductCents = productAmountsByOrderItem.get(item.id) || 0;
-          selectedProductCents += itemProductCents;
-          selectedRefundItems.push({
-            order_item_id: item.id,
-            product_id: item.product_id,
-            quantity: item.quantity,
-            amount: fromCents(itemProductCents),
-          });
-        }
-
-        amountCents = selectedProductCents;
-        productAmountCents = selectedProductCents;
-        items = selectedRefundItems;
+      const stripe = new Stripe(key);
+      let paymentIntent = order.payment_reference;
+      if (!paymentIntent.startsWith("pi_")) {
+        const session = await stripe.checkout.sessions.retrieve(paymentIntent);
+        paymentIntent = typeof session.payment_intent === "string" ? session.payment_intent : "";
       }
+      if (!paymentIntent.startsWith("pi_")) return NextResponse.json({ error: "Payment intent not found" }, { status: 400 });
 
-      if (amountCents <= 0 || amountCents > remainingAmountCents || productAmountCents > remainingProductCents) {
-        return NextResponse.json({ error: "Refund exceeds order amount" }, { status: 400 });
-      }
-
-      const attempts = matchingRefunds.reduce((maximum, refund) => {
-        const attempt = Number(refund.request_key?.slice(requestKeyPrefix.length));
-        return Number.isInteger(attempt) && attempt > maximum ? attempt : maximum;
-      }, 0);
-      const requestKey = `${requestKeyPrefix}${attempts + 1}`;
-      const { data: createdReservation, error: reservationError } = await supabase
-        .from("order_refunds")
-        .insert({
+      const refund = await stripe.refunds.create({
+        payment_intent: paymentIntent,
+        amount: toCents(concurrentReservation.amount),
+        metadata: {
           order_id: id,
-          user_id: order.user_id,
-          request_key: requestKey,
-          amount: fromCents(amountCents),
-          product_amount: fromCents(productAmountCents),
-          items,
-          status: "pending",
-          created_by: (await supabase.auth.getUser()).data.user?.id,
-        })
-        .select("id, request_key, stripe_refund_id, amount, product_amount, status, items")
-        .single();
-      if (reservationError) {
-        if (reservationError.code !== "23505") throw reservationError;
-        const { data: concurrentReservation, error: concurrentReservationError } = await supabase
-          .from("order_refunds")
-          .select("id, request_key, stripe_refund_id, amount, product_amount, status, items")
-          .eq("request_key", requestKey)
-          .maybeSingle();
-        if (concurrentReservationError) throw concurrentReservationError;
-        if (!concurrentReservation) {
-          return NextResponse.json({ error: "Another refund is already being processed" }, { status: 409 });
-        }
-        reservation = concurrentReservation as ExistingRefund;
-      } else {
-        reservation = createdReservation as ExistingRefund;
-      }
+          order_refund_id: concurrentReservation.id,
+          product_amount: Number(concurrentReservation.product_amount).toFixed(2),
+        },
+      }, { idempotencyKey: concurrentReservation.request_key });
+      const synced = await syncStripeRefund({
+        supabase: refundSyncSupabase,
+        stripe,
+        stripeRefundId: refund.id,
+        localRefundId: concurrentReservation.id,
+      });
+      return NextResponse.json(synced, { status: synced.refund.status === "pending" ? 202 : 201 });
     }
 
-    if (!reservation?.request_key) throw new Error("Refund reservation was not created");
-    if (reservation.status === "succeeded") {
-      return NextResponse.json({ refund: reservation, order: null });
-    }
-    if (reservation.stripe_refund_id) {
-      return NextResponse.json({ refund: reservation, order: null }, { status: 202 });
-    }
+    if (!createdReservation?.request_key) throw new Error("Refund reservation was not created");
+
+    await recordAudit(supabase, {
+      action: "order.refunded",
+      entityType: "order",
+      entityId: id,
+      summary: `Remboursement demandé : ${fromCents(amountCents).toFixed(2)} €${fullOrder ? " (commande complète)" : ` (${items.length} article(s))`}`,
+      metadata: {
+        refund_id: createdReservation.id,
+        amount: fromCents(amountCents),
+        product_amount: fromCents(productAmountCents),
+        full_order: fullOrder,
+        item_ids: itemIds,
+      },
+    });
 
     const stripe = new Stripe(key);
     let paymentIntent = order.payment_reference;
@@ -289,59 +359,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const refund = await stripe.refunds.create({
       payment_intent: paymentIntent,
-      amount: amountCents,
+      amount: toCents(createdReservation.amount),
       metadata: {
         order_id: id,
-        order_refund_id: reservation.id,
-        product_amount: fromCents(productAmountCents).toFixed(2),
+        order_refund_id: createdReservation.id,
+        product_amount: Number(createdReservation.product_amount).toFixed(2),
       },
-    }, { idempotencyKey: reservation.request_key });
-    const responseRefundStatus = getRefundStatus(refund.status);
-    const { data: currentReservation, error: currentReservationError } = await supabase
-      .from("order_refunds")
-      .select("status")
-      .eq("id", reservation.id)
-      .single();
-    if (currentReservationError) throw currentReservationError;
-    const refundStatus = getRefundStatusRank(getRefundStatus(currentReservation.status)) > getRefundStatusRank(responseRefundStatus)
-      ? getRefundStatus(currentReservation.status)
-      : responseRefundStatus;
-    const { data: refundRow, error } = await supabase
-      .from("order_refunds")
-      .update({ stripe_refund_id: refund.id, status: refundStatus })
-      .eq("id", reservation.id)
-      .select()
-      .single();
-    if (error || !refundRow) throw error || new Error("Unable to update refund reservation");
+    }, { idempotencyKey: createdReservation.request_key });
 
-    if (refundRow.status === "failed" || refundRow.status === "canceled") {
-      return NextResponse.json({ error: "Stripe could not complete the refund" }, { status: 409 });
-    }
+    const synced = await syncStripeRefund({
+      supabase: refundSyncSupabase,
+      stripe,
+      stripeRefundId: refund.id,
+      localRefundId: createdReservation.id,
+    });
 
-    let updatedOrder: { payment_status: string; status: string } | null = null;
-    if (refundRow.status === "succeeded") {
-      const { data: succeededRefunds, error: succeededRefundsError } = await supabase
-        .from("order_refunds")
-        .select("amount")
-        .eq("order_id", id)
-        .eq("status", "succeeded");
-      if (succeededRefundsError) throw succeededRefundsError;
-      const fullyRefunded = (succeededRefunds || []).reduce((sum, succeededRefund) => sum + toCents(succeededRefund.amount), 0) >= totalCents;
-      const { data, error: orderUpdateError } = await supabase
-        .from("orders")
-        .update({
-          payment_status: fullyRefunded ? "refunded" : "partially_refunded",
-          refunded_at: new Date().toISOString(),
-          ...(fullyRefunded ? { status: "refunded" } : {}),
-        })
-        .eq("id", id)
-        .select("payment_status, status")
-        .single();
-      if (orderUpdateError) throw orderUpdateError;
-      updatedOrder = data;
-    }
-
-    return NextResponse.json({ refund: refundRow, order: updatedOrder }, { status: 201 });
+    return NextResponse.json(synced, { status: synced.refund.status === "pending" ? 202 : 201 });
   } catch (error) {
     console.error("Admin refund error", error);
     return NextResponse.json({ error: "Unable to create refund" }, { status: 500 });

@@ -81,6 +81,8 @@ export type Order = {
   payment_reference: string | null;
   paid_at: string | null;
   refunded_at: string | null;
+  fulfillment_status_before_refund: OrderStatus | null;
+  refund_points_adjusted: number;
   terms_version: string | null;
   contains_alcohol: boolean;
   age_confirmed_at: string | null;
@@ -221,11 +223,19 @@ export type OrderRefund = {
   user_id: string;
   request_key: string | null;
   stripe_refund_id: string | null;
+  stripe_status: string | null;
+  failure_reason: string | null;
+  pending_reason: string | null;
+  last_stripe_sync_at: string | null;
+  stripe_reference: string | null;
+  stripe_reference_status: string | null;
+  stripe_reference_type: string | null;
   amount: number;
   product_amount: number;
   items: OrderRefundItem[];
   status: "pending" | "succeeded" | "failed" | "canceled";
   points_reversed: number;
+  points_restored: number;
   reason: string | null;
   created_by: string | null;
   created_at: string;
@@ -250,6 +260,42 @@ export type PickupOpeningHour = {
   updated_by: string | null;
 };
 
+export type AuditEntityType =
+  | "product"
+  | "category"
+  | "coupon"
+  | "reduction"
+  | "order"
+  | "store_settings"
+  | "pickup_opening_hours"
+  | "pickup_closure"
+  | "loyalty_reward"
+  | "user"
+  | "auth";
+
+export type AuditChange = {
+  field: string;
+  old: unknown;
+  new: unknown;
+};
+
+export type AuditLog = {
+  id: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  actor_email: string | null;
+  actor_role: "admin" | "employee";
+  action: string;
+  entity_type: AuditEntityType;
+  entity_id: string | null;
+  summary: string;
+  changes: AuditChange[];
+  metadata: Record<string, unknown>;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -270,6 +316,7 @@ export type Database = {
       coupon_reservations: { Row: CouponReservation; Insert: Partial<CouponReservation> & { coupon_id: string; order_id: string }; Update: Partial<CouponReservation>; Relationships: [] };
       pickup_closures: { Row: PickupClosure; Insert: Partial<PickupClosure> & { closed_on: string }; Update: Partial<PickupClosure>; Relationships: [] };
       pickup_opening_hours: { Row: PickupOpeningHour; Insert: Partial<PickupOpeningHour> & { weekday: number }; Update: Partial<PickupOpeningHour>; Relationships: [] };
+      audit_logs: { Row: AuditLog; Insert: Partial<AuditLog> & { actor_role: AuditLog["actor_role"]; action: string; entity_type: AuditEntityType; summary: string }; Update: Partial<AuditLog>; Relationships: [] };
     };
     Views: {
       products_with_discount: { Row: Product & { discounted_price: number | null }; Relationships: [{ foreignKeyName: "products_category_id_fkey"; columns: ["category_id"]; isOneToOne: false; referencedRelation: "categories"; referencedColumns: ["id"] }] };
@@ -280,10 +327,14 @@ export type Database = {
       loyalty_earn_points: { Args: { p_user_id: string; p_order_id: string; p_points: number; p_description: string }; Returns: { new_balance: number; applied: boolean }[] };
       loyalty_redeem_points: { Args: { p_user_id: string; p_reward_id: string; p_description: string }; Returns: { new_balance: number; points_spent: number }[] };
       loyalty_apply_refund: { Args: { p_refund_id: string }; Returns: { points_reversed: number; new_balance: number }[] };
+      reconcile_order_refund_loyalty: { Args: { p_order_id: string; p_refund_id?: string | null }; Returns: { points_adjustment: number; new_balance: number }[] };
+      recompute_order_refund_state: { Args: { p_order_id: string }; Returns: { payment_status: string; order_status: string; refunded_at: string | null }[] };
       loyalty_redeem_reward: { Args: { p_user_id: string; p_reward_id: string }; Returns: { coupon_id: string; coupon_code: string; new_balance: number; points_spent: number }[] };
       use_coupon: { Args: { p_coupon_id: string; p_order_id: string; p_user_id: string | null }; Returns: boolean };
       reserve_coupon: { Args: { p_coupon_id: string; p_order_id: string; p_user_id: string }; Returns: boolean };
       release_coupon_reservation: { Args: { p_order_id: string; p_user_id: string | null }; Returns: boolean };
+      record_audit_event: { Args: { p_action: string; p_entity_type: AuditEntityType; p_entity_id?: string | null; p_summary?: string | null; p_changes?: AuditChange[]; p_metadata?: Record<string, unknown>; p_ip_address?: string | null; p_user_agent?: string | null }; Returns: string };
+      purge_audit_logs: { Args: { p_retention_days?: number }; Returns: number };
     };
     Enums: { role: "customer" | "admin" | "employee" };
     CompositeTypes: Record<string, never>;

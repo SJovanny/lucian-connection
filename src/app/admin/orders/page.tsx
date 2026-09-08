@@ -5,11 +5,14 @@ import { Modal } from "@/components/ui/Modal";
 import { AlertTriangle, ChevronDown, Eye, RotateCcw, Search } from "lucide-react";
 import { PickupSlotPicker } from "@/components/pickup/PickupSlotPicker";
 import type { Order, OrderItem, OrderRefund, Profile } from "@/types/database.types";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useEffectEvent } from "react";
 
 type OrderWithDetails = Order & {
   order_items: OrderItem[];
-  order_refunds: Pick<OrderRefund, "id" | "status" | "items">[];
+  order_refunds: Pick<
+    OrderRefund,
+    "id" | "status" | "stripe_status" | "failure_reason" | "pending_reason" | "stripe_refund_id" | "stripe_reference" | "stripe_reference_status" | "stripe_reference_type" | "amount" | "items" | "created_at" | "last_stripe_sync_at"
+  >[];
   profiles: Pick<Profile, "full_name" | "phone"> | null;
 };
 
@@ -66,6 +69,37 @@ function orderMonthKey(dateString: string): string {
     year: "numeric",
     month: "2-digit",
   }).format(new Date(dateString));
+}
+
+function toCents(value: number): number {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : 0;
+}
+
+const refundStatusConfig = {
+  pending: { label: "En cours", color: "bg-amber-100 text-amber-800" },
+  requires_action: { label: "Action client requise", color: "bg-amber-100 text-amber-800" },
+  succeeded: { label: "Confirmé", color: "bg-green-100 text-green-800" },
+  failed: { label: "Échoué", color: "bg-red-100 text-red-800" },
+  canceled: { label: "Annulé", color: "bg-gray-100 text-gray-700" },
+};
+
+function getRefundStatusConfig(refund: OrderWithDetails["order_refunds"][number]) {
+  const status = refund.stripe_status === "requires_action" ? "requires_action" : refund.status;
+  return refundStatusConfig[status as keyof typeof refundStatusConfig] || refundStatusConfig.pending;
+}
+
+function getRefundStatusMessage(refund: OrderWithDetails["order_refunds"][number]) {
+  if (refund.stripe_status === "requires_action") {
+    return "Stripe attend des informations du client pour finaliser ce remboursement.";
+  }
+  if (refund.status === "failed") {
+    return refund.failure_reason ? `Stripe : ${refund.failure_reason}` : "Stripe n’a pas pu finaliser ce remboursement.";
+  }
+  if (refund.status === "pending" && refund.pending_reason) {
+    return `Stripe : ${refund.pending_reason}`;
+  }
+  return null;
 }
 
 function getRefundedQuantities(order: OrderWithDetails): Map<string, number> {
@@ -135,24 +169,46 @@ export default function OrdersPage() {
   const [statusError, setStatusError] = useState<string | null>(null);
   const [isVerifyingPickupAge, setIsVerifyingPickupAge] = useState(false);
 
+  const loadOrders = useEffectEvent(async () => {
+    try {
+      const res = await fetch("/api/admin/orders");
+      if (!res.ok) throw new Error("Failed to load orders");
+      const data = await res.json();
+      setOrders(data.orders);
+      setStatusCounts(data.statusCounts);
+    } catch (error) {
+      console.error("Error loading orders:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  });
+
+  const refreshOrders = useEffectEvent(async () => {
+    try {
+      const res = await fetch("/api/admin/orders");
+      if (!res.ok) throw new Error("Failed to load orders");
+      const data = await res.json();
+      setOrders(data.orders);
+      setStatusCounts(data.statusCounts);
+      setSelectedOrder((selected) => (
+        selected ? data.orders.find((order: OrderWithDetails) => order.id === selected.id) || selected : null
+      ));
+    } catch (error) {
+      console.error("Error refreshing orders:", error);
+    }
+  });
+
   // Load orders on mount
   useEffect(() => {
-    const loadOrders = async () => {
-      try {
-        const res = await fetch("/api/admin/orders");
-        if (!res.ok) throw new Error("Failed to load orders");
-        const data = await res.json();
-        setOrders(data.orders);
-        setStatusCounts(data.statusCounts);
-      } catch (error) {
-        console.error("Error loading orders:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     loadOrders();
   }, []);
+
+  useEffect(() => {
+    if (!orders.some((order) => order.order_refunds.some((refund) => refund.status === "pending"))) return;
+
+    const interval = window.setInterval(refreshOrders, 15000);
+    return () => window.clearInterval(interval);
+  }, [orders]);
 
   const filteredOrders = orders.filter((order) => {
     const term = searchTerm.toLowerCase();
@@ -165,6 +221,7 @@ export default function OrdersPage() {
     return matchesSearch && matchesStatus && matchesMonth;
   });
   const selectedRefundedQuantities = selectedOrder ? getRefundedQuantities(selectedOrder) : new Map<string, number>();
+  const hasPendingRefund = selectedOrder?.order_refunds.some((refund) => refund.status === "pending") || false;
 
   const hasActiveFilters = searchTerm !== "" || filterStatus !== "pending" || filterMonth !== "";
 
@@ -188,7 +245,12 @@ export default function OrdersPage() {
     const selectedItems = selectedOrder.order_items.filter((item) => refundItemIds.includes(item.id));
     const grossSelected = fullOrder ? selectedOrder.subtotal : selectedItems.reduce((sum, item) => sum + Number(item.total_price), 0);
     const productAmount = fullOrder ? selectedOrder.total_amount - selectedOrder.delivery_fee : grossSelected * (selectedOrder.subtotal ? (selectedOrder.subtotal - selectedOrder.discount_amount) / selectedOrder.subtotal : 1);
-    const refundAmount = fullOrder ? selectedOrder.total_amount : productAmount;
+    const alreadyRefunded = selectedOrder.order_refunds
+      .filter((refund) => refund.status === "succeeded")
+      .reduce((total, refund) => total + toCents(refund.amount), 0);
+    const refundAmount = fullOrder
+      ? Math.max(0, toCents(selectedOrder.total_amount) - alreadyRefunded) / 100
+      : productAmount;
     const refundLabel = fullOrder ? " (frais de préparation inclus)" : " (hors frais de préparation)";
     if (!refundAmount || !confirm(`Confirmer le remboursement de ${refundAmount.toFixed(2)} €${refundLabel} ?`)) return;
     setIsRefunding(true);
@@ -203,7 +265,7 @@ export default function OrdersPage() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "refund");
-      const refund = data.refund as Pick<OrderRefund, "id" | "status" | "items">;
+      const refund = data.refund as OrderWithDetails["order_refunds"][number];
       const refundOrder = data.order as Pick<Order, "payment_status" | "status"> | null;
       const applyRefund = (order: OrderWithDetails): OrderWithDetails => ({
         ...order,
@@ -214,7 +276,13 @@ export default function OrdersPage() {
         order.id === selectedOrder.id ? applyRefund(order) : order
       )));
       setSelectedOrder((previousOrder) => previousOrder ? applyRefund(previousOrder) : previousOrder);
-      alert("Remboursement envoyé à Stripe. Les points seront ajustés après confirmation.");
+      if (refund.status === "succeeded") {
+        alert("Remboursement confirmé par Stripe.");
+      } else if (refund.status === "failed" || refund.status === "canceled") {
+        alert("Stripe n’a pas finalisé le remboursement. Consultez son statut ci-dessous avant de réessayer.");
+      } else {
+        alert("Remboursement en cours de traitement par Stripe.");
+      }
       setRefundItemIds([]);
     } catch (error) {
       console.error("Error creating refund", error);
@@ -641,7 +709,7 @@ export default function OrdersPage() {
                         <input
                           type="checkbox"
                           checked={isFullyRefunded || refundItemIds.includes(item.id)}
-                          disabled={isFullyRefunded}
+                          disabled={isFullyRefunded || hasPendingRefund}
                           onChange={() => setRefundItemIds((ids) => ids.includes(item.id) ? ids.filter((id) => id !== item.id) : [...ids, item.id])}
                         />
                         <span className={isFullyRefunded ? "line-through" : ""}>{item.product_name} × {item.quantity}</span>
@@ -660,10 +728,38 @@ export default function OrdersPage() {
             <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 space-y-3">
               <div><p className="font-semibold text-orange-900">Remboursement</p><p className="text-sm text-orange-800">Une annulation complète rembourse aussi les frais de préparation. Une sélection d’articles reste limitée aux produits concernés.</p></div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => handleRefund(true)} disabled={isRefunding || !["paid", "partially_refunded"].includes(selectedOrder.payment_status)} className="rounded-lg bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50">{isRefunding ? "Traitement..." : "Rembourser la commande"}</button>
-                <button type="button" onClick={() => handleRefund(false)} disabled={isRefunding || refundItemIds.length === 0 || !["paid", "partially_refunded"].includes(selectedOrder.payment_status)} className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-orange-700 border border-orange-300 hover:bg-orange-100 disabled:opacity-50">Rembourser la sélection</button>
+                <button type="button" onClick={() => handleRefund(true)} disabled={isRefunding || hasPendingRefund || !["paid", "partially_refunded"].includes(selectedOrder.payment_status)} className="rounded-lg bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50">{isRefunding ? "Traitement..." : "Rembourser la commande"}</button>
+                <button type="button" onClick={() => handleRefund(false)} disabled={isRefunding || hasPendingRefund || refundItemIds.length === 0 || !["paid", "partially_refunded"].includes(selectedOrder.payment_status)} className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-orange-700 border border-orange-300 hover:bg-orange-100 disabled:opacity-50">Rembourser la sélection</button>
               </div>
+              {hasPendingRefund && <p className="text-sm text-orange-800">Un remboursement est déjà en cours de traitement par Stripe.</p>}
             </div>
+
+            {selectedOrder.order_refunds.length > 0 && (
+              <div>
+                <h3 className="mb-3 font-semibold text-gray-900">Suivi Stripe des remboursements</h3>
+                <div className="space-y-3 rounded-lg border border-gray-200 p-4">
+                  {selectedOrder.order_refunds.map((refund) => {
+                    const config = getRefundStatusConfig(refund);
+                    const message = getRefundStatusMessage(refund);
+
+                    return (
+                      <div key={refund.id} className="flex flex-col gap-2 border-b border-gray-100 pb-3 last:border-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="font-medium text-gray-900">{refund.amount.toFixed(2)} €</p>
+                          <p className="text-xs text-gray-500">{formatDate(refund.created_at)}</p>
+                          {refund.stripe_refund_id && <p className="mt-1 font-mono text-xs text-gray-500">{refund.stripe_refund_id}</p>}
+                          {refund.stripe_reference && <p className="mt-1 text-xs text-gray-500">Référence banque : <span className="font-mono">{refund.stripe_reference}</span>{refund.stripe_reference_type ? ` (${refund.stripe_reference_type})` : ""}</p>}
+                          {message && <p className="mt-1 text-sm text-gray-600">{message}</p>}
+                        </div>
+                        <span className={`inline-flex w-fit rounded-full px-2 py-1 text-xs font-medium ${config.color}`}>
+                          {config.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Order Summary */}
             {selectedOrder.notes && (

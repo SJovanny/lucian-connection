@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { HCaptcha } from "@/components/auth/HCaptcha";
 import { ShieldCheck, AlertCircle } from "lucide-react";
+import { recordAuditClient } from "@/lib/audit-client";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -80,6 +81,12 @@ export default function AdminLoginPage() {
         }
 
         // Success - redirect to admin dashboard
+        await recordAuditClient(supabase, {
+          action: "auth.login",
+          entityType: "auth",
+          entityId: data.user.id,
+          summary: `Connexion au dashboard (${profileData.role})`,
+        });
         router.push("/admin");
         router.refresh();
       }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminSupabase } from "@/lib/admin-auth";
 import { isValidClosureDate, localPickupToDate } from "@/lib/pickup-rules";
 import type { OrderStatus } from "@/types/database.types";
+import { recordAudit } from "@/lib/audit";
 
 const blockedStatuses: OrderStatus[] = ["pending", "preparing", "ready"];
 
@@ -50,6 +51,13 @@ export async function POST(request: NextRequest) {
       if (error.code === "23505") return NextResponse.json({ error: "CLOSURE_ALREADY_EXISTS" }, { status: 409 });
       throw error;
     }
+    await recordAudit(supabase, {
+      action: "pickup_closure.created",
+      entityType: "pickup_closure",
+      entityId: data.id,
+      summary: `Fermeture ajoutée : ${data.closed_on}`,
+      metadata: { reason: data.reason },
+    });
     return NextResponse.json({ closure: data }, { status: 201 });
   } catch (error) {
     console.error("[pickup-closures] Error:", error);

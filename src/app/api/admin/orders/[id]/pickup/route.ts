@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminSupabase } from "@/lib/admin-auth";
 import { validatePickupAt } from "@/lib/pickup-rules";
+import { recordAudit } from "@/lib/audit";
 
 export async function PATCH(
   request: NextRequest,
@@ -23,7 +24,7 @@ export async function PATCH(
     const { id } = await params;
     const { data: order, error: orderError } = await supabase
       .from("orders")
-      .select("status")
+      .select("status, pickup_at")
       .eq("id", id)
       .single();
     if (orderError || !order) {
@@ -50,6 +51,13 @@ export async function PATCH(
       }
       throw error;
     }
+    await recordAudit(supabase, {
+      action: "order.pickup_recorded",
+      entityType: "order",
+      entityId: id,
+      summary: "Créneau de retrait modifié",
+      changes: [{ field: "pickup_at", old: order.pickup_at, new: data.pickup_at }],
+    });
     return NextResponse.json({ order: data });
   } catch (error) {
     console.error("[admin-pickup] Error:", error);

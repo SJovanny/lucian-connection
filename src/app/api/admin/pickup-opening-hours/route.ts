@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminSupabase } from "@/lib/admin-auth";
+import { recordAudit } from "@/lib/audit";
 
 export async function GET(request: NextRequest) {
   const supabase = await getAdminSupabase(request);
@@ -40,6 +41,12 @@ export async function PUT(request: NextRequest) {
       .select("*")
       .order("weekday");
     if (error) throw error;
+    await recordAudit(supabase, {
+      action: "pickup_opening_hours.updated",
+      entityType: "pickup_opening_hours",
+      summary: "Horaires de retrait modifiés",
+      metadata: { openingHours: data },
+    });
     return NextResponse.json({ openingHours: data || [] });
   } catch (error) {
     if (error instanceof Error && error.message === "INVALID_OPENING_HOURS") {

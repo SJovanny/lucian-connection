@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminSupabase } from "@/lib/admin-auth";
 import { CouponRuleError, normalizeCouponData } from "@/lib/coupon-rules";
+import { recordAudit } from "@/lib/audit";
 
 // GET - Récupérer tous les coupons
 export async function GET(request: NextRequest) {
@@ -75,6 +76,14 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) throw error;
+
+    await recordAudit(supabase, {
+      action: "coupon.created",
+      entityType: "coupon",
+      entityId: data.id,
+      summary: `Coupon créé : ${data.code}`,
+      metadata: { discount_type: data.discount_type, discount_value: data.discount_value },
+    });
 
     return NextResponse.json(data, { status: 201 });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

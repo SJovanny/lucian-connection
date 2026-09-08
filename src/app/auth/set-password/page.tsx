@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { recordAuditClient } from "@/lib/audit-client";
 
 export default function SetPasswordPage() {
   const router = useRouter();
@@ -82,9 +83,19 @@ export default function SetPasswordPage() {
       return;
     }
     setLoading(true);
-    const { error: updateError } = await createClient().auth.updateUser({ password });
-    if (updateError) setError(updateError.message);
-    else router.push("/admin");
+    const supabase = createClient();
+    const { data, error: updateError } = await supabase.auth.updateUser({ password });
+    if (updateError) {
+      setError(updateError.message);
+    } else {
+      await recordAuditClient(supabase, {
+        action: "auth.password_set",
+        entityType: "auth",
+        entityId: data.user?.id ?? null,
+        summary: "Mot de passe défini",
+      });
+      router.push("/admin");
+    }
     setLoading(false);
   }
 

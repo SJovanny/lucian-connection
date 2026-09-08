@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { User } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import type { Order, OrderStatus, Profile } from "@/types/database.types";
+import { recordAudit } from "@/lib/audit";
 
 export async function signOutAdmin() {
   const supabase = await createClient();
@@ -59,6 +60,12 @@ export async function updateOrderStatus(orderId: string, status: string) {
       throw new Error("Pickup age verification is required");
     }
   }
+  const { data: previousOrder } = await admin
+    .from("orders")
+    .select("status")
+    .eq("id", orderId)
+    .single();
+
   const updateData: Partial<Order> = { status: status as OrderStatus };
 
   const { data, error } = await admin
@@ -71,6 +78,14 @@ export async function updateOrderStatus(orderId: string, status: string) {
   if (error) {
     throw error;
   }
+
+  await recordAudit(admin, {
+    action: "order.status_changed",
+    entityType: "order",
+    entityId: orderId,
+    summary: `Statut de commande modifié : ${previousOrder?.status ?? "?"} → ${status}`,
+    changes: [{ field: "status", old: previousOrder?.status ?? null, new: status }],
+  });
 
   return data;
 }

@@ -63,7 +63,10 @@ function toCents(value: number) {
   return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : 0;
 }
 
-type SucceededRefund = Pick<OrderRefund, "id" | "order_id" | "amount" | "product_amount" | "items">;
+type AccountRefund = Pick<
+  OrderRefund,
+  "id" | "order_id" | "amount" | "product_amount" | "items" | "status" | "stripe_status" | "stripe_reference"
+>;
 
 type RefundLine = {
   id: string;
@@ -71,7 +74,7 @@ type RefundLine = {
   amount: number;
 };
 
-function getRefundLines(refund: SucceededRefund, orderItems: OrderItem[]): RefundLine[] {
+function getRefundLines(refund: AccountRefund, orderItems: OrderItem[]): RefundLine[] {
   const totalAmount = toCents(refund.amount);
   const productAmount = Math.min(totalAmount, toCents(refund.product_amount));
   const orderItemsById = new Map(orderItems.map((item) => [item.id, item]));
@@ -110,6 +113,9 @@ function getRefundLines(refund: SucceededRefund, orderItems: OrderItem[]): Refun
   }
 
   if (productLines.length === 0) {
+    if (productAmount === 0 && totalAmount > 0) {
+      return [{ id: `${refund.id}:preparation-fee`, label: "Remboursement : Frais de préparation", amount: totalAmount }];
+    }
     return [{ id: `${refund.id}:refund`, label: "Remboursement", amount: totalAmount }];
   }
 
@@ -133,6 +139,19 @@ function getRefundLines(refund: SucceededRefund, orderItems: OrderItem[]): Refun
   return productLines;
 }
 
+function getRefundProgress(refund: AccountRefund) {
+  if (refund.status === "failed") {
+    return { label: "Remboursement non abouti", description: "Le remboursement n’a pas pu être finalisé. Contactez-nous si besoin.", color: "text-red-700" };
+  }
+  if (refund.status === "canceled") {
+    return { label: "Remboursement annulé", description: "Ce remboursement a été annulé avant sa finalisation.", color: "text-gray-600" };
+  }
+  if (refund.stripe_status === "requires_action") {
+    return { label: "Action requise", description: "Stripe attend des informations pour finaliser ce remboursement.", color: "text-amber-700" };
+  }
+  return { label: "Remboursement en cours", description: "Stripe traite ce remboursement.", color: "text-amber-700" };
+}
+
 export default function AccountPage() {
   const locale = useLocale();
   const router = useRouter();
@@ -152,7 +171,7 @@ export default function AccountPage() {
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderItemsByOrderId, setOrderItemsByOrderId] = useState<Record<string, OrderItem[]>>({});
-  const [refundsByOrderId, setRefundsByOrderId] = useState<Record<string, SucceededRefund[]>>({});
+  const [refundsByOrderId, setRefundsByOrderId] = useState<Record<string, AccountRefund[]>>({});
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
   const [page, setPage] = useState(1);
   const [totalOrders, setTotalOrders] = useState(0);
@@ -217,13 +236,12 @@ export default function AccountPage() {
             .in("order_id", orderIds),
           supabase
             .from("order_refunds")
-            .select("id, order_id, amount, product_amount, items")
-            .in("order_id", orderIds)
-            .eq("status", "succeeded"),
+            .select("id, order_id, amount, product_amount, items, status, stripe_status, stripe_reference")
+            .in("order_id", orderIds),
         ]);
 
         const typedOrderItems = (orderItems || []) as OrderItem[];
-        const typedRefunds = (refunds || []) as SucceededRefund[];
+        const typedRefunds = (refunds || []) as AccountRefund[];
 
         const grouped = typedOrderItems.reduce<Record<string, OrderItem[]>>(
           (acc, item) => {
@@ -237,7 +255,7 @@ export default function AccountPage() {
 
         setOrderItemsByOrderId(grouped);
         setRefundsByOrderId(
-          typedRefunds.reduce<Record<string, SucceededRefund[]>>((groupedRefunds, refund) => {
+          typedRefunds.reduce<Record<string, AccountRefund[]>>((groupedRefunds, refund) => {
             groupedRefunds[refund.order_id] = groupedRefunds[refund.order_id] || [];
             groupedRefunds[refund.order_id].push(refund);
             return groupedRefunds;
@@ -357,11 +375,13 @@ export default function AccountPage() {
                   <div className="space-y-3">
                     {orders.map((order) => {
                       const refunds = refundsByOrderId[order.id] || [];
-                      const refundedAmount = refunds.reduce((total, refund) => total + toCents(refund.amount), 0);
+                      const confirmedRefunds = refunds.filter((refund) => refund.status === "succeeded");
+                      const pendingRefunds = refunds.filter((refund) => refund.status !== "succeeded");
+                      const refundedAmount = confirmedRefunds.reduce((total, refund) => total + toCents(refund.amount), 0);
                       const totalAmount = toCents(order.total_amount);
                       const hasRefund = refundedAmount > 0;
                       const remainingAmount = Math.max(0, totalAmount - refundedAmount) / 100;
-                      const refundLines = refunds.flatMap((refund) => (
+                      const refundLines = confirmedRefunds.flatMap((refund) => (
                         getRefundLines(refund, orderItemsByOrderId[order.id] || [])
                       ));
 
@@ -471,6 +491,43 @@ export default function AccountPage() {
                                         </span>
                                       </li>
                                     ))}
+                                  </ul>
+                                  {confirmedRefunds.filter((refund) => refund.stripe_reference).map((refund) => (
+                                    <p key={`${refund.id}:reference`} className="mt-2 text-xs text-gray-500">
+                                      Référence de remboursement : {refund.stripe_reference}
+                                    </p>
+                                  ))}
+                                </div>
+                              )}
+                              {refundLines.length === 0 && confirmedRefunds.some((refund) => refund.stripe_reference) && (
+                                <div className="mt-3 border-t border-gray-100 pt-3">
+                                  {confirmedRefunds.filter((refund) => refund.stripe_reference).map((refund) => (
+                                    <p key={`${refund.id}:reference`} className="text-xs text-gray-500">
+                                      Référence de remboursement : {refund.stripe_reference}
+                                    </p>
+                                  ))}
+                                </div>
+                              )}
+                              {pendingRefunds.length > 0 && (
+                                <div className="mt-3 border-t border-gray-100 pt-3">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                    Suivi des remboursements
+                                  </p>
+                                  <ul className="mt-2 space-y-2">
+                                    {pendingRefunds.map((refund) => {
+                                      const progress = getRefundProgress(refund);
+                                      return (
+                                        <li key={refund.id} className="flex items-start justify-between gap-3 text-sm">
+                                          <div>
+                                            <p className={`font-medium ${progress.color}`}>{progress.label}</p>
+                                            <p className="text-xs text-gray-500">{progress.description}</p>
+                                          </div>
+                                          <span className={`shrink-0 font-semibold ${progress.color}`}>
+                                            {formatCurrency(refund.amount)}
+                                          </span>
+                                        </li>
+                                      );
+                                    })}
                                   </ul>
                                 </div>
                               )}

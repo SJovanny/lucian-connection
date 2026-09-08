@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminSupabase } from "@/lib/admin-auth";
 import { slugify } from "@/lib/utils";
+import { recordAudit } from "@/lib/audit";
 
 const parseAllergens = (value: unknown): string[] => {
   if (Array.isArray(value)) {
@@ -140,6 +141,14 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) throw error;
+
+    await recordAudit(supabase, {
+      action: "product.created",
+      entityType: "product",
+      entityId: data.id,
+      summary: `Produit créé : ${data.translations.fr.name}`,
+      metadata: { slug: data.slug, price: data.price },
+    });
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {

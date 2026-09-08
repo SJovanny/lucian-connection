@@ -1,43 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-type RefundItem = {
-  order_item_id?: string;
-  product_id?: string | null;
-  quantity: number;
-  amount: number;
-};
-type RefundStatus = "pending" | "succeeded" | "failed" | "canceled";
-
-function toCents(value: unknown): number {
-  const amount = Number(value);
-  return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : 0;
-}
-
-function fromCents(value: number): number {
-  return value / 100;
-}
-
-function getRefundStatus(status: string | null): RefundStatus {
-  return status === "succeeded" || status === "failed" || status === "canceled" ? status : "pending";
-}
-
-function getRefundStatusRank(status: RefundStatus): number {
-  if (status === "succeeded") return 2;
-  if (status === "failed" || status === "canceled") return 1;
-  return 0;
-}
-
-function parseRefundItems(value: string | undefined): RefundItem[] {
-  if (!value) return [];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed as RefundItem[] : [];
-  } catch {
-    return [];
-  }
-}
+import { syncStripeRefund } from "@/lib/stripe-refunds";
 
 export async function POST(request: NextRequest) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -60,8 +24,10 @@ export async function POST(request: NextRequest) {
     "checkout.session.completed",
     "checkout.session.expired",
     "checkout.session.async_payment_failed",
+    "checkout.session.async_payment_succeeded",
     "refund.created",
     "refund.updated",
+    "refund.failed",
   ]);
   if (!handledEvents.has(event.type)) return NextResponse.json({ received: true });
 
@@ -74,7 +40,7 @@ export async function POST(request: NextRequest) {
   }
   const session = event.data.object as Stripe.Checkout.Session;
   const orderId = session.metadata?.order_id;
-  if (orderId && event.type === "checkout.session.completed") {
+  if (orderId && (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded")) {
     const stripe = new Stripe(key);
     const verifiedSession = await stripe.checkout.sessions.retrieve(session.id);
     const { data: order, error: orderFetchError } = await supabase
@@ -157,121 +123,19 @@ export async function POST(request: NextRequest) {
     await supabase.from("orders").update({ payment_status: "cancelled" }).eq("id", orderId);
   }
 
-  if (event.type === "refund.created" || event.type === "refund.updated") {
+  if (event.type === "refund.created" || event.type === "refund.updated" || event.type === "refund.failed") {
     const refund = event.data.object as Stripe.Refund;
-    const paymentIntentId = typeof refund.payment_intent === "string" ? refund.payment_intent : null;
-    const refundReservationId = refund.metadata?.order_refund_id;
-    const refundOrderId = refund.metadata?.order_id || (paymentIntentId
-      ? (await supabase.from("orders").select("id").eq("payment_reference", paymentIntentId).maybeSingle()).data?.id
-      : null);
-    if (refundOrderId) {
-      const { data: order, error: orderError } = await supabase
-        .from("orders")
-        .select("user_id, subtotal, discount_amount, total_amount")
-        .eq("id", refundOrderId)
-        .single();
-      if (orderError || !order) {
-        console.error(`Unable to fetch order for Stripe refund ${refund.id}`, orderError);
-        return NextResponse.json({ error: "Unable to store refund" }, { status: 500 });
-      }
-      if (!order.user_id) {
-        console.error(`Stripe refund ${refund.id} belongs to order ${refundOrderId} without a user`);
-        return NextResponse.json({ received: true });
-      }
-
-      const productTotalCents = Math.min(
-        toCents(order.total_amount),
-        Math.max(0, toCents(order.subtotal) - toCents(order.discount_amount))
-      );
-      const metadataProductAmount = Number(refund.metadata?.product_amount);
-      const productAmountCents = Number.isFinite(metadataProductAmount)
-        ? Math.min(toCents(metadataProductAmount), productTotalCents, refund.amount)
-        : Math.min(refund.amount, productTotalCents);
-      const eventRefundStatus = getRefundStatus(refund.status);
-      const { data: existingRefund, error: existingRefundError } = refundReservationId
-        ? await supabase
-          .from("order_refunds")
-          .select("id, status, items")
-          .eq("id", refundReservationId)
-          .eq("order_id", refundOrderId)
-          .maybeSingle()
-        : await supabase
-          .from("order_refunds")
-          .select("id, status, items")
-          .eq("stripe_refund_id", refund.id)
-          .maybeSingle();
-      if (existingRefundError) {
-        console.error(`Unable to fetch existing Stripe refund ${refund.id}`, existingRefundError);
-        return NextResponse.json({ error: "Unable to store refund" }, { status: 500 });
-      }
-
-      const existingRefundStatus = existingRefund?.status as "pending" | "succeeded" | "failed" | "canceled" | undefined;
-      const refundStatus = existingRefundStatus && getRefundStatusRank(existingRefundStatus) > getRefundStatusRank(eventRefundStatus)
-        ? existingRefundStatus
-        : eventRefundStatus;
-      const refundItems = Array.isArray(existingRefund?.items) && existingRefund.items.length > 0
-        ? existingRefund.items
-        : parseRefundItems(refund.metadata?.items);
-      const { data: refundRow, error: refundError } = existingRefund
-        ? await supabase
-          .from("order_refunds")
-          .update({
-            stripe_refund_id: refund.id,
-            amount: fromCents(refund.amount),
-            product_amount: fromCents(productAmountCents),
-            items: refundItems,
-            status: refundStatus,
-          })
-          .eq("id", existingRefund.id)
-          .select("id, status")
-          .single()
-        : await supabase
-          .from("order_refunds")
-          .upsert({
-            order_id: refundOrderId,
-            user_id: order.user_id,
-            stripe_refund_id: refund.id,
-            amount: fromCents(refund.amount),
-            product_amount: fromCents(productAmountCents),
-            items: refundItems,
-            status: refundStatus,
-          }, { onConflict: "stripe_refund_id" })
-          .select("id, status")
-          .single();
-      if (refundError || !refundRow) {
-        console.error("Unable to store Stripe refund", refundError);
-        return NextResponse.json({ error: "Unable to store refund" }, { status: 500 });
-      }
-
-      if (refundRow.status === "succeeded") {
-        const { data: succeededRefunds, error: refundsError } = await supabase
-          .from("order_refunds")
-          .select("amount")
-          .eq("order_id", refundOrderId)
-          .eq("status", "succeeded");
-        if (refundsError) {
-          console.error(`Unable to calculate refunded amount for order ${refundOrderId}`, refundsError);
-          return NextResponse.json({ error: "Unable to update refund status" }, { status: 500 });
-        }
-
-        const refundedAmountCents = (succeededRefunds || []).reduce((sum, row) => sum + toCents(row.amount), 0);
-        const fullyRefunded = refundedAmountCents >= toCents(order.total_amount);
-        const { error: orderUpdateError } = await supabase.from("orders").update({
-          payment_status: fullyRefunded ? "refunded" : "partially_refunded",
-          refunded_at: new Date().toISOString(),
-          ...(fullyRefunded ? { status: "refunded" } : {}),
-        }).eq("id", refundOrderId);
-        if (orderUpdateError) {
-          console.error(`Unable to update payment status for order ${refundOrderId}`, orderUpdateError);
-          return NextResponse.json({ error: "Unable to update refund status" }, { status: 500 });
-        }
-
-        const { error: applyRefundError } = await supabase.rpc("loyalty_apply_refund", { p_refund_id: refundRow.id });
-        if (applyRefundError) {
-          console.error(`Webhook: unable to apply loyalty refund for refund ${refundRow.id}`, applyRefundError);
-          return NextResponse.json({ error: "Unable to apply loyalty refund" }, { status: 500 });
-        }
-      }
+    try {
+      const synced = await syncStripeRefund({
+        supabase,
+        stripe: new Stripe(key),
+        stripeRefundId: refund.id,
+        localRefundId: refund.metadata?.order_refund_id,
+      });
+      console.log(`Stripe refund synchronized: ${synced.refund.id} (${synced.refund.stripe_status})`);
+    } catch (error) {
+      console.error(`Unable to synchronize Stripe refund ${refund.id}`, error);
+      return NextResponse.json({ error: "Unable to synchronize refund" }, { status: 500 });
     }
   }
   return NextResponse.json({ received: true });

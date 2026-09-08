@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminSupabase } from "@/lib/admin-auth";
+import { recordAudit } from "@/lib/audit";
 
 export async function PATCH(
   request: NextRequest,
@@ -44,6 +45,12 @@ export async function PATCH(
       }
     }
 
+    const { data: previousOrder } = await supabase
+      .from("orders")
+      .select("status")
+      .eq("id", id)
+      .single();
+
     const { data, error } = await supabase
       .from("orders")
       .update({ status })
@@ -55,6 +62,14 @@ export async function PATCH(
       console.error("[orders-api] Update error:", error);
       throw error;
     }
+
+    await recordAudit(supabase, {
+      action: "order.status_changed",
+      entityType: "order",
+      entityId: id,
+      summary: `Statut de commande modifié : ${previousOrder?.status ?? "?"} → ${status}`,
+      changes: [{ field: "status", old: previousOrder?.status ?? null, new: status }],
+    });
 
     return NextResponse.json({ order: data }, { status: 200 });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

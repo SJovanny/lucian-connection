@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { LoyaltyReward } from "@/types/database.types";
+import { recordAuditClient } from "@/lib/audit-client";
+import { diffFields } from "@/lib/audit-shared";
 
 export function LoyaltyRewardsManager({ initialRewards, settingsId, initialRate }: { initialRewards: LoyaltyReward[]; settingsId?: string; initialRate: number }) {
   const [rewards, setRewards] = useState(initialRewards);
@@ -17,10 +19,30 @@ export function LoyaltyRewardsManager({ initialRewards, settingsId, initialRate 
     setSaving(true);
     const supabase = createClient();
     const values = { name: form.name, points_cost: Number(form.points_cost), discount_type: form.discount_type as "fixed" | "percentage", discount_value: Number(form.discount_value), updated_at: new Date().toISOString() };
+    const previous = editingId ? rewards.find((item) => item.id === editingId) : undefined;
     const { data, error } = editingId
       ? await supabase.from("loyalty_rewards").update(values).eq("id", editingId).select().single()
       : await supabase.from("loyalty_rewards").insert(values).select().single();
-    if (!error && data) { setRewards((items) => (editingId ? items.map((item) => item.id === editingId ? data as LoyaltyReward : item) : [...items, data as LoyaltyReward]).sort((a, b) => a.points_cost - b.points_cost)); setForm({ name: "", points_cost: "", discount_type: "fixed", discount_value: "" }); setEditingId(null); }
+    if (!error && data) {
+      setRewards((items) => (editingId ? items.map((item) => item.id === editingId ? data as LoyaltyReward : item) : [...items, data as LoyaltyReward]).sort((a, b) => a.points_cost - b.points_cost));
+      if (editingId) {
+        await recordAuditClient(supabase, {
+          action: "loyalty_reward.updated",
+          entityType: "loyalty_reward",
+          entityId: editingId,
+          summary: `Récompense fidélité modifiée : ${values.name}`,
+          changes: diffFields(previous, data as LoyaltyReward, ["name", "points_cost", "discount_type", "discount_value"]),
+        });
+      } else {
+        await recordAuditClient(supabase, {
+          action: "loyalty_reward.created",
+          entityType: "loyalty_reward",
+          entityId: (data as LoyaltyReward).id,
+          summary: `Récompense fidélité créée : ${values.name}`,
+        });
+      }
+      setForm({ name: "", points_cost: "", discount_type: "fixed", discount_value: "" }); setEditingId(null);
+    }
     setSaving(false);
   };
 
@@ -29,21 +51,48 @@ export function LoyaltyRewardsManager({ initialRewards, settingsId, initialRate 
     if (!settingsId) return;
     setSavingRate(true);
     const supabase = createClient();
-    await supabase.from("store_settings").update({ loyalty_points_per_euro: Number(rate) }).eq("id", settingsId);
+    const { error } = await supabase.from("store_settings").update({ loyalty_points_per_euro: Number(rate) }).eq("id", settingsId);
+    if (!error) {
+      await recordAuditClient(supabase, {
+        action: "store_settings.updated",
+        entityType: "store_settings",
+        entityId: settingsId,
+        summary: `Taux de fidélité modifié : ${rate} pt/€`,
+        changes: [{ field: "loyalty_points_per_euro", old: initialRate, new: Number(rate) }],
+      });
+    }
     setSavingRate(false);
   };
 
   const toggle = async (reward: LoyaltyReward) => {
     const supabase = createClient();
     const { data } = await supabase.from("loyalty_rewards").update({ is_active: !reward.is_active, updated_at: new Date().toISOString() }).eq("id", reward.id).select().single();
-    if (data) setRewards((items) => items.map((item) => item.id === reward.id ? data as LoyaltyReward : item));
+    if (data) {
+      setRewards((items) => items.map((item) => item.id === reward.id ? data as LoyaltyReward : item));
+      await recordAuditClient(supabase, {
+        action: "loyalty_reward.updated",
+        entityType: "loyalty_reward",
+        entityId: reward.id,
+        summary: `Récompense fidélité ${reward.is_active ? "désactivée" : "activée"} : ${reward.name}`,
+        changes: [{ field: "is_active", old: reward.is_active, new: !reward.is_active }],
+      });
+    }
   };
 
   const remove = async (id: string) => {
     if (!confirm("Supprimer cette récompense ?")) return;
     const supabase = createClient();
+    const removedReward = rewards.find((item) => item.id === id);
     const { error } = await supabase.from("loyalty_rewards").delete().eq("id", id);
-    if (!error) setRewards((items) => items.filter((item) => item.id !== id));
+    if (!error) {
+      setRewards((items) => items.filter((item) => item.id !== id));
+      await recordAuditClient(supabase, {
+        action: "loyalty_reward.deleted",
+        entityType: "loyalty_reward",
+        entityId: id,
+        summary: `Récompense fidélité supprimée : ${removedReward?.name ?? id}`,
+      });
+    }
   };
 
   const edit = (reward: LoyaltyReward) => {

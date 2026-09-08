@@ -13,6 +13,8 @@ import { createClient } from "@/lib/supabase/client";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import type { Reduction } from "@/types/database.types";
+import { recordAuditClient } from "@/lib/audit-client";
+import { diffFields } from "@/lib/audit-shared";
 
 const toLocalInputValue = (iso?: string | null) => {
   if (!iso) return "";
@@ -183,18 +185,50 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
         if (!initialData?.id) {
           throw new Error("Reduction ID is required for updates.");
         }
-        const { error } = await supabase
+        const { data: updated, error } = await supabase
           .from("reductions")
           .update(payload)
-          .eq("id", initialData.id);
+          .eq("id", initialData.id)
+          .select()
+          .single();
 
         if (error) throw error;
+
+        const changes = diffFields(initialData, updated as Reduction, [
+          "name",
+          "description",
+          "discount_type",
+          "discount_value",
+          "applies_to",
+          "category_ids",
+          "product_ids",
+          "starts_at",
+          "expires_at",
+          "priority",
+          "is_active",
+        ]);
+        await recordAuditClient(supabase, {
+          action: "reduction.updated",
+          entityType: "reduction",
+          entityId: initialData.id,
+          summary: `Réduction modifiée : ${data.name}`,
+          changes,
+        });
       } else {
-        const { error } = await supabase
+        const { data: created, error } = await supabase
           .from("reductions")
-          .insert(payload as any);
+          .insert(payload as any)
+          .select()
+          .single();
 
         if (error) throw error;
+
+        await recordAuditClient(supabase, {
+          action: "reduction.created",
+          entityType: "reduction",
+          entityId: created?.id,
+          summary: `Réduction créée : ${data.name}`,
+        });
       }
 
       router.push("/admin/reductions");

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminSupabase } from "@/lib/admin-auth";
+import { diffFields, recordAudit } from "@/lib/audit";
+import type { Category } from "@/types/database.types";
 
 // GET - Récupérer une catégorie
 export async function GET(
@@ -45,6 +47,12 @@ export async function PUT(
 
     const body = await request.json();
 
+    const { data: existingCategory } = await supabase
+      .from("categories")
+      .select("*")
+      .eq("id", id)
+      .single();
+
     const { data, error } = await supabase
       .from("categories")
       .update(body)
@@ -53,6 +61,20 @@ export async function PUT(
       .single();
 
     if (error) throw error;
+
+    const changes = diffFields(existingCategory as Category, data as Category, [
+      "slug",
+      "image_url",
+      "display_order",
+      "translations",
+    ]);
+    await recordAudit(supabase, {
+      action: "category.updated",
+      entityType: "category",
+      entityId: id,
+      summary: `Catégorie modifiée : ${data.translations.fr.name}`,
+      changes,
+    });
 
     return NextResponse.json(data);
   } catch (error) {
@@ -76,12 +98,21 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("categories")
       .delete()
-      .eq("id", id);
+      .eq("id", id)
+      .select("id, slug, translations")
+      .single();
 
     if (error) throw error;
+
+    await recordAudit(supabase, {
+      action: "category.deleted",
+      entityType: "category",
+      entityId: id,
+      summary: `Catégorie supprimée : ${data?.translations?.fr?.name ?? data?.slug ?? id}`,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

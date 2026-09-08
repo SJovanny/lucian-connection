@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminSupabase } from "@/lib/admin-auth";
+import { recordAudit } from "@/lib/audit";
 
 // POST /api/admin/products/featured - Toggle featured status
 export async function POST(request: NextRequest) {
@@ -35,6 +36,14 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    await recordAudit(supabase, {
+      action: "product.featured_toggled",
+      entityType: "product",
+      entityId: productId,
+      summary: `Mise en avant ${isFeatured ? "activée" : "désactivée"} : ${data.translations.fr.name}`,
+      changes: [{ field: "is_featured", old: !isFeatured, new: isFeatured }],
+    });
 
     return NextResponse.json({ success: true, product: data });
   } catch (error) {

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminSupabase } from "@/lib/admin-auth";
 import { CouponRuleError, normalizeCouponData } from "@/lib/coupon-rules";
+import { diffFields, recordAudit } from "@/lib/audit";
+import type { Coupon } from "@/types/database.types";
 
 // PATCH - Mettre à jour un coupon
 export async function PATCH(
@@ -68,6 +70,27 @@ export async function PATCH(
 
     if (error) throw error;
 
+    const changes = diffFields(existingCoupon as Coupon, data as Coupon, [
+      "code",
+      "description",
+      "discount_type",
+      "discount_value",
+      "min_order_amount",
+      "max_discount_amount",
+      "starts_at",
+      "expires_at",
+      "usage_limit",
+      "is_first_order_only",
+      "is_active",
+    ]);
+    await recordAudit(supabase, {
+      action: "coupon.updated",
+      entityType: "coupon",
+      entityId: id,
+      summary: `Coupon modifié : ${data.code}`,
+      changes,
+    });
+
     return NextResponse.json(data);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
@@ -98,12 +121,25 @@ export async function DELETE(
 
     const { id } = await params;
 
+    const { data: existingCoupon } = await supabase
+      .from("coupons")
+      .select("code")
+      .eq("id", id)
+      .single();
+
     const { error } = await supabase
       .from("coupons")
       .delete()
       .eq("id", id);
 
     if (error) throw error;
+
+    await recordAudit(supabase, {
+      action: "coupon.deleted",
+      entityType: "coupon",
+      entityId: id,
+      summary: `Coupon supprimé : ${existingCoupon?.code ?? id}`,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

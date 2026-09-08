@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminSupabase } from "@/lib/admin-auth";
+import { diffFields, recordAudit } from "@/lib/audit";
+import type { Product } from "@/types/database.types";
 
 const parseAllergens = (value: unknown): string[] => {
   if (Array.isArray(value)) {
@@ -89,10 +91,10 @@ export async function PUT(
       image_url,
     } = body;
 
-    // Vérifier si le produit existe
+    // Vérifier si le produit existe (et garder la version "avant" pour le journal d'activité)
     const { data: existingProduct, error: fetchError } = await supabase
       .from("products")
-      .select("id")
+      .select("*")
       .eq("id", id)
       .single();
 
@@ -105,18 +107,6 @@ export async function PUT(
 
     // Construire l'objet de mise à jour
     const updateData: Record<string, unknown> = {};
-    let currentProductCache: { translations?: { fr?: { name?: string; description?: string }; en?: { name?: string; description?: string } }; allergens?: { fr?: string[]; en?: string[] } } | null = null;
-
-    const getCurrentProduct = async () => {
-      if (currentProductCache) return currentProductCache;
-      const { data } = await supabase
-        .from("products")
-        .select("translations, allergens")
-        .eq("id", id)
-        .single();
-      currentProductCache = data || null;
-      return currentProductCache;
-    };
 
     if (category_id !== undefined) updateData.category_id = category_id || null;
     if (price !== undefined) updateData.price = parseFloat(price);
@@ -135,8 +125,7 @@ export async function PUT(
     if (image_url !== undefined) updateData.image_url = image_url || null;
 
     if (allergens_fr !== undefined || allergens_en !== undefined) {
-      const currentProduct = await getCurrentProduct();
-      const currentAllergens = currentProduct?.allergens || { fr: [], en: [] };
+      const currentAllergens = existingProduct.allergens || { fr: [], en: [] };
       updateData.allergens = {
         fr: allergens_fr !== undefined ? parseAllergens(allergens_fr) : currentAllergens.fr || [],
         en: allergens_en !== undefined ? parseAllergens(allergens_en) : currentAllergens.en || [],
@@ -145,8 +134,7 @@ export async function PUT(
 
     // Gérer les traductions
     if (name_fr !== undefined || name_en !== undefined || description_fr !== undefined || description_en !== undefined) {
-      const currentProduct = await getCurrentProduct();
-      const currentTranslations = currentProduct?.translations || {
+      const currentTranslations = existingProduct.translations || {
         fr: { name: "", description: "" },
         en: { name: "", description: "" },
       };
@@ -182,6 +170,29 @@ export async function PUT(
 
     if (error) throw error;
 
+    const changes = diffFields(existingProduct as Product, data as Product, [
+      "price",
+      "compare_at_price",
+      "category_id",
+      "unit",
+      "stock",
+      "low_stock_threshold",
+      "track_stock",
+      "is_alcoholic",
+      "is_active",
+      "is_featured",
+      "image_url",
+      "translations",
+      "allergens",
+    ]);
+    await recordAudit(supabase, {
+      action: "product.updated",
+      entityType: "product",
+      entityId: id,
+      summary: `Produit modifié : ${data.translations.fr.name}`,
+      changes,
+    });
+
     return NextResponse.json(data);
   } catch (error) {
     console.error("Error updating product:", error);
@@ -209,7 +220,7 @@ export async function DELETE(
       .from("products")
       .delete()
       .eq("id", id)
-      .select("id")
+      .select("id, slug, translations")
       .single();
 
     if (error) {
@@ -221,6 +232,14 @@ export async function DELETE(
       }
       throw error;
     }
+
+    await recordAudit(supabase, {
+      action: "product.deleted",
+      entityType: "product",
+      entityId: data.id,
+      summary: `Produit supprimé : ${data.translations.fr.name}`,
+      metadata: { slug: data.slug },
+    });
 
     return NextResponse.json({ success: true, id: data.id });
   } catch (error) {

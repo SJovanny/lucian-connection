@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { createClient } from "@/lib/supabase/client";
 import type { PickupClosure, PickupOpeningHour, Profile, StoreSettings } from "@/types/database.types";
+import { recordAuditClient } from "@/lib/audit-client";
+import { diffFields } from "@/lib/audit-shared";
 
 interface AdminSettingsFormProps {
   userId: string;
@@ -167,30 +169,59 @@ export function AdminSettingsForm({
         updated_by: userId,
       };
 
-      const { data: settingsData } = await supabase.from("store_settings").select("id").single();
+      const { data: settingsData } = await supabase.from("store_settings").select("id, preparation_fee, min_order_amount").single();
       const settingsId = settingsData?.id;
 
       if (settingsId) {
-        const { error: settingsError } = await supabase
+        const { data: updatedSettings, error: settingsError } = await supabase
           .from("store_settings")
           .update(settingsUpdate)
-          .eq("id", settingsId);
+          .eq("id", settingsId)
+          .select("preparation_fee, min_order_amount")
+          .single();
 
         if (settingsError) {
           setError(settingsError.message);
           return;
+        }
+
+        const changes = diffFields(
+          settingsData as Pick<StoreSettings, "preparation_fee" | "min_order_amount">,
+          updatedSettings as Pick<StoreSettings, "preparation_fee" | "min_order_amount">,
+          ["preparation_fee", "min_order_amount"]
+        );
+        if (changes.length > 0) {
+          await recordAuditClient(supabase, {
+            action: "store_settings.updated",
+            entityType: "store_settings",
+            entityId: settingsId,
+            summary: "Paramètres du magasin modifiés",
+            changes,
+          });
         }
       } else {
-        const { error: settingsError } = await supabase.from("store_settings").insert({
-          preparation_fee: parseFloat(preparationFee),
-          min_order_amount: Math.max(10, parseFloat(minOrderAmount) || 10),
-          updated_by: userId,
-        });
+        const { data: createdSettings, error: settingsError } = await supabase
+          .from("store_settings")
+          .insert({
+            preparation_fee: parseFloat(preparationFee),
+            min_order_amount: Math.max(10, parseFloat(minOrderAmount) || 10),
+            updated_by: userId,
+          })
+          .select("id")
+          .single();
 
         if (settingsError) {
           setError(settingsError.message);
           return;
         }
+
+        await recordAuditClient(supabase, {
+          action: "store_settings.updated",
+          entityType: "store_settings",
+          entityId: createdSettings?.id,
+          summary: "Paramètres du magasin créés",
+          metadata: settingsUpdate,
+        });
       }
 
       if (email !== initialEmail) {

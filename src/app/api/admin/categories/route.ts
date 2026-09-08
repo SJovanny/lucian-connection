@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminSupabase } from "@/lib/admin-auth";
+import { recordAudit } from "@/lib/audit";
 
 // GET - Récupérer toutes les catégories
 export async function GET(request: NextRequest) {
@@ -52,6 +53,14 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) throw error;
+
+    await recordAudit(supabase, {
+      action: "category.created",
+      entityType: "category",
+      entityId: data.id,
+      summary: `Catégorie créée : ${data.translations.fr.name}`,
+      metadata: { slug: data.slug },
+    });
 
     return NextResponse.json(data);
   } catch (error) {

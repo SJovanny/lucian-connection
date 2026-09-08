@@ -17,6 +17,7 @@ import {
   Percent,
   Gift,
   Users,
+  History,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -131,7 +132,10 @@ export function AdminSidebar({ isAdmin }: { isAdmin: boolean }) {
         <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
            {[
              ...navItems,
-             ...(isAdmin ? [{ label: "Utilisateurs", href: "/admin/users", icon: Users }] : []),
+             ...(isAdmin ? [
+               { label: "Utilisateurs", href: "/admin/users", icon: Users },
+               { label: "Journal d'activité", href: "/admin/logs", icon: History },
+             ] : []),
            ].map((item) => {
             const isActive =
               pathname === item.href ||

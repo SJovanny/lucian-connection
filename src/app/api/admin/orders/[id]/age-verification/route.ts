@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminSupabase } from "@/lib/admin-auth";
+import { recordAudit } from "@/lib/audit";
 
 export async function POST(
   request: NextRequest,
@@ -48,6 +49,12 @@ export async function POST(
       .single();
 
     if (updateError) throw updateError;
+    await recordAudit(supabase, {
+      action: "order.age_verified",
+      entityType: "order",
+      entityId: id,
+      summary: "Vérification d'âge effectuée au retrait",
+    });
     return NextResponse.json({ order: updatedOrder, verified: true });
   } catch (error) {
     console.error("[age-verification] Error:", error);
