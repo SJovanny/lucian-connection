@@ -156,7 +156,7 @@ export default function OrdersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("pending");
+  const [filterStatus, setFilterStatus] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [filterMonth, setFilterMonth] = useState("");
   const [adminPickupAt, setAdminPickupAt] = useState<string | null>(null);
@@ -223,11 +223,11 @@ export default function OrdersPage() {
   const selectedRefundedQuantities = selectedOrder ? getRefundedQuantities(selectedOrder) : new Map<string, number>();
   const hasPendingRefund = selectedOrder?.order_refunds.some((refund) => refund.status === "pending") || false;
 
-  const hasActiveFilters = searchTerm !== "" || filterStatus !== "pending" || filterMonth !== "";
+  const hasActiveFilters = searchTerm !== "" || filterStatus !== "" || filterMonth !== "";
 
   const handleResetFilters = () => {
     setSearchTerm("");
-    setFilterStatus("pending");
+    setFilterStatus("");
     setFilterMonth("");
   };
 

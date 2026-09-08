@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:backup": "node scripts/db_backup.js prod",
+    "db:backup:local": "node scripts/db_backup.js local"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
