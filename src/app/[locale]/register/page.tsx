@@ -12,6 +12,7 @@ import { getSafeRedirectPath } from "@/lib/auth-redirect";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { GoogleOAuthButton } from "@/components/auth/GoogleOAuthButton";
+import { HCaptcha } from "@/components/auth/HCaptcha";
 import type { Locale } from "@/i18n/routing";
 
 export default function RegisterPage() {
@@ -23,6 +24,8 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState(false);
   const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
   const [redirectPath, setRedirectPath] = useState("/");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
 
   useEffect(() => {
     setRedirectPath(
@@ -41,6 +44,12 @@ export default function RegisterPage() {
     const password = formData.get("password") as string;
     const confirmPassword = formData.get("confirmPassword") as string;
 
+    if (process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY && !captchaToken) {
+      setError(locale === "fr" ? "Veuillez valider le captcha." : "Please complete the captcha.");
+      setIsLoading(false);
+      return;
+    }
+
     // Validation
     if (password !== confirmPassword) {
       setError(locale === "fr" ? "Les mots de passe ne correspondent pas" : "Passwords do not match");
@@ -56,11 +65,16 @@ export default function RegisterPage() {
 
     try {
       const supabase = createClient();
+      const confirmationUrl = new URL("/auth/callback", window.location.origin);
+      confirmationUrl.searchParams.set("locale", locale);
+      if (redirectPath !== "/") confirmationUrl.searchParams.set("next", redirectPath);
 
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          emailRedirectTo: confirmationUrl.toString(),
+          captchaToken: captchaToken ?? undefined,
           data: {
             full_name: fullName,
           },
@@ -69,6 +83,8 @@ export default function RegisterPage() {
 
       if (signUpError) {
         setError(signUpError.message);
+        setCaptchaToken(null);
+        setCaptchaResetKey((value) => value + 1);
         setIsLoading(false);
         return;
       }
@@ -176,11 +192,18 @@ export default function RegisterPage() {
                   </label>
                 </div>
 
+                <HCaptcha
+                  onVerify={setCaptchaToken}
+                  onExpire={() => setCaptchaToken(null)}
+                  resetKey={captchaResetKey}
+                />
+
                 <Button
                   type="submit"
                   variant="primary"
                   className="w-full"
                   isLoading={isLoading}
+                  disabled={Boolean(process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY && !captchaToken)}
                 >
                   {t("submit")}
                 </Button>

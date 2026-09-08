@@ -7,12 +7,15 @@ import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { HCaptcha } from "@/components/auth/HCaptcha";
 import { ShieldCheck, AlertCircle } from "lucide-react";
 
 export default function AdminLoginPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -23,6 +26,12 @@ export default function AdminLoginPage() {
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
 
+    if (process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY && !captchaToken) {
+      setError("Veuillez valider le captcha.");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const supabase = createClient();
 
@@ -30,6 +39,7 @@ export default function AdminLoginPage() {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
+        options: captchaToken ? { captchaToken } : undefined,
       });
 
       if (signInError) {
@@ -38,6 +48,8 @@ export default function AdminLoginPage() {
         } else {
           setError(signInError.message);
         }
+        setCaptchaToken(null);
+        setCaptchaResetKey((value) => value + 1);
         setIsLoading(false);
         return;
       }
@@ -120,11 +132,18 @@ export default function AdminLoginPage() {
               autoComplete="current-password"
             />
 
+            <HCaptcha
+              onVerify={setCaptchaToken}
+              onExpire={() => setCaptchaToken(null)}
+              resetKey={captchaResetKey}
+            />
+
             <Button
               type="submit"
               variant="primary"
               className="w-full"
               isLoading={isLoading}
+              disabled={Boolean(process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY && !captchaToken)}
             >
               Se connecter
             </Button>
