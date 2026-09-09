@@ -13,8 +13,15 @@ export default async function UsersPage() {
     adminClient.from("profiles").select("id, full_name, role, created_at").in("role", ["admin", "employee"]).order("created_at", { ascending: false }),
     adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 }),
   ]);
-  const emails = new Map((authUsers?.users ?? []).map((user) => [user.id, user.email ?? ""]));
-  const users = (profiles ?? []).map((profile) => ({ ...profile, email: emails.get(profile.id) ?? "" }));
+  const authUsersById = new Map((authUsers?.users ?? []).map((user) => [user.id, user]));
+  const users = (profiles ?? []).map((profile) => {
+    const authUser = authUsersById.get(profile.id);
+    return {
+      ...profile,
+      email: authUser?.email ?? "",
+      email_confirmed_at: authUser?.email_confirmed_at ?? null,
+    };
+  });
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">

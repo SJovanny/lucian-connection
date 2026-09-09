@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
     users: (profiles ?? []).map((profile) => ({
       ...profile,
       email: usersById.get(profile.id)?.email ?? "",
+      email_confirmed_at: usersById.get(profile.id)?.email_confirmed_at ?? null,
     })),
   });
 }
