@@ -16,7 +16,8 @@ export function AddUserForm() {
     event.preventDefault();
     setIsLoading(true);
     setMessage(null);
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     try {
       const response = await fetch("/api/admin/users", {
         method: "POST",
@@ -30,8 +31,11 @@ export function AddUserForm() {
         return;
       }
 
-      event.currentTarget.reset();
-      setMessage({ type: "success", text: "Invitation envoyée par email." });
+      formElement.reset();
+      setMessage({
+        type: "success",
+        text: result.warning ?? "Invitation envoyée par email.",
+      });
       router.refresh();
     } catch {
       setMessage({ type: "error", text: "Impossible de contacter le serveur. Réessayez." });
@@ -60,7 +64,7 @@ export function AddUserForm() {
       <Modal
         isOpen={message !== null}
         onClose={() => setMessage(null)}
-        title={message?.type === "success" ? "Utilisateur créé" : "Échec de la création"}
+        title={message?.type === "success" ? "Invitation envoyée" : "Échec de la création"}
         size="sm"
       >
         <div className="flex flex-col items-center text-center">

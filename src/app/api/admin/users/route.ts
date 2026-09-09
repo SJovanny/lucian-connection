@@ -9,6 +9,8 @@ const userSchema = z.object({
   role: z.enum(["admin", "employee"]),
 });
 
+const userIdSchema = z.string().uuid();
+
 export async function GET(request: NextRequest) {
   const supabase = await getStrictAdminSupabase(request);
   if (!supabase) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -52,15 +54,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  const { error: profileError } = await adminClient
+  const { data: profile, error: profileError } = await adminClient
     .from("profiles")
     .update({ role: parsed.data.role })
-    .eq("id", data.user.id);
+    .eq("id", data.user.id)
+    .select("id")
+    .maybeSingle();
 
-  if (profileError) {
+  if (profileError || !profile) {
+    console.error("User invitation created but role assignment failed", {
+      userId: data.user.id,
+      email: data.user.email,
+      role: parsed.data.role,
+      error: profileError ?? "Profile not found",
+    });
     return NextResponse.json(
-      { error: "Invitation créée, mais le rôle n'a pas pu être attribué." },
-      { status: 500 }
+      {
+        user: { id: data.user.id, email: data.user.email },
+        warning: "Invitation envoyée, mais le rôle n'a pas pu être attribué.",
+      },
+      { status: 202 }
     );
   }
 
@@ -73,4 +86,40 @@ export async function POST(request: NextRequest) {
   });
 
   return NextResponse.json({ user: { id: data.user.id, email: data.user.email } }, { status: 201 });
+}
+
+export async function DELETE(request: NextRequest) {
+  const supabase = await getStrictAdminSupabase(request);
+  if (!supabase) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const userId = userIdSchema.safeParse(request.nextUrl.searchParams.get("id"));
+  if (!userId.success) {
+    return NextResponse.json({ error: "Identifiant utilisateur invalide" }, { status: 400 });
+  }
+
+  const { data: currentUser } = await supabase.auth.getUser();
+  if (currentUser.user?.id === userId.data) {
+    return NextResponse.json({ error: "Vous ne pouvez pas supprimer votre propre compte" }, { status: 400 });
+  }
+
+  const adminClient = createAdminClient();
+  const { data: authUser, error: getUserError } = await adminClient.auth.admin.getUserById(userId.data);
+  if (getUserError || !authUser.user) {
+    return NextResponse.json({ error: "Utilisateur introuvable" }, { status: 404 });
+  }
+
+  const { error } = await adminClient.auth.admin.deleteUser(userId.data);
+  if (error) {
+    return NextResponse.json({ error: "Impossible de supprimer cet utilisateur" }, { status: 500 });
+  }
+
+  await recordAudit(supabase, {
+    action: "user.deleted",
+    entityType: "user",
+    entityId: userId.data,
+    summary: `Utilisateur supprimé : ${authUser.user.email ?? userId.data}`,
+    metadata: { email: authUser.user.email },
+  });
+
+  return NextResponse.json({ success: true });
 }

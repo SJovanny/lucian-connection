@@ -35,6 +35,7 @@ export const AUDIT_ACTIONS = {
   "loyalty_reward.updated": "Récompense fidélité modifiée",
   "loyalty_reward.deleted": "Récompense fidélité supprimée",
   "user.invited": "Utilisateur invité",
+  "user.deleted": "Utilisateur supprimé",
   "user.role_changed": "Rôle utilisateur modifié",
   "auth.login": "Connexion au dashboard",
   "auth.password_set": "Mot de passe défini",
