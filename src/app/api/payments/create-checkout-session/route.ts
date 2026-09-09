@@ -210,6 +210,10 @@ export async function POST(request: NextRequest) {
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       customer_email: user.email,
+      billing_address_collection: "required",
+      invoice_creation: {
+        enabled: true,
+      },
       line_items: sessionLineItems,
       discounts: stripeDiscount,
       metadata: {
