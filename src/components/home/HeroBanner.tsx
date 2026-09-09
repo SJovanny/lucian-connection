@@ -30,7 +30,7 @@ export function HeroBanner() {
               {t("titleAfter")}
             </h1>
           </div>
-          <p className="mt-5 max-w-md text-base leading-relaxed text-white sm:text-lg">
+          <p className="mt-5 max-w-md text-base font-bold leading-relaxed text-white sm:text-lg">
             {t("subtitle")}
           </p>
           <Link href="/products" className="mt-6 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent">
