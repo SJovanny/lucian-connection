@@ -80,7 +80,6 @@ export async function PUT(
       allergens_en,
       category_id,
       price,
-      compare_at_price,
       unit,
       stock,
       low_stock_threshold,
@@ -110,9 +109,6 @@ export async function PUT(
 
     if (category_id !== undefined) updateData.category_id = category_id || null;
     if (price !== undefined) updateData.price = parseFloat(price);
-    if (compare_at_price !== undefined) {
-      updateData.compare_at_price = compare_at_price ? parseFloat(compare_at_price) : null;
-    }
     if (unit !== undefined) updateData.unit = unit;
     if (stock !== undefined) updateData.stock = parseInt(stock);
     if (low_stock_threshold !== undefined) {
@@ -172,7 +168,6 @@ export async function PUT(
 
     const changes = diffFields(existingProduct as Product, data as Product, [
       "price",
-      "compare_at_price",
       "category_id",
       "unit",
       "stock",

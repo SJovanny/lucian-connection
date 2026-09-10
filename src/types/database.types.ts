@@ -29,7 +29,6 @@ export type Product = {
   id: string;
   slug: string;
   price: number;
-  compare_at_price: number | null;
   category_id: string | null;
   image_url: string | null;
   translations: {

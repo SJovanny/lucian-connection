@@ -204,11 +204,6 @@ export function FeaturedProductsManager({ initialProducts }: FeaturedProductsMan
                     <span className="font-medium text-gray-900">
                       {product.price.toFixed(2)}€
                     </span>
-                    {product.compare_at_price && (
-                      <span className="text-xs text-gray-400 line-through ml-1">
-                        {product.compare_at_price.toFixed(2)}€
-                      </span>
-                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span

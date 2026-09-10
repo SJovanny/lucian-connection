@@ -32,7 +32,6 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
     allergens_en: product?.allergens?.en?.join(", ") || "",
     category_id: product?.category_id || "",
     price: product?.price?.toString() || "",
-    compare_at_price: product?.compare_at_price?.toString() || "",
     unit: product?.unit || "each",
     stock: product?.stock?.toString() || "0",
     low_stock_threshold: product?.low_stock_threshold?.toString() || "5",
@@ -250,7 +249,7 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
           <CardTitle>Prix & Stock</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid sm:grid-cols-3 gap-4">
+          <div className="grid sm:grid-cols-2 gap-4">
             <Input
               label="Prix (€)"
               name="price"
@@ -261,16 +260,6 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
               onChange={handleChange}
               placeholder="0.00"
               required
-            />
-            <Input
-              label="Prix barré (€)"
-              name="compare_at_price"
-              type="number"
-              step="0.01"
-              min="0"
-              value={formData.compare_at_price}
-              onChange={handleChange}
-              placeholder="0.00"
             />
             <Input
               label="Unité"
