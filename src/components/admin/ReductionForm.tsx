@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { createClient } from "@/lib/supabase/client";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Search } from "lucide-react";
 import Link from "next/link";
 import type { Reduction } from "@/types/database.types";
 import { recordAuditClient } from "@/lib/audit-client";
@@ -103,6 +103,7 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
   const [error, setError] = useState<string | null>(null);
   const [categories, setCategories] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  const [productSearchQuery, setProductSearchQuery] = useState("");
 
   const {
     register,
@@ -130,6 +131,18 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
   const appliesTo = watch("applies_to");
   const selectedCategoryIds = watch("category_ids");
   const selectedProductIds = watch("product_ids");
+  const normalizedProductSearchQuery = productSearchQuery.trim().toLowerCase();
+  const filteredProducts = products.filter((product) => {
+    if (!normalizedProductSearchQuery) return true;
+
+    const frenchName = product.translations?.fr?.name || "";
+    const englishName = product.translations?.en?.name || "";
+    const slug = product.slug || "";
+
+    return [frenchName, englishName, slug].some((value) =>
+      value.toLowerCase().includes(normalizedProductSearchQuery)
+    );
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -345,9 +358,9 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
                   <label
                     key={category.id}
                     className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
+                    >
+                      <input
+                        type="checkbox"
                       checked={selectedCategoryIds?.includes(category.id) || false}
                       onChange={() => handleCategoryToggle(category.id)}
                       className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
@@ -367,8 +380,18 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
               {errors.product_ids && (
                 <p className="text-sm text-red-600 mb-2">{errors.product_ids.message}</p>
               )}
+              <div className="relative mb-3">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="search"
+                  value={productSearchQuery}
+                  onChange={(event) => setProductSearchQuery(event.target.value)}
+                  placeholder="Rechercher un produit..."
+                  className="w-full h-10 pl-9 pr-3 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
+                />
+              </div>
               <div className="max-h-64 overflow-y-auto border border-gray-300 rounded-lg p-3 space-y-2">
-                {products.map((product) => (
+                {filteredProducts.map((product) => (
                   <label
                     key={product.id}
                     className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
@@ -377,11 +400,16 @@ export function ReductionForm({ initialData, isEdit = false }: ReductionFormProp
                       type="checkbox"
                       checked={selectedProductIds?.includes(product.id) || false}
                       onChange={() => handleProductToggle(product.id)}
-                      className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
-                    />
-                    <span>{product.translations.fr.name}</span>
-                  </label>
-                ))}
+                        className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
+                      />
+                      <span>{product.translations.fr.name}</span>
+                    </label>
+                  ))}
+                {filteredProducts.length === 0 && (
+                  <p className="py-3 text-sm text-center text-gray-500">
+                    Aucun produit trouvé
+                  </p>
+                )}
               </div>
             </div>
           )}

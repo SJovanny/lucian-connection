@@ -234,16 +234,16 @@ export default function InventoryManager({
       {/* Inventory Table */}
       <Card padding="none">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-fixed">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">
+                <th className="w-[24%] text-left px-6 py-4 text-sm font-semibold text-gray-600">
                   Produit
                 </th>
-                <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">
+                <th className="w-[14%] text-left px-4 py-4 text-sm font-semibold text-gray-600">
                   Slug
                 </th>
-                <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">
+                <th className="w-[15%] text-left px-4 py-4 text-sm font-semibold text-gray-600">
                   Catégorie
                 </th>
                 <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">
@@ -284,13 +284,7 @@ export default function InventoryManager({
                   const isEditingRow = editing?.id === product.id;
 
                   return (
-                    <tr
-                      key={product.id}
-                      className={`${product.stock <= product.low_stock_threshold
-                        ? "bg-warning-50/50"
-                        : ""
-                        } ${product.stock === 0 ? "bg-error-50/50" : ""}`}
-                    >
+                    <tr key={product.id} className="bg-white">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           {product.image_url ? (
@@ -309,7 +303,10 @@ export default function InventoryManager({
                           </p>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-gray-600 font-mono text-sm">
+                      <td
+                        className="max-w-0 px-4 py-4 text-gray-600 font-mono text-sm truncate"
+                        title={product.slug}
+                      >
                         {product.slug}
                       </td>
                       <td className="px-6 py-4 text-gray-600">
