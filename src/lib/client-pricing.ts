@@ -24,8 +24,8 @@ export function getPricingErrorMessage(
   if (code === "MIN_ORDER_NOT_MET") {
     if (fallback) return fallback;
     return locale === "en"
-      ? "The minimum order amount is €10.00."
-      : "Le minimum de commande est de 10,00 €.";
+      ? "The minimum order amount has not been met."
+      : "Le minimum de commande n’est pas atteint.";
   }
 
   return fallback || (locale === "en" ? "Unable to calculate the order total" : "Impossible de calculer le total de la commande");

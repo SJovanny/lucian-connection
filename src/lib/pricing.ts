@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Coupon } from "@/types/database.types";
 import {
-  MIN_ORDER_AMOUNT_CENTS,
   PRICING_CURRENCY,
   type PricingQuote,
   type PricingQuoteItem,
@@ -256,11 +255,11 @@ export async function getPricingQuote(
   );
   const preparationFeeCents = toCents(settings?.preparation_fee || 0);
 
-  // The store setting may increase the threshold, but never lower the €10 floor.
+  // The minimum is configured by an administrator in the store settings.
   const configuredMinimumCents = settings?.min_order_amount === null || settings?.min_order_amount === undefined
-    ? MIN_ORDER_AMOUNT_CENTS
+    ? 0
     : toCents(settings.min_order_amount, "SETTINGS_UNAVAILABLE");
-  const minimumOrderCents = Math.max(MIN_ORDER_AMOUNT_CENTS, configuredMinimumCents);
+  const minimumOrderCents = configuredMinimumCents;
   if (subtotalCents < minimumOrderCents) {
     throw new PricingError(
       "MIN_ORDER_NOT_MET",

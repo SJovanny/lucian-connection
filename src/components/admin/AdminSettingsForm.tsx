@@ -47,7 +47,7 @@ export function AdminSettingsForm({
       const typedSettings = data as Pick<StoreSettings, "preparation_fee" | "min_order_amount"> | null;
       if (typedSettings) {
         setPreparationFee(typedSettings.preparation_fee.toString());
-        setMinOrderAmount(Math.max(10, typedSettings.min_order_amount).toString());
+        setMinOrderAmount(Math.max(0, typedSettings.min_order_amount).toString());
       }
     };
     fetchSettings();
@@ -136,6 +136,87 @@ export function AdminSettingsForm({
     setClosures((current) => current.filter((closure) => closure.id !== id));
   };
 
+  const handleSaveStoreSettings = async () => {
+    setIsSaving(true);
+    setError(null);
+    setSuccess(null);
+
+    const preparationFeeValue = parseFloat(preparationFee);
+    const minOrderAmountValue = parseFloat(minOrderAmount);
+    if (!Number.isFinite(preparationFeeValue) || preparationFeeValue < 0 || !Number.isFinite(minOrderAmountValue) || minOrderAmountValue < 0) {
+      setError("Les montants doivent être des nombres positifs ou nuls.");
+      setIsSaving(false);
+      return;
+    }
+
+    try {
+      const supabase = createClient();
+      const { data: settingsData, error: fetchError } = await supabase
+        .from("store_settings")
+        .select("id, preparation_fee, min_order_amount")
+        .single();
+
+      if (fetchError && fetchError.code !== "PGRST116") throw fetchError;
+
+      const settingsUpdate: Partial<StoreSettings> = {
+        preparation_fee: preparationFeeValue,
+        min_order_amount: minOrderAmountValue,
+        updated_at: new Date().toISOString(),
+        updated_by: userId,
+      };
+
+      let settingsId = settingsData?.id;
+      let updatedSettings: Pick<StoreSettings, "preparation_fee" | "min_order_amount">;
+      if (settingsId) {
+        const { data, error: settingsError } = await supabase
+          .from("store_settings")
+          .update(settingsUpdate)
+          .eq("id", settingsId)
+          .select("preparation_fee, min_order_amount")
+          .single();
+        if (settingsError) throw settingsError;
+        updatedSettings = data as Pick<StoreSettings, "preparation_fee" | "min_order_amount">;
+      } else {
+        const { data, error: settingsError } = await supabase
+          .from("store_settings")
+          .insert({
+            preparation_fee: preparationFeeValue,
+            min_order_amount: minOrderAmountValue,
+            updated_at: new Date().toISOString(),
+            updated_by: userId,
+          })
+          .select("id, preparation_fee, min_order_amount")
+          .single();
+        if (settingsError) throw settingsError;
+        settingsId = data.id;
+        updatedSettings = data as Pick<StoreSettings, "preparation_fee" | "min_order_amount">;
+      }
+
+      const changes = diffFields(
+        settingsData as Pick<StoreSettings, "preparation_fee" | "min_order_amount"> | null,
+        updatedSettings,
+        ["preparation_fee", "min_order_amount"]
+      );
+      if (changes.length > 0 && settingsId) {
+        await recordAuditClient(supabase, {
+          action: "store_settings.updated",
+          entityType: "store_settings",
+          entityId: settingsId,
+          summary: "Paramètres du magasin modifiés",
+          changes,
+        });
+      }
+
+      setPreparationFee(String(updatedSettings.preparation_fee));
+      setMinOrderAmount(String(updatedSettings.min_order_amount));
+      setSuccess("Paramètres de la boutique mis à jour.");
+    } catch (settingsError) {
+      setError(settingsError instanceof Error ? settingsError.message : "Impossible d'enregistrer les paramètres de la boutique.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     setError(null);
@@ -159,69 +240,6 @@ export function AdminSettingsForm({
 
         setError(profileError.message);
         return;
-      }
-
-      // Update store settings
-      const settingsUpdate: Partial<StoreSettings> = {
-        preparation_fee: parseFloat(preparationFee),
-        min_order_amount: Math.max(10, parseFloat(minOrderAmount) || 10),
-        updated_at: new Date().toISOString(),
-        updated_by: userId,
-      };
-
-      const { data: settingsData } = await supabase.from("store_settings").select("id, preparation_fee, min_order_amount").single();
-      const settingsId = settingsData?.id;
-
-      if (settingsId) {
-        const { data: updatedSettings, error: settingsError } = await supabase
-          .from("store_settings")
-          .update(settingsUpdate)
-          .eq("id", settingsId)
-          .select("preparation_fee, min_order_amount")
-          .single();
-
-        if (settingsError) {
-          setError(settingsError.message);
-          return;
-        }
-
-        const changes = diffFields(
-          settingsData as Pick<StoreSettings, "preparation_fee" | "min_order_amount">,
-          updatedSettings as Pick<StoreSettings, "preparation_fee" | "min_order_amount">,
-          ["preparation_fee", "min_order_amount"]
-        );
-        if (changes.length > 0) {
-          await recordAuditClient(supabase, {
-            action: "store_settings.updated",
-            entityType: "store_settings",
-            entityId: settingsId,
-            summary: "Paramètres du magasin modifiés",
-            changes,
-          });
-        }
-      } else {
-        const { data: createdSettings, error: settingsError } = await supabase
-          .from("store_settings")
-          .insert({
-            preparation_fee: parseFloat(preparationFee),
-            min_order_amount: Math.max(10, parseFloat(minOrderAmount) || 10),
-            updated_by: userId,
-          })
-          .select("id")
-          .single();
-
-        if (settingsError) {
-          setError(settingsError.message);
-          return;
-        }
-
-        await recordAuditClient(supabase, {
-          action: "store_settings.updated",
-          entityType: "store_settings",
-          entityId: createdSettings?.id,
-          summary: "Paramètres du magasin créés",
-          metadata: settingsUpdate,
-        });
       }
 
       if (email !== initialEmail) {
@@ -415,11 +433,24 @@ export function AdminSettingsForm({
             type="number"
             value={minOrderAmount}
             onChange={(e) => setMinOrderAmount(e.target.value)}
-            placeholder="10.00"
-            min="10"
+            placeholder="0.00"
+            min="0"
             step="0.01"
-            helperText="Le minimum serveur ne peut pas être inférieur à 10,00 €."
+            helperText="Utilisez 0 € pour supprimer le minimum de commande."
           />
+        </div>
+        {(error || success) && (
+          <div className={`text-sm rounded-lg px-4 py-3 ${error
+              ? "bg-error-50 text-error-700 border border-error-200"
+              : "bg-success-50 text-success-700 border border-success-200"
+            }`}>
+            {error || success}
+          </div>
+        )}
+        <div className="flex justify-end">
+          <Button onClick={handleSaveStoreSettings} isLoading={isSaving}>
+            Enregistrer les paramètres de la boutique
+          </Button>
         </div>
       </Card>
 
