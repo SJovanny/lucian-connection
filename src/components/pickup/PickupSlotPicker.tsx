@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import type { PickupDay } from "@/lib/pickup-rules";
 
 type PickupSlotPickerProps = {
@@ -9,6 +9,10 @@ type PickupSlotPickerProps = {
   onChange: (pickupAt: string | null) => void;
   reloadToken?: number;
 };
+
+function isSamePickupInstant(value: string | null, pickupAt: string): boolean {
+  return value !== null && Date.parse(value) === Date.parse(pickupAt);
+}
 
 export function PickupSlotPicker({
   locale = "fr",
@@ -21,29 +25,43 @@ export function PickupSlotPicker({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadAvailability = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/pickup-availability", { cache: "no-store" });
-      if (!response.ok) throw new Error("availability");
-      const data = await response.json() as { days: PickupDay[] };
-      setDays(data.days);
-      setSelectedDate((current) =>
-        current && data.days.some((day) => day.date === current) ? current : data.days[0]?.date || null
-      );
-    } catch {
-      setError(locale === "fr" ? "Les créneaux sont temporairement indisponibles." : "Pickup slots are temporarily unavailable.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    const loadAvailability = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await fetch("/api/pickup-availability", { cache: "no-store", signal: controller.signal });
+        if (!response.ok) throw new Error("availability");
+        const data = await response.json() as { days: PickupDay[] };
+        if (!active) return;
+        setDays(data.days);
+        setSelectedDate((current) =>
+          current && data.days.some((day) => day.date === current) ? current : data.days[0]?.date || null
+        );
+      } catch {
+        if (!active) return;
+        setError(locale === "fr" ? "Les créneaux sont temporairement indisponibles." : "Pickup slots are temporarily unavailable.");
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    };
     loadAvailability();
-    // reloadToken intentionally refreshes the server-generated availability.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reloadToken]);
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [reloadToken, locale]);
+
+  const clearSelection = useEffectEvent(() => onChange(null));
+  useEffect(() => {
+    if (!isLoading && !error && value && !days.some((day) =>
+      day.state === "available" && day.slots.some((slot) => isSamePickupInstant(value, slot.pickupAt))
+    )) {
+      clearSelection();
+    }
+  }, [days, value, isLoading, error]);
 
   const selectedDay = days.find((day) => day.date === selectedDate);
   const dateFormatter = new Intl.DateTimeFormat(locale === "fr" ? "fr-FR" : "en-US", {
@@ -81,7 +99,12 @@ export function PickupSlotPicker({
                   type="button"
                   disabled={disabled}
                   aria-pressed={selectedDate === day.date}
-                  onClick={() => setSelectedDate(day.date)}
+                  onClick={() => {
+                    if (day.date !== selectedDate) {
+                      setSelectedDate(day.date);
+                      onChange(null);
+                    }
+                  }}
                   className={`min-h-16 rounded-lg border px-2 py-2 text-sm transition-colors ${
                     selectedDate === day.date
                       ? "border-primary-500 bg-primary-50 text-primary-700"
@@ -106,10 +129,10 @@ export function PickupSlotPicker({
                 <button
                   key={slot.pickupAt}
                   type="button"
-                  aria-pressed={value === slot.pickupAt}
-                  onClick={() => onChange(value === slot.pickupAt ? null : slot.pickupAt)}
+                  aria-pressed={isSamePickupInstant(value, slot.pickupAt)}
+                  onClick={() => onChange(isSamePickupInstant(value, slot.pickupAt) ? null : slot.pickupAt)}
                   className={`rounded-lg border px-3 py-3 text-sm font-medium transition-colors ${
-                    value === slot.pickupAt
+                    isSamePickupInstant(value, slot.pickupAt)
                       ? "border-primary-500 bg-primary-500 text-white"
                       : "border-gray-200 bg-white text-gray-700 hover:border-primary-300 hover:bg-primary-50"
                   }`}
