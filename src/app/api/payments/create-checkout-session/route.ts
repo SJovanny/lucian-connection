@@ -1,42 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
-import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import {
   fromCents,
   getPricingQuote,
   PricingError,
 } from "@/lib/pricing";
-import { PRICING_CURRENCY } from "@/lib/pricing-types";
 import { validatePickupAt } from "@/lib/pickup-rules";
-import { cartItemSchema } from "@/lib/api-schemas";
+import { checkoutSchema } from "@/lib/payments/checkout-schema";
+import { createStripeCheckoutGateway, type CheckoutGateway } from "@/lib/payments/stripe-checkout";
 import { apiRequestErrorResponse, readBoundedJson, safeLogError } from "@/lib/api-request";
 
 const TERMS_VERSION = "1.0";
-const checkoutSchema = z.object({
-  items: z.array(cartItemSchema).min(1).max(100),
-  phone: z.string().trim().min(1).max(32),
-  notes: z.string().trim().max(2000).nullish(),
-  locale: z.enum(["fr", "en"]).default("fr"),
-  pickup_at: z.string().datetime({ offset: true }),
-  coupon_id: z.string().uuid().nullish(),
-  quote_total_cents: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
-  full_name: z.string().trim().min(1).max(200),
-  email: z.string().trim().max(254).email().optional(),
-  terms_accepted: z.literal(true),
-  age_confirmed: z.boolean().optional(),
-}).strict();
-
-function getStripe() {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) throw new Error("STRIPE_SECRET_KEY is not configured");
-  return new Stripe(key);
-}
 
 export async function POST(request: NextRequest) {
   let createdOrderId: string | null = null;
   let orderUserId: string | null = null;
-  let stripe: Stripe | null = null;
+  let checkoutGateway: CheckoutGateway | null = null;
   let createdSessionId: string | null = null;
   let sessionCreationAttempted = false;
   let sessionIdempotencyKey: string | null = null;
@@ -171,70 +150,23 @@ export async function POST(request: NextRequest) {
     );
     if (legalError) throw legalError;
 
-    const stripeClient = getStripe();
-    stripe = stripeClient;
-    const stripeProducts = await Promise.all(
-      quote.items.map((item) => stripeClient.products.create({
-        name: item.product_name,
-        metadata: { order_id: order.id, product_id: item.product_id },
-      }))
-    );
-    const feeProduct = quote.preparation_fee_cents > 0
-      ? await stripe.products.create({
-          name: locale === "en" ? "Preparation fee" : "Frais de préparation",
-          metadata: { order_id: order.id, type: "preparation_fee" },
-        })
-      : null;
-
-    const stripeDiscount = quote.discount_cents > 0
-      ? [{
-          coupon: (await stripe.coupons.create({
-            amount_off: quote.discount_cents,
-            currency: PRICING_CURRENCY,
-            duration: "once",
-            applies_to: { products: stripeProducts.map((product) => product.id) },
-          })).id,
-        }]
-      : undefined;
-
-    const sessionLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = quote.items.map((item, index) => ({
-      quantity: item.quantity,
-      price_data: {
-        currency: PRICING_CURRENCY,
-        unit_amount: item.unit_price_cents,
-        product: stripeProducts[index].id,
-      },
-    }));
-    if (feeProduct) {
-      sessionLineItems.push({
-        quantity: 1,
-        price_data: {
-          currency: PRICING_CURRENCY,
-          unit_amount: quote.preparation_fee_cents,
-          product: feeProduct.id,
-        },
-      });
-    }
-
-    sessionIdempotencyKey = `checkout-session:${order.id}`;
-    sessionCreationAttempted = true;
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      customer_email: user.email,
-      billing_address_collection: "required",
-      invoice_creation: {
-        enabled: true,
-      },
-      line_items: sessionLineItems,
-      discounts: stripeDiscount,
+    checkoutGateway = createStripeCheckoutGateway();
+    const session = await checkoutGateway.createSession({
+      quote,
+      orderId: order.id,
+      locale,
+      email: user.email,
       metadata: {
         order_id: order.id,
         user_id: user.id,
         total_cents: String(quote.total_cents),
       },
-      success_url: `${process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin}/${locale || "fr"}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin}/${locale || "fr"}/checkout?payment=cancelled`,
-    }, { idempotencyKey: sessionIdempotencyKey });
+      successUrl: `${process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin}/${locale || "fr"}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin}/${locale || "fr"}/checkout?payment=cancelled`,
+    }, (idempotencyKey) => {
+      sessionIdempotencyKey = idempotencyKey;
+      sessionCreationAttempted = true;
+    });
 
     createdSessionId = session.id;
     if (!session.url) throw new Error("Checkout session returned no URL");
@@ -251,11 +183,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     // Best-effort compensation only: Stripe and database writes are not atomic.
     let canCompensate = !sessionCreationAttempted
-      || (!createdSessionId && error instanceof Stripe.errors.StripeInvalidRequestError);
-    if (stripe && createdSessionId) {
+      || (!createdSessionId && checkoutGateway?.isDefinitiveCreationError(error) === true);
+    if (checkoutGateway && createdSessionId) {
       try {
-        const expiredSession = await stripe.checkout.sessions.expire(createdSessionId);
-        if (expiredSession.status !== "expired") throw new Error("Checkout session expiration was not confirmed");
+        await checkoutGateway.expireSession(createdSessionId);
         canCompensate = true;
       } catch (expirationError) {
         safeLogError("Unable to expire failed checkout session", expirationError);
