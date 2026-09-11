@@ -1,21 +1,64 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useLocale } from "next-intl";
+import { useLoyalty, type LoyaltyData } from "@/lib/client/useLoyalty";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import type { LoyaltyLedgerEntry, LoyaltyReward } from "@/types/database.types";
+import type { LoyaltyLedgerEntry } from "@/types/database.types";
 import { Check, ChevronLeft, ChevronRight, LockKeyhole, Sparkles } from "lucide-react";
-
-type LoyaltyData = { balance: number; ledger: LoyaltyLedgerEntry[]; rewards: LoyaltyReward[]; redemptions: Array<{ id: string; created_at: string; points_spent: number; coupons?: { code: string } | null }> };
 
 const HISTORY_PREVIEW_COUNT = 5;
 const HISTORY_MODAL_PAGE_SIZE = 10;
 
-const currency = (value: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(value);
-const date = (value: string) => new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" }).format(new Date(value));
+function useLoyaltyFormatting() {
+  const locale = useLocale();
+  return {
+    number: (value: number) => new Intl.NumberFormat(locale).format(value),
+    currency: (value: number) => new Intl.NumberFormat(locale, { style: "currency", currency: "EUR" }).format(value),
+    percent: (value: number) => new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 2 }).format(value / 100),
+    date: (value: string) => new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(value)),
+  };
+}
+
+function ErrorNotice({ message, retry, retryLabel, loading }: {
+  message: string;
+  retry: () => void;
+  retryLabel: string;
+  loading: boolean;
+}) {
+  return (
+    <div role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+      <p>{message}</p>
+      <Button className="mt-2" size="sm" onClick={retry} disabled={loading} isLoading={loading}>
+        {retryLabel}
+      </Button>
+    </div>
+  );
+}
+
+function LoyaltyCoupons({ redemptions }: { redemptions: LoyaltyData["redemptions"] }) {
+  const { date, number } = useLoyaltyFormatting();
+  return (
+    <div>
+      <h3 className="font-semibold text-gray-900 mb-3">Mes bons de réduction</h3>
+      {redemptions.length ? (
+        <div className="grid sm:grid-cols-2 gap-3">
+          {redemptions.map((redemption) => (
+            <div key={redemption.id} className="rounded-lg border border-gray-200 p-3 text-sm">
+              <p className="font-medium text-gray-900">{redemption.coupons?.code || "Bon fidélité"}</p>
+              <p className="text-gray-500">Obtenu le {date(redemption.created_at)} · {number(redemption.points_spent)} points</p>
+            </div>
+          ))}
+        </div>
+      ) : <p className="text-sm text-gray-500">Aucun bon obtenu pour le moment.</p>}
+    </div>
+  );
+}
 
 function LedgerRow({ entry }: { entry: LoyaltyLedgerEntry }) {
+  const { date, number } = useLoyaltyFormatting();
   return (
     <div className="flex justify-between gap-3 border-b border-gray-100 py-2 text-sm">
       <div>
@@ -23,53 +66,37 @@ function LedgerRow({ entry }: { entry: LoyaltyLedgerEntry }) {
         <p className="text-gray-500">{date(entry.created_at)}</p>
       </div>
       <span className={entry.points > 0 ? "font-semibold text-green-700" : "font-semibold text-red-700"}>
-        {entry.points > 0 ? "+" : ""}{entry.points}
+        {entry.points > 0 ? "+" : ""}{number(entry.points)}
       </span>
     </div>
   );
 }
 
 export function LoyaltySection() {
-  const [data, setData] = useState<LoyaltyData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [redeeming, setRedeeming] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const { data, loading, loadError, redeeming, redeemError, couponCode, load, redeem } = useLoyalty();
+  const locale = useLocale();
+  const { currency, number, percent } = useLoyaltyFormatting();
+  const en = locale === "en";
+  const retryLabel = en ? "Retry" : "Réessayer";
+  const loadingLabel = en ? "Loading your loyalty account…" : "Chargement de votre fidélité…";
+  const loadErrorMessage = en
+    ? "Unable to refresh your loyalty account. Check your connection and retry to see your current points and coupons."
+    : "Impossible d’actualiser votre fidélité. Vérifiez votre connexion et réessayez pour voir vos points et bons à jour.";
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyPage, setHistoryPage] = useState(1);
-
-  const load = async () => {
-    const response = await fetch("/api/loyalty");
-    if (response.ok) setData(await response.json());
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    // Load the account data once after the client component mounts.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, []);
-
-  const redeem = async (rewardId: string) => {
-    setRedeeming(rewardId);
-    setMessage(null);
-    const response = await fetch("/api/loyalty/redeem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reward_id: rewardId }) });
-    if (response.ok) {
-      const result = await response.json();
-      setMessage(`Votre bon ${result.coupon_code} est disponible dans votre compte.`);
-      await load();
-    } else {
-      setMessage("Impossible d'échanger cette récompense.");
-    }
-    setRedeeming(null);
-  };
 
   const openHistoryModal = () => {
     setHistoryPage(1);
     setShowHistoryModal(true);
   };
 
-  if (loading) return <Card><CardContent><p className="text-gray-500">Chargement de votre fidélité...</p></CardContent></Card>;
-  if (!data) return null;
+  if (!data) return (
+    <Card><CardContent>
+      {loading ? <p role="status" className="text-gray-500">{loadingLabel}</p> : (
+        <ErrorNotice message={loadErrorMessage} retry={load} retryLabel={retryLabel} loading={loading} />
+      )}
+    </CardContent></Card>
+  );
   const ledger = data.ledger.slice(0, HISTORY_PREVIEW_COUNT);
   const hasMoreHistory = data.ledger.length > HISTORY_PREVIEW_COUNT;
   const totalHistoryPages = Math.max(1, Math.ceil(data.ledger.length / HISTORY_MODAL_PAGE_SIZE));
@@ -85,14 +112,26 @@ export function LoyaltySection() {
       <CardHeader><CardTitle>Ma fidélité</CardTitle></CardHeader>
       <CardContent className="space-y-6">
         <div className="rounded-xl bg-primary-700 p-5 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div><p className="text-sm text-primary-100">Solde disponible</p><p className="text-4xl font-bold">{data.balance} points</p></div>
-          <p className="text-sm text-primary-100">1 € dépensé sur les produits = 1 point</p>
+          <div><p className="text-sm text-primary-100">Solde disponible</p><p className="text-4xl font-bold">{number(data.balance)} points</p></div>
+          <p className="text-sm text-primary-100">{currency(1)} dépensé sur les produits = 1 point</p>
         </div>
-        {message && <p className="rounded-lg bg-green-50 p-3 text-sm text-green-700">{message}</p>}
+        {couponCode && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-700">
+          {en ? `Your coupon ${couponCode} is available in your account.` : `Votre bon ${couponCode} est disponible dans votre compte.`}
+        </p>}
+        {loading && <p role="status" className="text-sm text-gray-500">{loadingLabel}</p>}
+        {loadError && <ErrorNotice message={loadErrorMessage} retry={load} retryLabel={retryLabel} loading={loading} />}
+        {redeemError && <ErrorNotice
+          message={en
+            ? "Unable to confirm the redemption. Check your connection and refresh your points and coupons before trying to redeem again."
+            : "Impossible de confirmer l’échange. Vérifiez votre connexion et actualisez vos points et bons avant de retenter l’échange."}
+          retry={load}
+          retryLabel={en ? "Refresh points and coupons" : "Actualiser les points et bons"}
+          loading={loading || redeeming !== null}
+        />}
         <div className="border-y border-gray-200 py-6">
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-8">
             <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-600">Vos paliers</p><h3 className="mt-1 text-xl font-bold text-gray-900">Votre progression fidélité</h3></div>
-            {nextReward ? <p className="text-sm text-gray-600">Encore <strong className="text-primary-700">{nextReward.points_cost - data.balance} points</strong> pour {nextReward.name}</p> : <p className="text-sm font-medium text-accent-700">Tous les paliers sont débloqués</p>}
+            {nextReward ? <p className="text-sm text-gray-600">Encore <strong className="text-primary-700">{number(nextReward.points_cost - data.balance)} points</strong> pour {nextReward.name}</p> : <p className="text-sm font-medium text-accent-700">Tous les paliers sont débloqués</p>}
           </div>
           {rewards.length === 0 ? (
             <p className="text-sm text-gray-500">Les récompenses seront bientôt disponibles.</p>
@@ -130,9 +169,9 @@ export function LoyaltySection() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-bold text-gray-900">{reward.name}</p>
                         <p className="text-xs text-gray-500">
-                          {reward.points_cost} pts ·{" "}
+                          {number(reward.points_cost)} pts ·{" "}
                           {reward.discount_type === "percentage"
-                            ? `${reward.discount_value}%`
+                            ? percent(reward.discount_value)
                             : currency(reward.discount_value)}
                         </p>
                       </div>
@@ -140,7 +179,7 @@ export function LoyaltySection() {
                         <Button
                           size="sm"
                           className="shrink-0"
-                          disabled={redeeming !== null}
+                          disabled={redeeming !== null || loading || loadError}
                           isLoading={redeeming === reward.id}
                           onClick={() => redeem(reward.id)}
                         >
@@ -180,18 +219,18 @@ export function LoyaltySection() {
                             <LockKeyhole className="h-3.5 w-3.5" />
                           )}
                         </div>
-                        <p className="mt-3 text-sm font-bold text-gray-900">{reward.points_cost} pts</p>
+                        <p className="mt-3 text-sm font-bold text-gray-900">{number(reward.points_cost)} pts</p>
                         <p className="mt-1 max-w-[120px] text-xs font-medium text-gray-700">{reward.name}</p>
                         <p className="mt-1 text-xs text-gray-500">
                           {reward.discount_type === "percentage"
-                            ? `${reward.discount_value}%`
+                            ? percent(reward.discount_value)
                             : currency(reward.discount_value)}
                         </p>
                         {unlocked && (
                           <Button
                             className="mt-3"
                             size="sm"
-                            disabled={redeeming !== null}
+                            disabled={redeeming !== null || loading || loadError}
                             isLoading={redeeming === reward.id}
                             onClick={() => redeem(reward.id)}
                           >
@@ -218,11 +257,11 @@ export function LoyaltySection() {
               onClick={openHistoryModal}
               className="mt-3 text-sm font-semibold text-primary-700 hover:text-primary-800"
             >
-              Voir tout l&apos;historique ({data.ledger.length})
+              Voir tout l&apos;historique ({number(data.ledger.length)})
             </button>
           )}
         </div>
-        <div><h3 className="font-semibold text-gray-900 mb-3">Mes bons de réduction</h3>{data.redemptions.length ? <div className="grid sm:grid-cols-2 gap-3">{data.redemptions.map((redemption) => <div key={redemption.id} className="rounded-lg border border-gray-200 p-3 text-sm"><p className="font-medium text-gray-900">{redemption.coupons?.code || "Bon fidélité"}</p><p className="text-gray-500">Obtenu le {date(redemption.created_at)} · {redemption.points_spent} points</p></div>)}</div> : <p className="text-sm text-gray-500">Aucun bon obtenu pour le moment.</p>}</div>
+        <LoyaltyCoupons redemptions={data.redemptions} />
       </CardContent>
       <Modal isOpen={showHistoryModal} onClose={() => setShowHistoryModal(false)} title="Historique des points" size="lg">
         <div className="space-y-2">
@@ -239,7 +278,7 @@ export function LoyaltySection() {
               <ChevronLeft className="w-4 h-4" />
               Précédent
             </button>
-            <span className="text-sm text-gray-500">Page {historyPage} / {totalHistoryPages}</span>
+            <span className="text-sm text-gray-500">Page {number(historyPage)} / {number(totalHistoryPages)}</span>
             <button
               type="button"
               onClick={() => setHistoryPage((p) => Math.min(totalHistoryPages, p + 1))}
