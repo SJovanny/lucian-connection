@@ -7,6 +7,7 @@ import { PickupSlotPicker } from "@/components/pickup/PickupSlotPicker";
 import type { Order, OrderItem, OrderRefund, Profile } from "@/types/database.types";
 import { useState, useEffect, useEffectEvent } from "react";
 import { useAdminOrderRealtime } from "@/components/admin/AdminOrderRealtimeProvider";
+import { getOrderTransitionError } from "@/lib/orders/order-transitions";
 
 type OrderWithDetails = Order & {
   order_items: OrderItem[];
@@ -801,8 +802,7 @@ export default function OrdersPage() {
                     key={status}
                     onClick={() => handleStatusChange(status)}
                     disabled={
-                      isLoadingStatus || status === selectedOrder.status ||
-                      (status === "completed" && selectedOrder.contains_alcohol && !selectedOrder.pickup_age_verified_at)
+                      isLoadingStatus || getOrderTransitionError(selectedOrder, status) !== null
                     }
                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       status === selectedOrder.status

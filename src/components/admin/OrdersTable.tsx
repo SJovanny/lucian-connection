@@ -5,6 +5,7 @@ import { Eye, Search } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
 import { updateOrderStatus } from "@/lib/admin-actions";
+import { canTransitionOrderStatus } from "@/lib/orders/order-transitions";
 
 type OrderStatus = "pending" | "preparing" | "ready" | "completed" | "cancelled" | "refunded";
 
@@ -344,14 +345,14 @@ export function OrdersTable({ initialOrders }: OrdersTableProps) {
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => handleStatusChange("preparing")}
-                  disabled={isUpdating || selectedOrder.status === "preparing"}
+                  disabled={isUpdating || !canTransitionOrderStatus(selectedOrder.status, "preparing")}
                   className="px-3 py-2 text-sm bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors disabled:opacity-50"
                 >
                   En préparation
                 </button>
                 <button
                   onClick={() => handleStatusChange("cancelled")}
-                  disabled={isUpdating || selectedOrder.status === "cancelled"}
+                  disabled={isUpdating || !canTransitionOrderStatus(selectedOrder.status, "cancelled")}
                   className="px-3 py-2 text-sm bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
                 >
                   Annulée

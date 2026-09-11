@@ -71,8 +71,8 @@ export async function getAdminUser(): Promise<StaffUser | null> {
   return authorize(supabase, "admin");
 }
 
-export async function getStaffSupabase(request: NextRequest) {
-  const supabase = createClientFromRequest(request);
+export async function getStaffSupabase(request?: NextRequest) {
+  const supabase = request ? createClientFromRequest(request) : await createClient();
   return await authorize(supabase, "staff") ? supabase : null;
 }
 
