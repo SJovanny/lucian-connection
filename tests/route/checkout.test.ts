@@ -119,7 +119,7 @@ describe("checkout route", () => {
   it("accepts the current client payload, records legal documents, and saves the session before returning its URL", async () => {
     const response = await POST(request());
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ url: "https://checkout.stripe.test/session-1", quote });
+    expect(await response.json()).toEqual({ url: "https://checkout.stripe.test/session-1", session_id: "session-1", quote });
     expect(mocks.getPricingQuote).toHaveBeenCalledWith(expect.anything(), payload.items, { couponId: null, userId: "user-1", locale: "fr" });
     expect(db.legalInsert).toHaveBeenCalledWith(["terms", "pickup_refunds"].map((document_type) => ({
       user_id: "user-1", order_id: "order-1", document_type, document_version: "1.0", user_agent: "checkout-test",

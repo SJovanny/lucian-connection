@@ -242,7 +242,6 @@ export default function CheckoutPage() {
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    console.log("[checkout] 1) submit clicked");
     e.preventDefault();
     setIsSubmitting(true);
     setFormError(null);
@@ -266,6 +265,7 @@ export default function CheckoutPage() {
     }
 
     try {
+      const checkoutCartSnapshot = JSON.stringify(items);
       const currentQuote = await fetchPricingQuote({
         items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
         couponId: appliedCoupon?.id || null,
@@ -274,18 +274,14 @@ export default function CheckoutPage() {
       setQuoteState({ key: quoteKey, quote: currentQuote });
 
       const supabase = createClient();
-      console.log("[checkout] 2) fetching user session");
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      console.log("[checkout] 3) user:", user, "authError:", authError);
+      const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        console.log("[checkout] 4) no user -> redirect /login");
         router.push(`/login?next=${encodeURIComponent("/checkout")}`);
         return;
       }
 
       const form = e.target as HTMLFormElement;
-      console.log("[checkout] 4.5) form element:", form);
       const formData = new FormData(form);
       const full_name = String(formData.get("fullName") || "").trim();
       const email = String(formData.get("email") || "").trim();
@@ -313,7 +309,6 @@ export default function CheckoutPage() {
       });
 
       const data = await res.json();
-      console.log("[checkout] payment session response status:", res.status);
       if (!res.ok) {
         console.error("[checkout] Payment session creation failed:", data);
         if (data?.error === "PRICE_CHANGED" || data?.error === "COUPON_UNAVAILABLE") {
@@ -339,6 +334,12 @@ export default function CheckoutPage() {
          setFormError(locale === "fr" ? "Le paiement n’est pas disponible." : "Payment is currently unavailable.");
          return;
        }
+       if (typeof data.session_id === "string" && data.session_id.length <= 255
+         && /^cs_(?:test_|live_)?[A-Za-z0-9]+$/.test(data.session_id)) {
+         try {
+           sessionStorage.setItem(`checkout-cart-snapshot:${data.session_id}`, checkoutCartSnapshot);
+         } catch { /* Without a snapshot, the success page preserves the cart. */ }
+       }
        window.location.assign(data.url);
     } catch (error) {
       console.error("[checkout] unexpected error:", error);
@@ -347,7 +348,6 @@ export default function CheckoutPage() {
         : locale === "fr" ? "Erreur lors de la création de la commande" : "Unable to create the order");
     } finally {
       setIsSubmitting(false);
-      console.log("[checkout] 8) submit finished");
     }
   };
 
@@ -544,45 +544,6 @@ export default function CheckoutPage() {
                   </CardContent>
                 </Card>
 
-                {/* Delivery Address - Removed for Click & Collect */}
-                {/* 
-                <Card>
-                  <CardContent className="p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                      {t("deliveryAddress")}
-                    </h2>
-                    <div className="space-y-4">
-                      <Input
-                        label={t("form.address")}
-                        name="address"
-                        required
-                        placeholder="123 Main Street"
-                      />
-                      <Input
-                        label={t("form.city")}
-                        name="city"
-                        required
-                        placeholder="Fort-de-France"
-                      />
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          {t("form.notes")}
-                        </label>
-                        <textarea
-                          name="notes"
-                          rows={3}
-                          className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
-                          placeholder={
-                            locale === "fr"
-                             ? "Instructions spéciales pour le retrait..."
-                             : "Special pickup instructions..."
-                          }
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card> 
-                */}
                 <Card>
                   <CardContent className="p-6">
                     <h2 className="text-lg font-semibold text-gray-900 mb-4">

@@ -247,7 +247,7 @@ export async function POST(request: NextRequest) {
       .select("id")
       .single();
     if (referenceError || !linkedOrder) throw referenceError || new Error("Payment reference was not saved");
-    return NextResponse.json({ url: session.url, quote });
+    return NextResponse.json({ url: session.url, session_id: session.id, quote });
   } catch (error) {
     // Best-effort compensation only: Stripe and database writes are not atomic.
     let canCompensate = !sessionCreationAttempted
