@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStaffSupabase } from "@/lib/admin-auth";
 import { recordAudit } from "@/lib/audit";
+import { featuredProductSchema } from "@/lib/api-schemas";
+import {
+  apiRequestErrorResponse,
+  readBoundedJson,
+  safeLogError,
+} from "@/lib/api-request";
 
 // POST /api/admin/products/featured - Toggle featured status
 export async function POST(request: NextRequest) {
@@ -10,14 +16,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { productId, isFeatured } = await request.json();
-
-    if (!productId || typeof isFeatured !== "boolean") {
-      return NextResponse.json(
-        { error: "productId and isFeatured are required" },
-        { status: 400 }
-      );
-    }
+    const { productId, isFeatured } = await readBoundedJson(request, featuredProductSchema);
 
     const { data, error } = await supabase
       .from("products")
@@ -30,7 +29,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error("Error updating product:", error);
+      safeLogError("Error updating product", error);
       return NextResponse.json(
         { error: "Failed to update product" },
         { status: 500 }
@@ -47,7 +46,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, product: data });
   } catch (error) {
-    console.error("Error in featured API:", error);
+    const requestError = apiRequestErrorResponse(error);
+    if (requestError) return requestError;
+    safeLogError("Error in featured API", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest) {
       .order("translations->fr->>name", { ascending: true });
 
     if (error) {
-      console.error("Error fetching products:", error);
+      safeLogError("Error fetching featured products", error);
       return NextResponse.json(
         { error: "Failed to fetch products" },
         { status: 500 }
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ products: data });
   } catch (error) {
-    console.error("Error in featured API:", error);
+    safeLogError("Error in featured API", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

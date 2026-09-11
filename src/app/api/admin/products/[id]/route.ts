@@ -2,21 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStaffSupabase } from "@/lib/admin-auth";
 import { diffFields, recordAudit } from "@/lib/audit";
 import type { Product } from "@/types/database.types";
-
-const parseAllergens = (value: unknown): string[] => {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => String(item).trim())
-      .filter(Boolean);
-  }
-  if (typeof value === "string") {
-    return value
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-  return [];
-};
+import { productUpdateSchema, uuidSchema } from "@/lib/api-schemas";
+import {
+  apiRequestErrorResponse,
+  readBoundedJson,
+  safeLogError,
+} from "@/lib/api-request";
 
 // GET - Récupérer un produit par ID
 export async function GET(
@@ -30,6 +21,9 @@ export async function GET(
     }
     
     const { id } = await params;
+    if (!uuidSchema.safeParse(id).success) {
+      return NextResponse.json({ error: "INVALID_ID" }, { status: 400 });
+    }
 
     const { data, error } = await supabase
       .from("products")
@@ -49,7 +43,7 @@ export async function GET(
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error fetching product:", error);
+    safeLogError("Error fetching product", error);
     return NextResponse.json(
       { error: "Failed to fetch product" },
       { status: 500 }
@@ -69,7 +63,10 @@ export async function PUT(
     }
     
     const { id } = await params;
-    const body = await request.json();
+    if (!uuidSchema.safeParse(id).success) {
+      return NextResponse.json({ error: "INVALID_ID" }, { status: 400 });
+    }
+    const body = await readBoundedJson(request, productUpdateSchema, 8 * 1024 * 1024);
 
     const {
       name_fr,
@@ -108,11 +105,11 @@ export async function PUT(
     const updateData: Record<string, unknown> = {};
 
     if (category_id !== undefined) updateData.category_id = category_id || null;
-    if (price !== undefined) updateData.price = parseFloat(price);
+    if (price !== undefined) updateData.price = price;
     if (unit !== undefined) updateData.unit = unit;
-    if (stock !== undefined) updateData.stock = parseInt(stock);
+    if (stock !== undefined) updateData.stock = stock;
     if (low_stock_threshold !== undefined) {
-      updateData.low_stock_threshold = parseInt(low_stock_threshold);
+      updateData.low_stock_threshold = low_stock_threshold;
     }
     if (track_stock !== undefined) updateData.track_stock = track_stock;
     if (is_alcoholic !== undefined) updateData.is_alcoholic = is_alcoholic === true;
@@ -123,8 +120,8 @@ export async function PUT(
     if (allergens_fr !== undefined || allergens_en !== undefined) {
       const currentAllergens = existingProduct.allergens || { fr: [], en: [] };
       updateData.allergens = {
-        fr: allergens_fr !== undefined ? parseAllergens(allergens_fr) : currentAllergens.fr || [],
-        en: allergens_en !== undefined ? parseAllergens(allergens_en) : currentAllergens.en || [],
+        fr: allergens_fr !== undefined ? allergens_fr : currentAllergens.fr || [],
+        en: allergens_en !== undefined ? allergens_en : currentAllergens.en || [],
       };
     }
 
@@ -147,7 +144,7 @@ export async function PUT(
       };
     }
 
-    if (category_id !== undefined) {
+    if (category_id) {
       const { data: category, error: categoryError } = await supabase
         .from("categories")
         .select("slug")
@@ -190,7 +187,9 @@ export async function PUT(
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error updating product:", error);
+    const requestError = apiRequestErrorResponse(error);
+    if (requestError) return requestError;
+    safeLogError("Error updating product", error);
     return NextResponse.json(
       { error: "Failed to update product" },
       { status: 500 }
@@ -210,6 +209,9 @@ export async function DELETE(
     }
     
     const { id } = await params;
+    if (!uuidSchema.safeParse(id).success) {
+      return NextResponse.json({ error: "INVALID_ID" }, { status: 400 });
+    }
     
     const { data, error } = await supabase
       .from("products")
@@ -238,7 +240,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, id: data.id });
   } catch (error) {
-    console.error("Error deleting product:", error);
+    safeLogError("Error deleting product", error);
     return NextResponse.json(
       { error: "Failed to delete product" },
       { status: 500 }

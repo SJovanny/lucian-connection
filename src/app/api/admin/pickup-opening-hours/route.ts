@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStaffSupabase } from "@/lib/admin-auth";
 import { recordAudit } from "@/lib/audit";
+import { openingHoursUpdateSchema } from "@/lib/api-schemas";
+import {
+  ApiRequestError,
+  apiRequestErrorResponse,
+  readBoundedJson,
+  safeLogError,
+} from "@/lib/api-request";
 
 export async function GET(request: NextRequest) {
   const supabase = await getStaffSupabase(request);
@@ -16,24 +23,7 @@ export async function PUT(request: NextRequest) {
   if (!supabase) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const body = await request.json();
-    if (!Array.isArray(body.openingHours) || body.openingHours.length !== 7) throw new Error("INVALID_OPENING_HOURS");
-
-    const rows = body.openingHours.map((hours: Record<string, unknown>) => {
-      const weekday = Number(hours.weekday);
-      const isOpen = Boolean(hours.is_open);
-      const startTime = typeof hours.start_time === "string" ? hours.start_time : null;
-      const endTime = typeof hours.end_time === "string" ? hours.end_time : null;
-      const validTime = (value: string | null) => value !== null && /^([01]\d|2[0-3]):[03]0$/.test(value);
-
-      if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) throw new Error("INVALID_OPENING_HOURS");
-      if (isOpen && (!validTime(startTime) || !validTime(endTime) || startTime! >= endTime!)) {
-        throw new Error("INVALID_OPENING_HOURS");
-      }
-      return { weekday, is_open: isOpen, start_time: isOpen ? startTime : null, end_time: isOpen ? endTime : null };
-    });
-
-    if (new Set(rows.map((row: { weekday: number }) => row.weekday)).size !== 7) throw new Error("INVALID_OPENING_HOURS");
+    const { openingHours: rows } = await readBoundedJson(request, openingHoursUpdateSchema);
     const { data: userData } = await supabase.auth.getUser();
     const { data, error } = await supabase
       .from("pickup_opening_hours")
@@ -49,10 +39,12 @@ export async function PUT(request: NextRequest) {
     });
     return NextResponse.json({ openingHours: data || [] });
   } catch (error) {
-    if (error instanceof Error && error.message === "INVALID_OPENING_HOURS") {
+    if (error instanceof ApiRequestError && error.code === "INVALID_REQUEST") {
       return NextResponse.json({ error: "INVALID_OPENING_HOURS" }, { status: 400 });
     }
-    console.error("[pickup-opening-hours] Error:", error);
+    const requestError = apiRequestErrorResponse(error);
+    if (requestError) return requestError;
+    safeLogError("[pickup-opening-hours] Error", error);
     return NextResponse.json({ error: "Failed to save opening hours" }, { status: 500 });
   }
 }

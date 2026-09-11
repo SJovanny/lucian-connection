@@ -3,6 +3,11 @@ import { z } from "zod";
 import { getAdminSupabase } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAudit } from "@/lib/audit";
+import {
+  apiRequestErrorResponse,
+  readBoundedJson,
+  safeLogError,
+} from "@/lib/api-request";
 
 const userSchema = z.object({
   email: z.string().trim().email(),
@@ -40,24 +45,28 @@ export async function POST(request: NextRequest) {
   const supabase = await getAdminSupabase(request);
   if (!supabase) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const parsed = userSchema.safeParse(await request.json());
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Email et rôle invalides" }, { status: 400 });
+  let input: z.infer<typeof userSchema>;
+  try {
+    input = await readBoundedJson(request, userSchema);
+  } catch (error) {
+    return apiRequestErrorResponse(error)
+      ?? NextResponse.json({ error: "INVALID_REQUEST" }, { status: 400 });
   }
 
   const origin = request.nextUrl.origin;
   const adminClient = createAdminClient();
-  const { data, error } = await adminClient.auth.admin.inviteUserByEmail(parsed.data.email, {
+  const { data, error } = await adminClient.auth.admin.inviteUserByEmail(input.email, {
     redirectTo: `${origin}/auth/set-password`,
   });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    safeLogError("User invitation failed", error);
+    return NextResponse.json({ error: "INVITATION_FAILED" }, { status: 400 });
   }
 
   const { data: profile, error: profileError } = await adminClient
     .from("profiles")
-    .update({ role: parsed.data.role })
+    .update({ role: input.role })
     .eq("id", data.user.id)
     .select("id")
     .maybeSingle();
@@ -65,9 +74,8 @@ export async function POST(request: NextRequest) {
   if (profileError || !profile) {
     console.error("User invitation created but role assignment failed", {
       userId: data.user.id,
-      email: data.user.email,
-      role: parsed.data.role,
-      error: profileError ?? "Profile not found",
+      role: input.role,
+      errorCode: profileError?.code ?? "PROFILE_NOT_FOUND",
     });
     return NextResponse.json(
       {
@@ -82,8 +90,8 @@ export async function POST(request: NextRequest) {
     action: "user.invited",
     entityType: "user",
     entityId: data.user.id,
-    summary: `Utilisateur invité : ${data.user.email} (${parsed.data.role})`,
-    metadata: { email: data.user.email, role: parsed.data.role },
+    summary: `Utilisateur invité : ${data.user.email} (${input.role})`,
+    metadata: { email: data.user.email, role: input.role },
   });
 
   return NextResponse.json({ user: { id: data.user.id, email: data.user.email } }, { status: 201 });

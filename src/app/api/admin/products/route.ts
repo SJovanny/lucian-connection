@@ -2,21 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStaffSupabase } from "@/lib/admin-auth";
 import { slugify } from "@/lib/utils";
 import { recordAudit } from "@/lib/audit";
-
-const parseAllergens = (value: unknown): string[] => {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => String(item).trim())
-      .filter(Boolean);
-  }
-  if (typeof value === "string") {
-    return value
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-  return [];
-};
+import { productCreateSchema } from "@/lib/api-schemas";
+import {
+  apiRequestErrorResponse,
+  readBoundedJson,
+  safeLogError,
+} from "@/lib/api-request";
 
 // GET - Récupérer tous les produits
 export async function GET(request: NextRequest) {
@@ -35,7 +26,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error fetching products:", error);
+    safeLogError("Error fetching products", error);
     return NextResponse.json(
       { error: "Failed to fetch products" },
       { status: 500 }
@@ -50,8 +41,6 @@ export async function POST(request: NextRequest) {
     if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    const body = await request.json();
 
     const {
       name_fr,
@@ -70,15 +59,7 @@ export async function POST(request: NextRequest) {
       is_active,
       is_featured,
       image_url,
-    } = body;
-
-    // Validation basique
-    if (!name_fr || !name_en || !price) {
-      return NextResponse.json(
-        { error: "Missing required fields: name_fr, name_en, price" },
-        { status: 400 }
-      );
-    }
+    } = await readBoundedJson(request, productCreateSchema, 8 * 1024 * 1024);
 
     const baseSlug = slugify(name_fr) || "produit";
     let slug = baseSlug;
@@ -117,19 +98,19 @@ export async function POST(request: NextRequest) {
         en: { name: name_en, description: description_en || "" },
       },
       allergens: {
-        fr: parseAllergens(allergens_fr),
-        en: parseAllergens(allergens_en),
+        fr: allergens_fr,
+        en: allergens_en,
       },
-      category_id: category_id || null,
-      price: parseFloat(price),
-      unit: unit || "each",
-      stock: parseInt(stock) || 0,
-      low_stock_threshold: parseInt(low_stock_threshold) || 5,
-      track_stock: track_stock !== false,
+      category_id,
+      price,
+      unit,
+      stock,
+      low_stock_threshold,
+      track_stock,
       is_alcoholic: is_alcoholic === true || categoryIsAlcoholic,
-      is_active: is_active !== false,
-      is_featured: is_featured === true,
-      image_url: image_url || null,
+      is_active,
+      is_featured,
+      image_url,
     };
 
     const { data, error } = await supabase
@@ -150,7 +131,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    console.error("Error creating product:", error);
+    const requestError = apiRequestErrorResponse(error);
+    if (requestError) return requestError;
+    safeLogError("Error creating product", error);
     return NextResponse.json(
       { error: "Failed to create product" },
       { status: 500 }

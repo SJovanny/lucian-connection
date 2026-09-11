@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStaffSupabase } from "@/lib/admin-auth";
 import { diffFields, recordAudit } from "@/lib/audit";
 import type { Category } from "@/types/database.types";
+import { categoryUpdateSchema, uuidSchema } from "@/lib/api-schemas";
+import {
+  apiRequestErrorResponse,
+  readBoundedJson,
+  safeLogError,
+} from "@/lib/api-request";
 
 // GET - Récupérer une catégorie
 export async function GET(
@@ -9,6 +15,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  if (!uuidSchema.safeParse(id).success) {
+    return NextResponse.json({ error: "INVALID_ID" }, { status: 400 });
+  }
   try {
     const supabase = await getStaffSupabase(request);
     if (!supabase) {
@@ -25,7 +34,7 @@ export async function GET(
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error fetching category:", error);
+    safeLogError("Error fetching category", error);
     return NextResponse.json(
       { error: "Failed to fetch category" },
       { status: 500 }
@@ -39,13 +48,16 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  if (!uuidSchema.safeParse(id).success) {
+    return NextResponse.json({ error: "INVALID_ID" }, { status: 400 });
+  }
   try {
     const supabase = await getStaffSupabase(request);
     if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
+    const body = await readBoundedJson(request, categoryUpdateSchema, 8 * 1024 * 1024);
 
     const { data: existingCategory } = await supabase
       .from("categories")
@@ -78,7 +90,9 @@ export async function PUT(
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error updating category:", error);
+    const requestError = apiRequestErrorResponse(error);
+    if (requestError) return requestError;
+    safeLogError("Error updating category", error);
     return NextResponse.json(
       { error: "Failed to update category" },
       { status: 500 }
@@ -92,6 +106,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  if (!uuidSchema.safeParse(id).success) {
+    return NextResponse.json({ error: "INVALID_ID" }, { status: 400 });
+  }
   try {
     const supabase = await getStaffSupabase(request);
     if (!supabase) {
@@ -116,7 +133,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting category:", error);
+    safeLogError("Error deleting category", error);
     return NextResponse.json(
       { error: "Failed to delete category" },
       { status: 500 }

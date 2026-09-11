@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncStripeRefund } from "@/lib/stripe-refunds";
+import {
+  apiRequestErrorResponse,
+  readBoundedBody,
+  safeLogError,
+} from "@/lib/api-request";
 
 export async function POST(request: NextRequest) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -10,12 +15,18 @@ export async function POST(request: NextRequest) {
 
   const signature = request.headers.get("stripe-signature");
   if (!signature) return NextResponse.json({ error: "Missing signature" }, { status: 400 });
-  const body = await request.text();
+  let body: Uint8Array;
+  try {
+    body = await readBoundedBody(request, 1024 * 1024);
+  } catch (error) {
+    return apiRequestErrorResponse(error)
+      ?? NextResponse.json({ error: "Invalid webhook body" }, { status: 400 });
+  }
   let event: Stripe.Event;
   try {
     event = new Stripe(key).webhooks.constructEvent(body, signature, secret);
   } catch (error) {
-    console.error("Stripe webhook signature verification failed", error);
+    safeLogError("Stripe webhook signature verification failed", error);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
   console.log(`Stripe webhook received: ${event.type} [${event.id}]`);
@@ -35,7 +46,7 @@ export async function POST(request: NextRequest) {
   try {
     supabase = createAdminClient();
   } catch (error) {
-    console.error("Webhook Supabase admin configuration error", error);
+    safeLogError("Webhook Supabase admin configuration error", error);
     return NextResponse.json({ error: "Webhook server configuration error" }, { status: 503 });
   }
   const session = event.data.object as Stripe.Checkout.Session;
@@ -138,7 +149,7 @@ export async function POST(request: NextRequest) {
       });
       console.log(`Stripe refund synchronized: ${synced.refund.id} (${synced.refund.stripe_status})`);
     } catch (error) {
-      console.error(`Unable to synchronize Stripe refund ${refund.id}`, error);
+      safeLogError(`Unable to synchronize Stripe refund ${refund.id}`, error);
       return NextResponse.json({ error: "Unable to synchronize refund" }, { status: 500 });
     }
   }

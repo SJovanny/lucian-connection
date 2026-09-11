@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStaffSupabase } from "@/lib/admin-auth";
 import { recordAudit } from "@/lib/audit";
+import { uuidSchema } from "@/lib/api-schemas";
 
 export async function DELETE(
   request: NextRequest,
@@ -9,6 +10,9 @@ export async function DELETE(
   const supabase = await getStaffSupabase(request);
   if (!supabase) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
+  if (!uuidSchema.safeParse(id).success) {
+    return NextResponse.json({ error: "INVALID_ID" }, { status: 400 });
+  }
   const { data: existingClosure } = await supabase.from("pickup_closures").select("closed_on").eq("id", id).single();
   const { error } = await supabase.from("pickup_closures").delete().eq("id", id);
   if (error) return NextResponse.json({ error: "Failed to delete closure" }, { status: 500 });

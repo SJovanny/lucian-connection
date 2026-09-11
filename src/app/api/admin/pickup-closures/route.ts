@@ -3,6 +3,12 @@ import { getStaffSupabase } from "@/lib/admin-auth";
 import { isValidClosureDate, localPickupToDate } from "@/lib/pickup-rules";
 import type { OrderStatus } from "@/types/database.types";
 import { recordAudit } from "@/lib/audit";
+import { pickupClosureSchema } from "@/lib/api-schemas";
+import {
+  apiRequestErrorResponse,
+  readBoundedJson,
+  safeLogError,
+} from "@/lib/api-request";
 
 const blockedStatuses: OrderStatus[] = ["pending", "preparing", "ready"];
 
@@ -20,7 +26,7 @@ export async function POST(request: NextRequest) {
   if (!supabase) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const { closed_on, reason } = await request.json();
+    const { closed_on, reason } = await readBoundedJson(request, pickupClosureSchema);
     if (!isValidClosureDate(closed_on)) {
       return NextResponse.json({ error: "INVALID_CLOSURE_DATE" }, { status: 400 });
     }
@@ -60,7 +66,9 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json({ closure: data }, { status: 201 });
   } catch (error) {
-    console.error("[pickup-closures] Error:", error);
+    const requestError = apiRequestErrorResponse(error);
+    if (requestError) return requestError;
+    safeLogError("[pickup-closures] Error", error);
     return NextResponse.json({ error: "Failed to create closure" }, { status: 500 });
   }
 }

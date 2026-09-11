@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "check": "npm run lint && npm run typecheck && npm run test",
+    "secret:scan": "node scripts/check_secrets.js",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run secret:scan",
     "db:backup": "node scripts/db_backup.js prod",
     "db:backup:local": "node scripts/db_backup.js local"
   },

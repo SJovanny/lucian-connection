@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStaffSupabase } from "@/lib/admin-auth";
 import { validatePickupAt } from "@/lib/pickup-rules";
 import { recordAudit } from "@/lib/audit";
+import { pickupUpdateSchema, uuidSchema } from "@/lib/api-schemas";
+import {
+  apiRequestErrorResponse,
+  readBoundedJson,
+  safeLogError,
+} from "@/lib/api-request";
 
 export async function PATCH(
   request: NextRequest,
@@ -11,7 +17,7 @@ export async function PATCH(
   if (!supabase) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const { pickup_at } = await request.json();
+    const { pickup_at } = await readBoundedJson(request, pickupUpdateSchema);
     const [{ data: closedDates, error: closuresError }, { data: openingHours, error: openingHoursError }] = await Promise.all([
       supabase.rpc("get_pickup_closed_dates"),
       supabase.from("pickup_opening_hours").select("weekday, is_open, start_time, end_time"),
@@ -22,6 +28,9 @@ export async function PATCH(
     }
 
     const { id } = await params;
+    if (!uuidSchema.safeParse(id).success) {
+      return NextResponse.json({ error: "INVALID_ID" }, { status: 400 });
+    }
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .select("status, pickup_at")
@@ -60,7 +69,9 @@ export async function PATCH(
     });
     return NextResponse.json({ order: data });
   } catch (error) {
-    console.error("[admin-pickup] Error:", error);
+    const requestError = apiRequestErrorResponse(error);
+    if (requestError) return requestError;
+    safeLogError("[admin-pickup] Error", error);
     return NextResponse.json({ error: "Failed to update pickup slot" }, { status: 500 });
   }
 }

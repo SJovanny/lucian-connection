@@ -2,21 +2,17 @@
 import { createClient } from "@/lib/supabase/server";
 import { getPricingQuote, PricingError, fromCents } from "@/lib/pricing";
 import { NextResponse } from "next/server";
+import { couponValidationSchema } from "@/lib/api-schemas";
+import {
+  apiRequestErrorResponse,
+  readBoundedJson,
+  safeLogError,
+} from "@/lib/api-request";
 
 export async function POST(request: Request) {
   try {
-    const { code, items, locale } = await request.json();
-    const normalizedCode = typeof code === "string" ? code.trim().toUpperCase() : "";
-    if (!normalizedCode) {
-      return NextResponse.json(
-        {
-          valid: false,
-          error: "COUPON_CODE_REQUIRED",
-          message: locale === "en" ? "Please enter a promo code." : "Veuillez saisir un code promo.",
-        },
-        { status: 400 }
-      );
-    }
+    const { code, items, locale } = await readBoundedJson(request, couponValidationSchema);
+    const normalizedCode = code.toUpperCase();
 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -24,7 +20,7 @@ export async function POST(request: Request) {
     const quote = await getPricingQuote(supabase, items, {
       couponCode: normalizedCode,
       userId: user?.id || null,
-      locale: locale || "fr",
+      locale,
     });
 
     return NextResponse.json({
@@ -38,13 +34,15 @@ export async function POST(request: Request) {
     });
 
   } catch (err) {
-    console.error("Coupon validation error:", err);
     if (err instanceof PricingError) {
       return NextResponse.json(
         { valid: false, message: err.message, error: err.code },
         { status: 400 }
       );
     }
+    const requestError = apiRequestErrorResponse(err);
+    if (requestError) return requestError;
+    safeLogError("Coupon validation error", err);
     return NextResponse.json(
       { valid: false, message: "Internal server error" },
       { status: 500 }

@@ -5,6 +5,7 @@ import {
   type PricingQuote,
   type PricingQuoteItem,
 } from "@/lib/pricing-types";
+import { uuidSchema } from "@/lib/api-schemas";
 
 type PricingClient = SupabaseClient<Database>;
 
@@ -56,8 +57,8 @@ export function fromCents(value: number): number {
   return value / 100;
 }
 
-function parseItems(value: unknown): CartItemInput[] {
-  if (!Array.isArray(value) || value.length === 0) {
+export function parsePricingItems(value: unknown): CartItemInput[] {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 100) {
     throw new PricingError("INVALID_ITEMS", "The cart is empty");
   }
 
@@ -68,13 +69,18 @@ function parseItems(value: unknown): CartItemInput[] {
     }
 
     const rawItem = item as { id?: unknown; quantity?: unknown };
-    const id = String(rawItem.id || "");
-    const quantity = Number(rawItem.quantity);
+    const id = rawItem.id;
+    const quantity = rawItem.quantity;
 
-    if (!id || seen.has(id)) {
+    if (typeof id !== "string" || !uuidSchema.safeParse(id).success || seen.has(id)) {
       throw new PricingError("INVALID_ITEMS", "Invalid or duplicated cart item");
     }
-    if (!Number.isInteger(quantity) || quantity < 1) {
+    if (
+      typeof quantity !== "number"
+      || !Number.isSafeInteger(quantity)
+      || quantity < 1
+      || quantity > 100
+    ) {
       throw new PricingError("INVALID_QUANTITY", "Invalid product quantity");
     }
 
@@ -196,7 +202,7 @@ export async function getPricingQuote(
     locale?: string | null;
   } = {}
 ): Promise<PricingQuote> {
-  const items = parseItems(rawItems);
+  const items = parsePricingItems(rawItems);
   const ids = items.map((item) => item.id);
 
   const [

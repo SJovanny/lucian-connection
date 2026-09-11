@@ -293,7 +293,7 @@ export default function CheckoutPage() {
       const notes = String(formData.get("notes") || "").trim();
 
       const payload = {
-        items,
+        items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
         phone,
         notes,
         locale,

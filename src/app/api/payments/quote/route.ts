@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getPricingQuote, PricingError } from "@/lib/pricing";
+import { pricingRequestSchema } from "@/lib/api-schemas";
+import {
+  apiRequestErrorResponse,
+  readBoundedJson,
+  safeLogError,
+} from "@/lib/api-request";
 
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    const body = await request.json();
+    const body = await readBoundedJson(request, pricingRequestSchema);
     const couponId = typeof body.couponId === "string" ? body.couponId.trim() || null : null;
     const couponCode = typeof body.couponCode === "string"
       ? body.couponCode.trim().toUpperCase() || null
@@ -16,7 +22,7 @@ export async function POST(request: Request) {
       couponId,
       couponCode,
       userId: user?.id || null,
-      locale: body.locale || "fr",
+      locale: body.locale,
     });
 
     return NextResponse.json({ quote });
@@ -28,7 +34,9 @@ export async function POST(request: Request) {
       );
     }
 
-    console.error("Pricing quote error", error);
+    const requestError = apiRequestErrorResponse(error);
+    if (requestError) return requestError;
+    safeLogError("Pricing quote error", error);
     return NextResponse.json(
       { error: "QUOTE_UNAVAILABLE", details: "Unable to calculate the order total" },
       { status: 500 }

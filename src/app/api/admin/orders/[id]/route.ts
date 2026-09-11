@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStaffSupabase } from "@/lib/admin-auth";
 import { recordAudit } from "@/lib/audit";
+import { safeLogError } from "@/lib/api-request";
 
 export async function PATCH(
   request: NextRequest,
@@ -59,7 +60,7 @@ export async function PATCH(
       .single();
 
     if (error) {
-      console.error("[orders-api] Update error:", error);
+      safeLogError("[orders-api] Update error", error);
       throw error;
     }
 
@@ -72,14 +73,10 @@ export async function PATCH(
     });
 
     return NextResponse.json({ order: data }, { status: 200 });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    console.error("[orders-api] Error:", error);
+  } catch (error) {
+    safeLogError("[orders-api] Error", error);
     return NextResponse.json(
-      {
-        error: "Failed to update order",
-        details: error?.message || String(error),
-      },
+      { error: "Failed to update order" },
       { status: 500 }
     );
   }

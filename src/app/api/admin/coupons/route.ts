@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStaffSupabase } from "@/lib/admin-auth";
 import { CouponRuleError, normalizeCouponData } from "@/lib/coupon-rules";
 import { recordAudit } from "@/lib/audit";
+import { couponInputSchema } from "@/lib/api-schemas";
+import {
+  apiRequestErrorResponse,
+  readBoundedJson,
+  safeLogError,
+} from "@/lib/api-request";
 
 // GET - Récupérer tous les coupons
 export async function GET(request: NextRequest) {
@@ -20,7 +26,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error fetching coupons:", error);
+    safeLogError("Error fetching coupons", error);
     return NextResponse.json(
       { error: "Failed to fetch coupons" },
       { status: 500 }
@@ -36,14 +42,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-
-    if (!body || typeof body !== "object") {
-      return NextResponse.json(
-        { error: "Invalid coupon payload" },
-        { status: 400 }
-      );
-    }
+    const body = await readBoundedJson(request, couponInputSchema);
 
     let couponData;
     try {
@@ -86,10 +85,11 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(data, { status: 201 });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    console.error("Error creating coupon:", error);
-    if (error.code === "23505") {
+  } catch (error) {
+    const requestError = apiRequestErrorResponse(error);
+    if (requestError) return requestError;
+    safeLogError("Error creating coupon", error);
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") {
       return NextResponse.json(
         { error: "Ce code promo existe déjà." },
         { status: 400 }

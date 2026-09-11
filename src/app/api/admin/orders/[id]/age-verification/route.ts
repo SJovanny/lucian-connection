@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStaffSupabase } from "@/lib/admin-auth";
 import { recordAudit } from "@/lib/audit";
+import { uuidSchema } from "@/lib/api-schemas";
+import { safeLogError } from "@/lib/api-request";
 
 export async function POST(
   request: NextRequest,
@@ -11,6 +13,9 @@ export async function POST(
 
   try {
     const { id } = await params;
+    if (!uuidSchema.safeParse(id).success) {
+      return NextResponse.json({ error: "INVALID_ID" }, { status: 400 });
+    }
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .select("id, status, payment_status, contains_alcohol")
@@ -57,7 +62,7 @@ export async function POST(
     });
     return NextResponse.json({ order: updatedOrder, verified: true });
   } catch (error) {
-    console.error("[age-verification] Error:", error);
+    safeLogError("[age-verification] Error", error);
     return NextResponse.json({ error: "Unable to verify pickup age" }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { createClient } from "./server";
 import { getSupabaseConfig } from "./config";
 import type { Category, Order, OrderItem, Product, Profile, OrderStatus } from "@/types/database.types";
+import { normalizeSearchQuery, toPostgrestIlikePattern } from "@/lib/api-schemas";
 
 // Type pour les produits avec catégorie jointe
 export type ProductWithCategory = Product & {
@@ -62,8 +63,15 @@ export async function getProducts(options?: {
 
   // Filtre par recherche (nom en français ou anglais)
   if (options?.search) {
-    const searchTerm = `%${options.search}%`;
-    query = query.or(`translations->fr->>name.ilike.${searchTerm},translations->en->>name.ilike.${searchTerm}`);
+    try {
+      const normalizedSearch = normalizeSearchQuery(options.search);
+      if (normalizedSearch) {
+        const searchTerm = toPostgrestIlikePattern(normalizedSearch);
+        query = query.or(`translations->fr->>name.ilike.${searchTerm},translations->en->>name.ilike.${searchTerm}`);
+      }
+    } catch {
+      return [];
+    }
   }
 
   // Filtre pour les produits vedettes

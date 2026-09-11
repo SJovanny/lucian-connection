@@ -33,4 +33,15 @@ describe("normalizeCouponData", () => {
       })
     ).toThrow(CouponRuleError);
   });
+
+  it.each([
+    { discount_value: "10" },
+    { usage_limit: "2" },
+    { is_active: "false" },
+    { is_first_order_only: 1 },
+  ])("rejects coerced boundary input %#", (invalidField) => {
+    expect(() => normalizeCouponData({ ...validCoupon, ...invalidField })).toThrow(
+      CouponRuleError
+    );
+  });
 });

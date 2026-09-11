@@ -3,6 +3,12 @@ import { getStaffSupabase } from "@/lib/admin-auth";
 import { CouponRuleError, normalizeCouponData } from "@/lib/coupon-rules";
 import { diffFields, recordAudit } from "@/lib/audit";
 import type { Coupon } from "@/types/database.types";
+import { couponInputSchema, uuidSchema } from "@/lib/api-schemas";
+import {
+  apiRequestErrorResponse,
+  readBoundedJson,
+  safeLogError,
+} from "@/lib/api-request";
 
 // PATCH - Mettre à jour un coupon
 export async function PATCH(
@@ -16,10 +22,10 @@ export async function PATCH(
     }
 
     const { id } = await params;
-    const body = await request.json();
-    if (!body || typeof body !== "object") {
-      return NextResponse.json({ error: "Invalid coupon payload" }, { status: 400 });
+    if (!uuidSchema.safeParse(id).success) {
+      return NextResponse.json({ error: "INVALID_ID" }, { status: 400 });
     }
+    const body = await readBoundedJson(request, couponInputSchema);
 
     // Vérifier si le coupon existe
     const { data: existingCoupon } = await supabase
@@ -92,10 +98,11 @@ export async function PATCH(
     });
 
     return NextResponse.json(data);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    console.error("Error updating coupon:", error);
-    if (error.code === "23505") {
+  } catch (error) {
+    const requestError = apiRequestErrorResponse(error);
+    if (requestError) return requestError;
+    safeLogError("Error updating coupon", error);
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") {
       return NextResponse.json(
         { error: "Ce code promo existe déjà." },
         { status: 400 }
@@ -120,6 +127,9 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    if (!uuidSchema.safeParse(id).success) {
+      return NextResponse.json({ error: "INVALID_ID" }, { status: 400 });
+    }
 
     const { data: existingCoupon } = await supabase
       .from("coupons")
@@ -143,7 +153,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting coupon:", error);
+    safeLogError("Error deleting coupon", error);
     return NextResponse.json(
       { error: "Failed to delete coupon" },
       { status: 500 }

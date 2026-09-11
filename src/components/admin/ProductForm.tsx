@@ -71,6 +71,10 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
+          category_id: formData.category_id || null,
+          price: Number(formData.price),
+          stock: Number(formData.stock),
+          low_stock_threshold: Number(formData.low_stock_threshold),
           image_url: imagePreview || formData.image_url,
         }),
       });

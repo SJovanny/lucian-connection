@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStaffSupabase } from "@/lib/admin-auth";
 import { recordAudit } from "@/lib/audit";
+import { categoryCreateSchema } from "@/lib/api-schemas";
+import {
+  apiRequestErrorResponse,
+  readBoundedJson,
+  safeLogError,
+} from "@/lib/api-request";
 
 // GET - Récupérer toutes les catégories
 export async function GET(request: NextRequest) {
@@ -19,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error fetching categories:", error);
+    safeLogError("Error fetching categories", error);
     return NextResponse.json(
       { error: "Failed to fetch categories" },
       { status: 500 }
@@ -35,16 +41,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    
-    // Le slug est généré automatiquement si non fourni, mais on peut le forcer
-    // Validation basique
-    if (!body.translations?.fr?.name) {
-      return NextResponse.json(
-        { error: "French name is required" },
-        { status: 400 }
-      );
-    }
+    const body = await readBoundedJson(request, categoryCreateSchema, 8 * 1024 * 1024);
 
     const { data, error } = await supabase
       .from("categories")
@@ -64,7 +61,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error creating category:", error);
+    const requestError = apiRequestErrorResponse(error);
+    if (requestError) return requestError;
+    safeLogError("Error creating category", error);
     return NextResponse.json(
       { error: "Failed to create category" },
       { status: 500 }
