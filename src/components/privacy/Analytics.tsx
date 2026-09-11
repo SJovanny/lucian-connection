@@ -1,22 +1,31 @@
 "use client";
 
 import { useEffect } from "react";
-import { hasAnalyticsConsent } from "./CookieConsent";
+import { useConsent } from "@/lib/client/useConsent";
 
 declare global {
   interface Window {
     dataLayer: unknown[];
     gtag?: (...args: unknown[]) => void;
+    [key: `ga-disable-${string}`]: boolean;
   }
 }
 
 export function Analytics() {
+  const { consent } = useConsent();
+  const analyticsAllowed = consent?.analytics === true;
   useEffect(() => {
     const measurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
     if (!measurementId) return;
 
-    const load = () => {
-      if (!hasAnalyticsConsent() || document.getElementById("lucian-google-analytics")) return;
+    window[`ga-disable-${measurementId}`] = !analyticsAllowed;
+    if (!analyticsAllowed) {
+      window.gtag?.("consent", "update", { analytics_storage: "denied" });
+      document.getElementById("lucian-google-analytics")?.remove();
+      return;
+    }
+    window.gtag?.("consent", "update", { analytics_storage: "granted" });
+    if (!document.getElementById("lucian-google-analytics")) {
       const script = document.createElement("script");
       script.id = "lucian-google-analytics";
       script.async = true;
@@ -26,11 +35,8 @@ export function Analytics() {
       window.gtag = (...args: unknown[]) => window.dataLayer.push(args);
       window.gtag("js", new Date());
       window.gtag("config", measurementId, { anonymize_ip: true });
-    };
-    load();
-    window.addEventListener("lucian:consent-updated", load);
-    return () => window.removeEventListener("lucian:consent-updated", load);
-  }, []);
+    }
+  }, [analyticsAllowed]);
 
   return null;
 }

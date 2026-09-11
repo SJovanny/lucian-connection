@@ -1,56 +1,8 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { useLocale } from "next-intl";
-
-type Consent = {
-  necessary: true;
-  analytics: boolean;
-  version: string;
-};
-
-const CONSENT_KEY = "lucian-cookie-consent";
-const CONSENT_VERSION = "1.0";
-
-function readConsent(): Consent | null {
-  try {
-    const localValue = localStorage.getItem(CONSENT_KEY);
-    const cookieValue = document.cookie
-      .split("; ")
-      .find((entry) => entry.startsWith(`${CONSENT_KEY}=`))
-      ?.split("=")[1];
-    const value = localValue || (cookieValue ? decodeURIComponent(cookieValue) : null);
-    if (!value) return null;
-
-    const parsed = JSON.parse(value) as Partial<Consent>;
-    if (
-      parsed.version !== CONSENT_VERSION ||
-      parsed.necessary !== true ||
-      typeof parsed.analytics !== "boolean"
-    ) {
-      return null;
-    }
-    return parsed as Consent;
-  } catch {
-    return null;
-  }
-}
-
-function getConsentSnapshot() {
-  try {
-    return localStorage.getItem(CONSENT_KEY) || document.cookie
-      .split("; ")
-      .find((entry) => entry.startsWith(`${CONSENT_KEY}=`))
-      ?.split("=")[1] || null;
-  } catch {
-    return null;
-  }
-}
-
-function subscribeToConsent(onChange: () => void) {
-  window.addEventListener("lucian:consent-updated", onChange);
-  return () => window.removeEventListener("lucian:consent-updated", onChange);
-}
+import { useConsent } from "@/lib/client/useConsent";
 
 function ConsentToggle({ checked, disabled, onChange, label }: { checked: boolean; disabled?: boolean; onChange?: () => void; label: string }) {
   return (
@@ -69,16 +21,10 @@ function ConsentToggle({ checked, disabled, onChange, label }: { checked: boolea
   );
 }
 
-export function hasAnalyticsConsent() {
-  const consent = readConsent();
-  return consent?.version === CONSENT_VERSION && consent.analytics === true;
-}
-
 export function CookieConsent() {
   const locale = useLocale();
   const french = locale === "fr";
-  const consentValue = useSyncExternalStore(subscribeToConsent, getConsentSnapshot, () => null);
-  const consent = consentValue ? readConsent() : null;
+  const { consent, saveConsent } = useConsent();
   const [customizing, setCustomizing] = useState(false);
   const [analytics, setAnalytics] = useState(false);
 
@@ -86,11 +32,11 @@ export function CookieConsent() {
     const openSettings = (event: Event) => {
       event.preventDefault();
       setCustomizing(true);
-      setAnalytics(readConsent()?.analytics === true);
+      setAnalytics(consent?.analytics === true);
     };
     const handleSettingsLink = (event: Event) => {
-      const target = event.target as HTMLElement;
-      if (target.closest("[data-cookie-settings]")) openSettings(event);
+      const target = event.target;
+      if (target instanceof Element && target.closest("[data-cookie-settings]")) openSettings(event);
     };
     document.addEventListener("lucian:cookie-settings", openSettings);
     document.addEventListener("click", handleSettingsLink);
@@ -98,19 +44,11 @@ export function CookieConsent() {
       document.removeEventListener("lucian:cookie-settings", openSettings);
       document.removeEventListener("click", handleSettingsLink);
     };
-  }, []);
+  }, [consent]);
 
   const save = (allowAnalytics: boolean) => {
-    const next: Consent = { necessary: true, analytics: allowAnalytics, version: CONSENT_VERSION };
-    const serialized = encodeURIComponent(JSON.stringify(next));
-    try {
-      localStorage.setItem(CONSENT_KEY, JSON.stringify(next));
-    } catch {
-      // The cookie fallback still lets the user make a persistent choice.
-    }
-    document.cookie = `${CONSENT_KEY}=${serialized}; Max-Age=31536000; Path=/; SameSite=Lax`;
+    saveConsent(allowAnalytics);
     setCustomizing(false);
-    window.dispatchEvent(new CustomEvent("lucian:consent-updated", { detail: next }));
   };
 
   if (consent && !customizing) return null;
