@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Poppins } from "next/font/google";
+import { getLocale } from "next-intl/server";
 import "./globals.css";
 
 const inter = Inter({
@@ -28,13 +29,10 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({
   children,
-  params,
 }: Readonly<{
   children: React.ReactNode;
-  params?: Promise<{ locale?: string }>;
 }>) {
-  const resolvedParams = params ? await params : {};
-  const locale = resolvedParams.locale || "fr";
+  const locale = await getLocale();
 
   return (
     <html lang={locale} suppressHydrationWarning>

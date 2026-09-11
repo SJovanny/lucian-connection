@@ -25,6 +25,8 @@ Open <http://localhost:3000>. `/` uses next-intl locale detection (locale cookie
 
 ## Checks and CI
 
+The root layout intentionally calls server-side `getLocale()` so the initial SSR document has the correct `<html lang>`. This request-dependent locale lookup accepts dynamic rendering rather than fully static locale pages. `DocumentLanguage` in the validated locale layout keeps the attribute synchronized during client-side language switching, when the root layout is preserved.
+
 | Command | Purpose |
 | --- | --- |
 | `npm run lint` | ESLint |
@@ -35,11 +37,15 @@ Open <http://localhost:3000>. `/` uses next-intl locale detection (locale cookie
 | `npm run secret:scan` | Repository secret-pattern scan |
 | `npm run check` | Lint, typecheck, tests, then secret scan |
 | `npm run build` | Production build |
+| `npm run build:e2e` | Production build with explicit isolated E2E environment overrides |
+| `npm run test:e2e` | Fresh isolated build, then Playwright Chromium browser tests |
 | `npm start` | Serve an existing production build |
 
-Tests live in `tests/`; Vitest excludes `tests/e2e/**`. Root redirect unit tests cover the page fallback for both locales and verify that locale detection remains enabled in the routing configuration. Automated tests use mocks for external services; a passing suite does not validate a live database, payment integration, or migration replay. Playwright packages are installed, but there is no browser-test npm script in the current setup.
+Tests live in `tests/`; Vitest excludes `tests/e2e/**`. Root redirect unit tests cover the page fallback for both locales and verify that locale detection remains enabled in the routing configuration. Automated tests use mocks for external services; a passing suite does not validate a live database, payment integration, or migration replay.
 
-The GitHub Actions workflow at `.github/workflows/quality.yml` runs on pushes and pull requests: Node 22, `npm ci`, `npm run check`, then `npm run build`. It does not provision a database or apply migrations.
+With Playwright Chromium installed (`npx playwright install chromium`), run `npm run test:e2e` locally. It always runs `build:e2e` first: `scripts/build_e2e.mjs` spawns Next with explicit empty service/analytics keys and the loopback site URL, overriding inherited values and `.env.local` even for build-time-inlined `NEXT_PUBLIC_*` values. Playwright starts this build on `127.0.0.1:3100` with the same overrides and refuses to reuse an existing server. Keep the override keys aligned in the build script, Playwright config, and CI workflow. This replaces the local `.next` build; use `npm run build` again for a normally configured production build.
+
+The GitHub Actions workflow at `.github/workflows/quality.yml` runs on pushes and pull requests: Node 22, `npm ci`, `npm run check`, installs Chromium with system dependencies, then runs `npm run test:e2e` (one isolated build followed by browser tests). Browser coverage includes localized storefronts, document language changes through the LanguageSwitcher without reload, locale negotiation, and public admin routing. It does not provision a database or apply migrations.
 
 ## Database status and migration caution
 

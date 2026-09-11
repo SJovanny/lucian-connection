@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { routing, Locale } from "@/i18n/routing";
 import { CookieConsent } from "@/components/privacy/CookieConsent";
 import { Analytics } from "@/components/privacy/Analytics";
+import { DocumentLanguage } from "@/components/layout/DocumentLanguage";
 
 type Props = {
   children: React.ReactNode;
@@ -53,6 +54,7 @@ export default async function LocaleLayout({ children, params }: Props) {
 
   return (
       <NextIntlClientProvider locale={locale} messages={messages}>
+        <DocumentLanguage locale={locale as Locale} />
         {children}
         <CookieConsent />
         <Analytics />
