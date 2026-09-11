@@ -1,6 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import {
   fromCents,
@@ -9,8 +9,23 @@ import {
 } from "@/lib/pricing";
 import { PRICING_CURRENCY } from "@/lib/pricing-types";
 import { validatePickupAt } from "@/lib/pickup-rules";
+import { cartItemSchema } from "@/lib/api-schemas";
+import { apiRequestErrorResponse, readBoundedJson, safeLogError } from "@/lib/api-request";
 
 const TERMS_VERSION = "1.0";
+const checkoutSchema = z.object({
+  items: z.array(cartItemSchema).min(1).max(100),
+  phone: z.string().trim().min(1).max(32),
+  notes: z.string().trim().max(2000).nullish(),
+  locale: z.enum(["fr", "en"]).default("fr"),
+  pickup_at: z.string().datetime({ offset: true }),
+  coupon_id: z.string().uuid().nullish(),
+  quote_total_cents: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+  full_name: z.string().trim().min(1).max(200),
+  email: z.string().trim().max(254).email().optional(),
+  terms_accepted: z.literal(true),
+  age_confirmed: z.boolean().optional(),
+}).strict();
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -21,6 +36,10 @@ function getStripe() {
 export async function POST(request: NextRequest) {
   let createdOrderId: string | null = null;
   let orderUserId: string | null = null;
+  let stripe: Stripe | null = null;
+  let createdSessionId: string | null = null;
+  let sessionCreationAttempted = false;
+  let sessionIdempotencyKey: string | null = null;
 
   try {
     const supabase = await createClient();
@@ -28,7 +47,7 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     orderUserId = user.id;
 
-    const body = await request.json();
+    const body = await readBoundedJson(request, checkoutSchema);
     const {
       items,
       phone,
@@ -37,14 +56,8 @@ export async function POST(request: NextRequest) {
       pickup_at,
       coupon_id,
       quote_total_cents,
-      full_name,
-      terms_accepted,
       age_confirmed,
     } = body;
-
-    if (!Array.isArray(items) || items.length === 0 || !pickup_at || !phone || !full_name || terms_accepted !== true) {
-      return NextResponse.json({ error: "Missing order information" }, { status: 400 });
-    }
 
     const [{ data: closedDates, error: closuresError }, { data: openingHours, error: openingHoursError }] = await Promise.all([
       supabase.rpc("get_pickup_closed_dates"),
@@ -55,7 +68,7 @@ export async function POST(request: NextRequest) {
     }
 
     const quote = await getPricingQuote(supabase, items, {
-      couponId: typeof coupon_id === "string" ? coupon_id.trim() || null : null,
+      couponId: coupon_id ?? null,
       userId: user.id,
       locale: locale || "fr",
     });
@@ -73,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     if (
       quote_total_cents !== undefined
-      && (!Number.isInteger(Number(quote_total_cents)) || Number(quote_total_cents) !== quote.total_cents)
+      && quote_total_cents !== quote.total_cents
     ) {
       return NextResponse.json(
         { error: "PRICE_CHANGED", details: "The order total changed", quote },
@@ -101,7 +114,7 @@ export async function POST(request: NextRequest) {
     const discount = fromCents(quote.discount_cents);
     const total = fromCents(quote.total_cents);
 
-    const { data: order, error: orderError } = await (supabase as any)
+    const { data: order, error: orderError } = await supabase
       .from("orders")
       .insert({
         user_id: user.id,
@@ -123,7 +136,7 @@ export async function POST(request: NextRequest) {
       })
       .select("id")
       .single();
-    if (orderError) throw orderError;
+    if (orderError || !order) throw orderError || new Error("Order insert returned no row");
     createdOrderId = order.id;
 
     if (quote.coupon?.id) {
@@ -141,31 +154,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { error: itemsError } = await (supabase as any)
+    const { error: itemsError } = await supabase
       .from("order_items")
       .insert(orderItems.map((item) => ({ ...item, order_id: order.id })));
     if (itemsError) throw itemsError;
 
-    await (supabase as any).from("legal_acceptances").insert({
-      user_id: user.id,
-      document_type: "terms",
-      document_version: TERMS_VERSION,
-      order_id: order.id,
-      user_agent: request.headers.get("user-agent"),
-    });
-    if (containsAlcohol) {
-      await (supabase as any).from("legal_acceptances").insert({
+    const legalDocuments = ["terms", "pickup_refunds", ...(containsAlcohol ? ["alcohol_age"] : [])];
+    const { error: legalError } = await supabase.from("legal_acceptances").insert(
+      legalDocuments.map((documentType) => ({
         user_id: user.id,
-        document_type: "alcohol_age",
-        document_version: "1.0",
+        document_type: documentType,
+        document_version: TERMS_VERSION,
         order_id: order.id,
         user_agent: request.headers.get("user-agent"),
-      });
-    }
+      }))
+    );
+    if (legalError) throw legalError;
 
-    const stripe = getStripe();
+    const stripeClient = getStripe();
+    stripe = stripeClient;
     const stripeProducts = await Promise.all(
-      quote.items.map((item) => stripe.products.create({
+      quote.items.map((item) => stripeClient.products.create({
         name: item.product_name,
         metadata: { order_id: order.id, product_id: item.product_id },
       }))
@@ -207,6 +216,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    sessionIdempotencyKey = `checkout-session:${order.id}`;
+    sessionCreationAttempted = true;
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       customer_email: user.email,
@@ -223,27 +234,60 @@ export async function POST(request: NextRequest) {
       },
       success_url: `${process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin}/${locale || "fr"}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin}/${locale || "fr"}/checkout?payment=cancelled`,
-    });
+    }, { idempotencyKey: sessionIdempotencyKey });
 
-    await (supabase as any)
+    createdSessionId = session.id;
+    if (!session.url) throw new Error("Checkout session returned no URL");
+
+    const { data: linkedOrder, error: referenceError } = await supabase
       .from("orders")
       .update({ payment_reference: session.id })
-      .eq("id", order.id);
+      .eq("id", order.id)
+      .eq("payment_status", "pending_payment")
+      .select("id")
+      .single();
+    if (referenceError || !linkedOrder) throw referenceError || new Error("Payment reference was not saved");
     return NextResponse.json({ url: session.url, quote });
   } catch (error) {
-    if (createdOrderId) {
+    // Best-effort compensation only: Stripe and database writes are not atomic.
+    let canCompensate = !sessionCreationAttempted
+      || (!createdSessionId && error instanceof Stripe.errors.StripeInvalidRequestError);
+    if (stripe && createdSessionId) {
+      try {
+        const expiredSession = await stripe.checkout.sessions.expire(createdSessionId);
+        if (expiredSession.status !== "expired") throw new Error("Checkout session expiration was not confirmed");
+        canCompensate = true;
+      } catch (expirationError) {
+        safeLogError("Unable to expire failed checkout session", expirationError);
+      }
+    }
+    if (createdOrderId && !canCompensate) {
+      // Log only reconciliation identifiers, never payloads or Stripe error messages.
+      console.error("Checkout reconciliation required", {
+        order_id: createdOrderId,
+        session_id: createdSessionId,
+        idempotency_key: sessionIdempotencyKey,
+      });
+    }
+    if (createdOrderId && canCompensate) {
       try {
         const supabase = await createClient();
-        await supabase.rpc("release_coupon_reservation", {
-          p_order_id: createdOrderId,
-          p_user_id: orderUserId,
-        });
-        await (supabase as any).from("orders").update({
+        try {
+          const { error: releaseError } = await supabase.rpc("release_coupon_reservation", {
+            p_order_id: createdOrderId,
+            p_user_id: orderUserId,
+          });
+          if (releaseError) throw releaseError;
+        } catch (releaseError) {
+          safeLogError("Unable to release failed payment coupon reservation", releaseError);
+        }
+        const { data: cancelledOrder, error: cancellationError } = await supabase.from("orders").update({
           status: "cancelled",
           payment_status: "cancelled",
-        }).eq("id", createdOrderId).eq("payment_status", "pending_payment");
+        }).eq("id", createdOrderId).eq("payment_status", "pending_payment").select("id").single();
+        if (cancellationError || !cancelledOrder) throw cancellationError || new Error("Failed payment order was not cancelled");
       } catch (cleanupError) {
-        console.error("Unable to cancel failed payment order", cleanupError);
+        safeLogError("Unable to cancel failed payment order", cleanupError);
       }
     }
 
@@ -254,7 +298,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.error("Payment session creation failed", error);
+    const requestError = apiRequestErrorResponse(error);
+    if (requestError) return requestError;
+    safeLogError("Payment session creation failed", error);
     return NextResponse.json({ error: "Unable to start payment" }, { status: 500 });
   }
 }
