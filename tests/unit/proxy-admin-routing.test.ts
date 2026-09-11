@@ -34,6 +34,9 @@ describe("admin proxy routing", () => {
 
   beforeAll(async () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://project.supabase.co");
+    // CI defines this higher-priority key as "". Isolate the anon-key scenario
+    // from inherited environment values rather than bypassing the real config.
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", undefined);
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "test-key");
     ({ proxy, config } = await import("@/proxy"));
   });
@@ -58,6 +61,9 @@ describe("admin proxy routing", () => {
   it("forwards refreshed session cookies to the response and request", async () => {
     const response = await proxy(new NextRequest("https://shop.example/api/store-settings"));
 
+    expect(createServerClientMock).toHaveBeenCalledWith(
+      "https://project.supabase.co", "test-key", expect.any(Object)
+    );
     expect(response.headers.get("set-cookie")).toContain("sb-session=refreshed");
     expect(response.headers.get("x-middleware-request-cookie")).toContain(
       "sb-session=refreshed"
