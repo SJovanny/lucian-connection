@@ -1,4 +1,6 @@
-import { InputHTMLAttributes, forwardRef, type ReactNode } from "react";
+"use client";
+
+import { InputHTMLAttributes, forwardRef, useId, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -11,13 +13,19 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
   (
-    { className, label, error, helperText, icon, iconPosition = "left", type, ...props },
+    { className, label, error, helperText, icon, iconPosition = "left", type, id,
+      "aria-describedby": ariaDescribedBy, "aria-invalid": ariaInvalid, ...props },
     ref
   ) => {
+    const generatedId = useId();
+    const inputId = id ?? generatedId;
+    const descriptionId = error ? `${inputId}-error` : helperText ? `${inputId}-helper` : undefined;
+    const describedBy = [ariaDescribedBy, descriptionId].filter(Boolean).join(" ") || undefined;
+
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor={inputId} className="block text-sm font-medium text-gray-700 mb-2">
             {label}
           </label>
         )}
@@ -41,6 +49,9 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
               className
             )}
             {...props}
+            id={inputId}
+            aria-describedby={describedBy}
+            aria-invalid={error ? true : ariaInvalid}
           />
           {icon && iconPosition === "right" && (
             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400">
@@ -48,9 +59,9 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             </div>
           )}
         </div>
-        {error && <p className="mt-1 text-sm text-error-500">{error}</p>}
+        {error && <p id={descriptionId} className="mt-1 text-sm text-error-500">{error}</p>}
         {!error && helperText && (
-          <p className="mt-1 text-sm text-gray-500">{helperText}</p>
+          <p id={descriptionId} className="mt-1 text-sm text-gray-500">{helperText}</p>
         )}
       </div>
     );
