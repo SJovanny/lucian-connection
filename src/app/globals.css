@@ -190,3 +190,18 @@ body {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+
+  .card-organic:hover,
+  .btn-press:active {
+    transform: none !important;
+  }
+}

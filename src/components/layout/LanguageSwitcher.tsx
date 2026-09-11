@@ -2,7 +2,6 @@
 
 import { useLocale } from "next-intl";
 import { usePathname, useRouter } from "@/i18n/routing";
-import { Globe } from "lucide-react";
 
 const locales = [
   { code: "fr" as const, label: "FR", flag: "🇫🇷" },

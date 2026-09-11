@@ -1,4 +1,5 @@
 import { useTranslations } from "next-intl";
+import Image from "next/image";
 import { Link } from "@/i18n/routing";
 import { Facebook, Instagram, Twitter, Mail, Phone } from "lucide-react";
 import { PickupLocation } from "@/components/pickup/PickupLocation";
@@ -14,9 +15,11 @@ export function Footer() {
           {/* Brand */}
           <div>
             <div className="mb-4 flex items-center">
-              <img
+              <Image
                 src="/logo_lc.svg"
                 alt="Lucian Connection"
+                width={3144}
+                height={1344}
                 className="h-10 w-auto"
               />
             </div>

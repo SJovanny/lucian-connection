@@ -1,6 +1,7 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import Image from "next/image";
 import { Link, useRouter } from "@/i18n/routing";
 import {
   ShoppingCart,
@@ -12,13 +13,15 @@ import {
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { SearchBar } from "./SearchBar";
 import { useCartStore } from "@/store/cartStore";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useId } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getSupabaseConfig } from "@/lib/supabase/config";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export function Header() {
   const t = useTranslations("header");
+  const locale = useLocale();
+  const mobileMenuId = useId();
   const router = useRouter();
   const { items, toggleCart } = useCartStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -78,6 +81,9 @@ export function Header() {
         <div className="relative flex min-h-[80px] items-center justify-between py-2 sm:min-h-[96px]">
           {/* Mobile menu button */}
           <button
+            aria-label={locale === "fr" ? "Menu de navigation" : "Navigation menu"}
+            aria-expanded={isMobileMenuOpen}
+            aria-controls={mobileMenuId}
             className="lg:hidden p-2 text-white hover:bg-primary-600 rounded-lg"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           >
@@ -86,9 +92,11 @@ export function Header() {
 
           {/* Logo */}
           <Link href="/" className="absolute left-1/2 flex -translate-x-1/2 items-center lg:static lg:translate-x-0">
-            <img
+            <Image
               src="/logo_lc.svg"
               alt="Lucian Connection"
+              width={3144}
+              height={1344}
               className="h-10 w-auto sm:h-14"
             />
           </Link>
@@ -117,9 +125,10 @@ export function Header() {
             {/* Cart */}
             <button
               id="cart-icon-container"
+              aria-label={locale === "fr" ? `Panier (${itemCount})` : `Cart (${itemCount})`}
               onClick={toggleCart}
               className={`relative p-2 bg-primary-600 hover:bg-primary-500 rounded-lg text-white transition-all duration-300 ${
-                isCartAnimating ? "scale-110 bg-primary-500 ring-2 ring-accent-400" : ""
+                isCartAnimating ? "motion-safe:scale-110 bg-primary-500 ring-2 ring-accent-400" : ""
               }`}
             >
               <ShoppingCart className={`w-6 h-6 ${isCartAnimating ? "animate-pulse" : ""}`} />
@@ -148,6 +157,7 @@ export function Header() {
                 </Link>
                 <button
                   onClick={handleLogout}
+                  aria-label={t("logout")}
                   className="p-2 hover:bg-primary-600 rounded-lg text-white transition-colors"
                   title={t("logout") || "Logout"}
                 >
@@ -168,8 +178,7 @@ export function Header() {
       </div>
 
       {/* Mobile menu */}
-      {isMobileMenuOpen && (
-        <div className="lg:hidden bg-primary-800 border-t border-primary-600">
+        <div id={mobileMenuId} hidden={!isMobileMenuOpen} className="lg:hidden bg-primary-800 border-t border-primary-600">
           <div className="px-4 py-4 space-y-4">
             {/* Mobile search */}
             <SearchBar 
@@ -216,7 +225,6 @@ export function Header() {
             </div>
           </div>
         </div>
-      )}
     </header>
   );
 }

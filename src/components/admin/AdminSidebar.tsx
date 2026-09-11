@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
@@ -113,9 +114,11 @@ export function AdminSidebar({ isAdmin }: { isAdmin: boolean }) {
         {/* Header */}
         <div className="h-16 flex items-center justify-between px-6 border-b border-primary-700">
           <Link href="/admin" className="flex items-center gap-2">
-            <img
+            <Image
               src="/logo_lc.svg"
               alt="Lucian Connection"
+              width={3144}
+              height={1344}
               className="h-10 w-auto"
             />
             <span className="font-bold font-display">Admin</span>

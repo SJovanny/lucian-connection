@@ -85,6 +85,7 @@ export function CartDrawer() {
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">{t("title")}</h2>
           <button
+            aria-label={locale === "fr" ? "Fermer le panier" : "Close cart"}
             onClick={closeCart}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
           >
@@ -146,10 +147,8 @@ export function CartDrawer() {
               ) : null}
             </div>
             {displayQuote && !currentQuoteError ? (
-              <Link href="/checkout" onClick={closeCart}>
-                <Button variant="primary" className="w-full">
-                  {t("checkout")}
-                </Button>
+              <Link href="/checkout" onClick={closeCart} className="inline-flex w-full items-center justify-center rounded-lg bg-primary-500 px-4 py-2.5 text-base font-medium text-white transition-all duration-200 hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-200 btn-press">
+                {t("checkout")}
               </Link>
             ) : (
               <Button variant="primary" className="w-full" disabled={!displayQuote || !!currentQuoteError}>
@@ -201,6 +200,7 @@ function CartItemRow({ item, quoteItem, locale, onUpdateQuantity, onRemove }: Ca
       {/* Quantity controls */}
       <div className="flex flex-col items-end gap-2">
         <button
+          aria-label={locale === "fr" ? `Retirer ${item.name} du panier` : `Remove ${item.name} from cart`}
           onClick={() => onRemove(item.id)}
           className="text-gray-400 hover:text-error-500 transition-colors"
         >
@@ -208,6 +208,7 @@ function CartItemRow({ item, quoteItem, locale, onUpdateQuantity, onRemove }: Ca
         </button>
         <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-2 py-1">
           <button
+            aria-label={locale === "fr" ? `Diminuer la quantité de ${item.name}` : `Decrease quantity of ${item.name}`}
             onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
             className="p-1 hover:bg-gray-200 rounded"
           >
@@ -217,6 +218,7 @@ function CartItemRow({ item, quoteItem, locale, onUpdateQuantity, onRemove }: Ca
             {item.quantity}
           </span>
           <button
+            aria-label={locale === "fr" ? `Augmenter la quantité de ${item.name}` : `Increase quantity of ${item.name}`}
             onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
             className="p-1 hover:bg-gray-200 rounded"
           >

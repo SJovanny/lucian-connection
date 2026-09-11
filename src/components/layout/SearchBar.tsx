@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, FormEvent } from "react";
+import { useState, useEffect, useRef, useId, FormEvent } from "react";
+import Image from "next/image";
 import { useLocale } from "next-intl";
 import { useRouter } from "@/i18n/routing";
 import { Search, X, Loader2 } from "lucide-react";
@@ -34,6 +35,7 @@ interface SearchBarProps {
 export function SearchBar({ placeholder, className = "", onClose }: SearchBarProps) {
   const locale = useLocale() as Locale;
   const router = useRouter();
+  const resultsId = useId();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -120,11 +122,18 @@ export function SearchBar({ placeholder, className = "", onClose }: SearchBarPro
   };
 
   return (
-    <div ref={containerRef} className={`relative ${className}`}>
-      <form onSubmit={handleSubmit} className="relative">
+    <div ref={containerRef} className={`relative ${className}`} onKeyDown={(event) => {
+      if (event.key === "Escape") {
+        inputRef.current?.focus();
+        setIsOpen(false);
+      }
+    }}>
+      <form role="search" onSubmit={handleSubmit} className="relative">
         <input
           ref={inputRef}
           type="text"
+          aria-label={locale === "fr" ? "Rechercher des produits" : "Search products"}
+          aria-controls={isOpen && results.length > 0 ? resultsId : undefined}
           placeholder={placeholder}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -138,6 +147,7 @@ export function SearchBar({ placeholder, className = "", onClose }: SearchBarPro
           {query && !isLoading && (
             <button
               type="button"
+              aria-label={locale === "fr" ? "Effacer la recherche" : "Clear search"}
               onClick={clearSearch}
               className="p-1 text-gray-400 hover:text-gray-600"
             >
@@ -146,6 +156,7 @@ export function SearchBar({ placeholder, className = "", onClose }: SearchBarPro
           )}
           <button
             type="submit"
+            aria-label={locale === "fr" ? "Rechercher" : "Search"}
             className="p-2 text-gray-400 hover:text-primary-500"
           >
             <Search className="w-5 h-5" />
@@ -156,7 +167,7 @@ export function SearchBar({ placeholder, className = "", onClose }: SearchBarPro
       {/* Dropdown des résultats */}
       {isOpen && results.length > 0 && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50">
-          <ul className="py-2">
+          <ul id={resultsId} aria-label={locale === "fr" ? "Résultats de recherche" : "Search results"} className="py-2">
             {results.map((product) => (
               <li key={product.id}>
                 <button
@@ -166,9 +177,12 @@ export function SearchBar({ placeholder, className = "", onClose }: SearchBarPro
                   {/* Image */}
                   <div className="w-12 h-12 bg-gray-100 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden">
                     {product.image_url ? (
-                      <img
+                        <Image
+                          unoptimized
                         src={product.image_url}
                         alt={getProductName(product)}
+                        width={48}
+                        height={48}
                         className="w-full h-full object-contain p-1"
                       />
                     ) : (

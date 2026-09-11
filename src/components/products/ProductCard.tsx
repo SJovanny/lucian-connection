@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useRef } from "react";
+import Image from "next/image";
 import { useLocale, useTranslations } from "next-intl";
 import { Card } from "@/components/ui/Card";
 import { useCartStore } from "@/store/cartStore";
@@ -17,8 +18,23 @@ interface ProductCardProps {
 export function ProductCard({ product }: ProductCardProps) {
   const locale = useLocale() as Locale;
   const t = useTranslations("products");
-  const { items, addItem, updateQuantity, removeItem } = useCartStore();
+  const { items, addItem, updateQuantity } = useCartStore();
   const imageRef = useRef<HTMLImageElement>(null);
+  const animationsRef = useRef(new Set<() => void>());
+
+  useEffect(() => {
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const animations = animationsRef.current;
+    const clearAnimations = () => animations.forEach((cleanup) => cleanup());
+    const handleChange = () => {
+      if (preference.matches) clearAnimations();
+    };
+    preference.addEventListener("change", handleChange);
+    return () => {
+      preference.removeEventListener("change", handleChange);
+      clearAnimations();
+    };
+  }, []);
   
   // Récupérer les traductions du produit
   const translations = product.translations;
@@ -43,6 +59,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const isOutOfStock = false;
 
   const animateToCart = () => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const cartIcon = document.getElementById("cart-icon-container");
     const image = imageRef.current;
 
@@ -52,6 +69,8 @@ export function ProductCard({ product }: ProductCardProps) {
     const cartRect = cartIcon.getBoundingClientRect();
 
     const flyingImage = image.cloneNode() as HTMLImageElement;
+    flyingImage.setAttribute("aria-hidden", "true");
+    flyingImage.alt = "";
     
     // Style de départ (sur l'image actuelle)
     flyingImage.style.position = "fixed";
@@ -83,11 +102,15 @@ export function ProductCard({ product }: ProductCardProps) {
     flyingImage.style.opacity = "0";
 
     // Nettoyage après l'animation
-    flyingImage.addEventListener("transitionend", () => {
-      if (document.body.contains(flyingImage)) {
-        document.body.removeChild(flyingImage);
-      }
-    }, { once: true });
+    const cleanup = () => {
+      clearTimeout(timer);
+      flyingImage.removeEventListener("transitionend", cleanup);
+      flyingImage.remove();
+      animationsRef.current.delete(cleanup);
+    };
+    const timer = setTimeout(cleanup, 1600);
+    animationsRef.current.add(cleanup);
+    flyingImage.addEventListener("transitionend", cleanup, { once: true });
   };
 
   const handleAddToCart = () => {
@@ -123,11 +146,15 @@ export function ProductCard({ product }: ProductCardProps) {
       {/* Image container */}
       <div className="relative h-32 sm:h-40 bg-white rounded-xl mb-3 flex items-center justify-center overflow-hidden">
         {product.image_url ? (
-          <img
+          <Image
+            unoptimized
             ref={imageRef}
             src={product.image_url}
             alt={productName}
-            className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-200"
+            width={320}
+            height={160}
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            className="w-full h-full object-contain p-4 motion-safe:group-hover:scale-105 transition-transform duration-200"
           />
         ) : (
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
@@ -192,6 +219,7 @@ export function ProductCard({ product }: ProductCardProps) {
           {quantity === 0 ? (
             <button
               onClick={handleAddToCart}
+              aria-label={locale === "fr" ? `Ajouter ${productName} au panier` : `Add ${productName} to cart`}
               disabled={isOutOfStock}
               className="w-full h-12 bg-gray-100 hover:bg-primary-100 rounded-xl flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed btn-press active:bg-primary-200"
             >
@@ -201,6 +229,7 @@ export function ProductCard({ product }: ProductCardProps) {
             <div className="w-full h-12 bg-primary-500 rounded-xl flex items-center justify-between px-2">
               <button
                 onClick={handleDecrement}
+                aria-label={locale === "fr" ? `Diminuer la quantité de ${productName}` : `Decrease quantity of ${productName}`}
                 className="w-8 h-8 border-2 border-white rounded-full flex items-center justify-center text-white hover:bg-primary-400 transition-colors"
               >
                 <Minus className="w-4 h-4" />
@@ -208,6 +237,7 @@ export function ProductCard({ product }: ProductCardProps) {
               <span className="text-white font-bold text-lg">{quantity}</span>
               <button
                 onClick={handleIncrement}
+                aria-label={locale === "fr" ? `Augmenter la quantité de ${productName}` : `Increase quantity of ${productName}`}
                 // TODO: Réactiver la limite de stock quand disponible
                 // disabled={quantity >= product.stock}
                 className="w-8 h-8 border-2 border-white rounded-full flex items-center justify-center text-white hover:bg-primary-400 transition-colors disabled:opacity-50"

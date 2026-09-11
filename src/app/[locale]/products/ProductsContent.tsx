@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import { ProductCard } from "@/components/products/ProductCard";
 import { Card } from "@/components/ui/Card";
-import { Search, X, SlidersHorizontal, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Locale, usePathname } from "@/i18n/routing";
 import type { ProductWithCategory } from "@/lib/supabase/queries";
 import type { Category } from "@/types/database.types";
@@ -31,7 +31,6 @@ export function ProductsContent({
 
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
   const [searchQuery, setSearchQuery] = useState(initialSearch);
-  const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const PRODUCTS_PER_PAGE = 24;
 
@@ -144,6 +143,7 @@ export function ProductsContent({
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
+                aria-label={locale === "fr" ? "Rechercher des produits" : "Search products"}
                 placeholder={locale === "fr" ? "Rechercher un produit..." : "Search for a product..."}
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
@@ -151,6 +151,7 @@ export function ProductsContent({
               />
               {searchQuery && (
                 <button
+                  aria-label={locale === "fr" ? "Effacer la recherche" : "Clear search"}
                   onClick={() => {
                     setSearchQuery("");
                     updateURL(selectedCategory, "");
@@ -162,16 +163,6 @@ export function ProductsContent({
               )}
             </div>
 
-            {/* Filter button - Mobile only */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="lg:hidden flex items-center gap-2 px-4 h-11 bg-white border border-gray-200 rounded-xl hover:border-primary-300 transition-colors"
-            >
-              <SlidersHorizontal className="w-4 h-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">
-                {locale === "fr" ? "Filtres" : "Filters"}
-              </span>
-            </button>
           </div>
 
           {/* Category Filter - Mobile */}
@@ -195,6 +186,7 @@ export function ProductsContent({
               <span className="text-gray-400">/</span>
               <span className="text-gray-900 font-medium">{selectedCategoryName}</span>
               <button
+                aria-label={locale === "fr" ? "Effacer le filtre de catégorie" : "Clear category filter"}
                 onClick={() => handleCategoryChange("all")}
                 className="ml-2 p-1 hover:bg-gray-100 rounded-full"
               >
@@ -205,7 +197,7 @@ export function ProductsContent({
         </div>
 
         {/* Results count */}
-        <p className="text-gray-500 mb-6">
+        <p role="status" className="text-gray-500 mb-6">
           {filteredProducts.length} {locale === "fr" ? "produits" : "products"}
         </p>
 
@@ -253,6 +245,8 @@ export function ProductsContent({
                     ) : (
                       <button
                         key={page}
+                        aria-label={`Page ${page}`}
+                        aria-current={currentPage === page ? "page" : undefined}
                         onClick={() => setCurrentPage(page)}
                         className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg text-sm font-medium transition-colors ${
                           currentPage === page
