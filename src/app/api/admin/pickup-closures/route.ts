@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminSupabase } from "@/lib/admin-auth";
+import { getStaffSupabase } from "@/lib/admin-auth";
 import { isValidClosureDate, localPickupToDate } from "@/lib/pickup-rules";
 import type { OrderStatus } from "@/types/database.types";
 import { recordAudit } from "@/lib/audit";
@@ -7,7 +7,7 @@ import { recordAudit } from "@/lib/audit";
 const blockedStatuses: OrderStatus[] = ["pending", "preparing", "ready"];
 
 export async function GET(request: NextRequest) {
-  const supabase = await getAdminSupabase(request);
+  const supabase = await getStaffSupabase(request);
   if (!supabase) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { data, error } = await supabase.from("pickup_closures").select("*").order("closed_on");
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await getAdminSupabase(request);
+  const supabase = await getStaffSupabase(request);
   if (!supabase) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {

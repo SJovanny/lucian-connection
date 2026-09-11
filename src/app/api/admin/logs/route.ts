@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStrictAdminSupabase } from "@/lib/admin-auth";
+import { getAdminSupabase } from "@/lib/admin-auth";
 import type { AuditEntityType } from "@/types/database.types";
 
 const ENTITY_TYPES: AuditEntityType[] = [
@@ -18,7 +18,7 @@ const ENTITY_TYPES: AuditEntityType[] = [
 
 // GET - Liste paginée et filtrable du journal d'activité (admins uniquement)
 export async function GET(request: NextRequest) {
-  const supabase = await getStrictAdminSupabase(request);
+  const supabase = await getAdminSupabase(request);
   if (!supabase) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

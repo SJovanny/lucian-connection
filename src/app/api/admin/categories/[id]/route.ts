@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminSupabase } from "@/lib/admin-auth";
+import { getStaffSupabase } from "@/lib/admin-auth";
 import { diffFields, recordAudit } from "@/lib/audit";
 import type { Category } from "@/types/database.types";
 
@@ -10,7 +10,7 @@ export async function GET(
 ) {
   const { id } = await params;
   try {
-    const supabase = await getAdminSupabase(request);
+    const supabase = await getStaffSupabase(request);
     if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -40,7 +40,7 @@ export async function PUT(
 ) {
   const { id } = await params;
   try {
-    const supabase = await getAdminSupabase(request);
+    const supabase = await getStaffSupabase(request);
     if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -93,7 +93,7 @@ export async function DELETE(
 ) {
   const { id } = await params;
   try {
-    const supabase = await getAdminSupabase(request);
+    const supabase = await getStaffSupabase(request);
     if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

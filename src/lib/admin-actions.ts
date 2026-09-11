@@ -1,10 +1,10 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import type { User } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
-import type { Order, OrderStatus, Profile } from "@/types/database.types";
+import type { Order, OrderStatus } from "@/types/database.types";
 import { recordAudit } from "@/lib/audit";
+import { getStaffUser } from "@/lib/admin-auth";
 
 export async function signOutAdmin() {
   const supabase = await createClient();
@@ -12,39 +12,8 @@ export async function signOutAdmin() {
   redirect("/admin/login");
 }
 
-export type AdminUser = {
-  user: User;
-  profile: Profile;
-};
-
-export async function getAdminUser(): Promise<AdminUser | null> {
-  const supabase = await createClient();
-  
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
-    return null;
-  }
-
-  const { data } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
-  const profile = data as Profile | null;
-
-  if (!profile || !["admin", "employee"].includes(String(profile.role))) {
-    return null;
-  }
-
-  return {
-    user,
-    profile,
-  };
-}
-
 export async function updateOrderStatus(orderId: string, status: string) {
+  if (!await getStaffUser()) throw new Error("Unauthorized");
   const admin = await createClient();
   if (["preparing", "ready", "completed"].includes(status)) {
     const { data: order, error: orderError } = await admin

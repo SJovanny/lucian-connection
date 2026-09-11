@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminSupabase } from "@/lib/admin-auth";
+import { getStaffSupabase } from "@/lib/admin-auth";
 import { diffFields, recordAudit } from "@/lib/audit";
 import type { Product } from "@/types/database.types";
 
@@ -24,7 +24,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await getAdminSupabase(request);
+    const supabase = await getStaffSupabase(request);
     if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -63,7 +63,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await getAdminSupabase(request);
+    const supabase = await getStaffSupabase(request);
     if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -204,7 +204,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await getAdminSupabase(request);
+    const supabase = await getStaffSupabase(request);
     if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getAdminUser } from "@/lib/admin-actions";
+import { getAdminUser } from "@/lib/admin-auth";
 import { createClient } from "@/lib/supabase/server";
 import { AuditLogExplorer } from "@/components/admin/AuditLogExplorer";
 

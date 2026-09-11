@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminSupabase } from "@/lib/admin-auth";
+import { getStaffSupabase } from "@/lib/admin-auth";
 import { recordAudit } from "@/lib/audit";
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await getAdminSupabase(request);
+  const supabase = await getStaffSupabase(request);
   if (!supabase) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
   const { data: existingClosure } = await supabase.from("pickup_closures").select("closed_on").eq("id", id).single();

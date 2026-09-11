@@ -1,19 +1,32 @@
 import createMiddleware from 'next-intl/middleware';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
-import { routing } from './i18n/routing';
+import { routing } from './i18n/config';
 import { getSupabaseConfig } from './lib/supabase/config';
+import { getCanonicalAdminPath, isStaffRole } from './lib/admin-policy';
 
 const intlMiddleware = createMiddleware(routing);
 
-export async function middleware(request: NextRequest) {
+function copyCookies(source: NextResponse, target: NextResponse): NextResponse {
+  source.cookies.getAll().forEach((cookie) => target.cookies.set(cookie));
+  return target;
+}
+
+export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+
+  const canonicalAdminPath = getCanonicalAdminPath(pathname);
+  if (canonicalAdminPath) {
+    const url = request.nextUrl.clone();
+    url.pathname = canonicalAdminPath;
+    return NextResponse.redirect(url, 308);
+  }
 
   // Create a response to modify with pathname header
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-pathname', pathname);
 
-  const response = NextResponse.next({
+  let response = NextResponse.next({
     request: {
       headers: requestHeaders,
     },
@@ -51,8 +64,12 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
+          cookiesToSet.forEach(({ name, value }) => {
             request.cookies.set(name, value);
+          });
+          requestHeaders.set('cookie', request.cookies.toString());
+          response = NextResponse.next({ request: { headers: requestHeaders } });
+          cookiesToSet.forEach(({ name, value, options }) => {
             response.cookies.set(name, value, options);
           });
         },
@@ -75,8 +92,8 @@ export async function middleware(request: NextRequest) {
           .eq('id', user.id)
           .single();
 
-        if (['admin', 'employee'].includes(String(profile?.role))) {
-          return NextResponse.redirect(new URL('/admin', request.url));
+        if (isStaffRole(profile?.role)) {
+          return copyCookies(response, NextResponse.redirect(new URL('/admin', request.url)));
         }
       }
       return response;
@@ -84,7 +101,7 @@ export async function middleware(request: NextRequest) {
 
     // For all other admin routes, check if user is admin
     if (!user) {
-      return NextResponse.redirect(new URL('/admin/login', request.url));
+      return copyCookies(response, NextResponse.redirect(new URL('/admin/login', request.url)));
     }
 
     const { data: profile } = await supabase
@@ -93,13 +110,13 @@ export async function middleware(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    if (!['admin', 'employee'].includes(String(profile?.role))) {
-      return NextResponse.redirect(new URL('/admin/login', request.url));
+    if (!isStaffRole(profile?.role)) {
+      return copyCookies(response, NextResponse.redirect(new URL('/admin/login', request.url)));
     }
 
     if (pathname === '/admin/users' || pathname.startsWith('/admin/users/')) {
       if (String(profile?.role) !== 'admin') {
-        return NextResponse.redirect(new URL('/admin', request.url));
+        return copyCookies(response, NextResponse.redirect(new URL('/admin', request.url)));
       }
     }
 
@@ -115,11 +132,7 @@ export async function middleware(request: NextRequest) {
   const intlResponse = intlMiddleware(request);
   
   // Copy auth cookies to intl response
-  response.cookies.getAll().forEach((cookie) => {
-    intlResponse.cookies.set(cookie.name, cookie.value, {
-      ...cookie,
-    });
-  });
+  copyCookies(response, intlResponse);
 
   return intlResponse;
 }
@@ -131,7 +144,6 @@ export const config = {
     // - /_vercel (Vercel internals)
     // - Static files (favicon, images, etc.)
     '/((?!_next|_vercel|.*\\..*).*)',
-    // Also match admin routes
     '/admin/:path*',
   ],
 };

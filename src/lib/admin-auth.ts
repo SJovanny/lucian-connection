@@ -1,16 +1,25 @@
+import "server-only";
+
 import { createClient } from "@/lib/supabase/server";
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest } from "next/server";
-import type { Database } from "@/types/database.types";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
+import type { Database, Profile } from "@/types/database.types";
+import { requireSupabaseConfig } from "@/lib/supabase/config";
+import {
+  hasRequiredStaffRole,
+  type RequiredStaffRole,
+} from "@/lib/admin-policy";
 
 /**
  * Create a Supabase client from API route request cookies.
  * Uses the anon key so that RLS policies are enforced.
  */
 function createClientFromRequest(request: NextRequest) {
+  const { url, key } = requireSupabaseConfig();
   return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    url,
+    key,
     {
       cookies: {
         getAll() {
@@ -26,111 +35,48 @@ function createClientFromRequest(request: NextRequest) {
   );
 }
 
-/**
- * Check if the current user is an admin.
- * For server components (no request), uses server cookies.
- */
-export async function checkAdmin(request?: NextRequest) {
-  const supabase = request
-    ? createClientFromRequest(request)
-    : await createClient();
+export type StaffUser = {
+  user: User;
+  profile: Profile;
+};
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+async function authorize(
+  supabase: SupabaseClient<Database>,
+  requiredRole: RequiredStaffRole
+): Promise<StaffUser | null> {
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData.user) return null;
 
-  if (!user) return false;
-
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("profiles")
-    .select("role")
-    .eq("id", user.id)
+    .select("*")
+    .eq("id", authData.user.id)
     .single();
+  const profile = data as Profile | null;
 
-  const profile = data as { role: string } | null;
-  return String(profile?.role) === "admin";
-}
-
-export async function checkStaff(request?: NextRequest) {
-  const supabase = request
-    ? createClientFromRequest(request)
-    : await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return false;
-
-  const { data } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  const profile = data as { role: string } | null;
-  return ["admin", "employee"].includes(String(profile?.role));
-}
-
-/**
- * For API routes: verify admin AND return the authenticated Supabase client.
- * Returns the same client used for auth checking, so a single JWT session
- * is used — no duplicate token refresh issues.
- * The returned client uses the anon key, so all DB operations are subject to RLS.
- */
-export async function getAdminSupabase(request: NextRequest) {
-  const supabase = createClientFromRequest(request);
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
-
-  const { data } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  const profile = data as { role: string } | null;
-  if (!["admin", "employee"].includes(String(profile?.role))) return null;
-
-  return supabase;
-}
-
-export async function getStrictAdminSupabase(request: NextRequest) {
-  const supabase = createClientFromRequest(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
-
-  const { data } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  const profile = data as { role: string } | null;
-  return profile?.role === "admin" ? supabase : null;
-}
-
-export async function verifyAdminAuth() {
-  const isAdmin = await checkAdmin();
-
-  if (!isAdmin) {
-    return {
-      isValid: false,
-      status: 401,
-      error: "Unauthorized",
-    } as const;
+  if (error || !profile || !hasRequiredStaffRole(profile.role, requiredRole)) {
+    return null;
   }
 
-  return {
-    isValid: true,
-    status: 200,
-    error: null,
-  } as const;
+  return { user: authData.user, profile };
+}
+
+export async function getStaffUser(): Promise<StaffUser | null> {
+  const supabase = await createClient();
+  return authorize(supabase, "staff");
+}
+
+export async function getAdminUser(): Promise<StaffUser | null> {
+  const supabase = await createClient();
+  return authorize(supabase, "admin");
+}
+
+export async function getStaffSupabase(request: NextRequest) {
+  const supabase = createClientFromRequest(request);
+  return await authorize(supabase, "staff") ? supabase : null;
+}
+
+export async function getAdminSupabase(request: NextRequest) {
+  const supabase = createClientFromRequest(request);
+  return await authorize(supabase, "admin") ? supabase : null;
 }

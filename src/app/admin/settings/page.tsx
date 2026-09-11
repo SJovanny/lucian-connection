@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { AdminSettingsForm } from "@/components/admin/AdminSettingsForm";
-import { getAdminUser } from "@/lib/admin-actions";
+import { getStaffUser } from "@/lib/admin-auth";
 
 export default async function AdminSettingsPage() {
-  const admin = await getAdminUser();
+  const admin = await getStaffUser();
 
   if (!admin) {
     redirect("/admin/login");

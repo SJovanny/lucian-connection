@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminSupabase } from "@/lib/admin-auth";
+import { getStaffSupabase } from "@/lib/admin-auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await getAdminSupabase(request);
+    const supabase = await getStaffSupabase(request);
     if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getStrictAdminSupabase } from "@/lib/admin-auth";
+import { getAdminSupabase } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAudit } from "@/lib/audit";
 
@@ -12,7 +12,7 @@ const userSchema = z.object({
 const userIdSchema = z.string().uuid();
 
 export async function GET(request: NextRequest) {
-  const supabase = await getStrictAdminSupabase(request);
+  const supabase = await getAdminSupabase(request);
   if (!supabase) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const adminClient = createAdminClient();
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await getStrictAdminSupabase(request);
+  const supabase = await getAdminSupabase(request);
   if (!supabase) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const parsed = userSchema.safeParse(await request.json());
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const supabase = await getStrictAdminSupabase(request);
+  const supabase = await getAdminSupabase(request);
   if (!supabase) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const userId = userIdSchema.safeParse(request.nextUrl.searchParams.get("id"));

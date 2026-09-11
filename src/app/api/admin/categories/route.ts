@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminSupabase } from "@/lib/admin-auth";
+import { getStaffSupabase } from "@/lib/admin-auth";
 import { recordAudit } from "@/lib/audit";
 
 // GET - Récupérer toutes les catégories
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await getAdminSupabase(request);
+    const supabase = await getStaffSupabase(request);
     if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 // POST - Créer une nouvelle catégorie
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await getAdminSupabase(request);
+    const supabase = await getStaffSupabase(request);
     if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

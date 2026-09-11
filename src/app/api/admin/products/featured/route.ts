@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminSupabase } from "@/lib/admin-auth";
+import { getStaffSupabase } from "@/lib/admin-auth";
 import { recordAudit } from "@/lib/audit";
 
 // POST /api/admin/products/featured - Toggle featured status
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await getAdminSupabase(request);
+    const supabase = await getStaffSupabase(request);
     if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 // GET /api/admin/products/featured - Get all products with featured status
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await getAdminSupabase(request);
+    const supabase = await getStaffSupabase(request);
     if (!supabase) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

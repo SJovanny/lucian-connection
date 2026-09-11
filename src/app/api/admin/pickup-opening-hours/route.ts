@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminSupabase } from "@/lib/admin-auth";
+import { getStaffSupabase } from "@/lib/admin-auth";
 import { recordAudit } from "@/lib/audit";
 
 export async function GET(request: NextRequest) {
-  const supabase = await getAdminSupabase(request);
+  const supabase = await getStaffSupabase(request);
   if (!supabase) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { data, error } = await supabase.from("pickup_opening_hours").select("*").order("weekday");
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const supabase = await getAdminSupabase(request);
+  const supabase = await getStaffSupabase(request);
   if (!supabase) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {

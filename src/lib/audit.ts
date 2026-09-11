@@ -38,7 +38,7 @@ async function getRequestContext(): Promise<{ ip: string | null; userAgent: stri
  * The acting user is stamped server-side (from the JWT bound to `supabase`)
  * by the `record_audit_event` SQL function, so it cannot be spoofed by the
  * caller — `supabase` must be a client authenticated as the staff member
- * performing the action (e.g. the client returned by `getAdminSupabase`).
+ * performing the action (e.g. the client returned by `getStaffSupabase`).
  *
  * Works from both Route Handlers and Server Actions (both can call
  * `next/headers`). For direct client-side mutations, use
