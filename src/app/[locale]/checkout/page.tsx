@@ -14,9 +14,12 @@ import {
   PricingQuoteRequestError,
 } from "@/lib/client-pricing";
 import { getSafeRedirectPath } from "@/lib/auth-redirect";
-import { formatPriceCents } from "@/lib/utils";
-import type { PricingQuote } from "@/lib/pricing-types";
-import { ShoppingBag, ArrowLeft, X } from "lucide-react";
+import { ShoppingBag, ArrowLeft } from "lucide-react";
+import { OrderSummary } from "@/components/checkout/OrderSummary";
+import { useCheckoutContact } from "@/lib/client/useCheckoutContact";
+import { useCheckoutQuote } from "@/lib/client/useCheckoutQuote";
+import { useCheckoutCoupon } from "@/lib/client/useCheckoutCoupon";
+import { useCheckoutAgeRequirement } from "@/lib/client/useCheckoutAgeRequirement";
 import { Link, useRouter } from "@/i18n/routing";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -24,227 +27,46 @@ import { Locale } from "@/i18n/routing";
 import { PickupSlotPicker } from "@/components/pickup/PickupSlotPicker";
 import { PickupLocation } from "@/components/pickup/PickupLocation";
 
-type AuthStatus = "loading" | "authenticated" | "unauthenticated";
-
 export default function CheckoutPage() {
   const locale = useLocale() as Locale;
   const t = useTranslations("checkout");
   const router = useRouter();
   const { items } = useCartStore();
 
-  const [authStatus, setAuthStatus] = useState<AuthStatus>("loading");
+  const { authStatus, contactInfo, setContactInfo } = useCheckoutContact();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [paymentCancelled, setPaymentCancelled] = useState(false);
   const [pickupAt, setPickupAt] = useState<string | null>(null);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
-  const [catalogContainsAlcohol, setCatalogContainsAlcohol] = useState(false);
   const [availabilityReloadToken, setAvailabilityReloadToken] = useState(0);
-  const [contactInfo, setContactInfo] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-  });
-
-  const [quoteState, setQuoteState] = useState<{
-    key: string;
-    quote: PricingQuote;
-  } | null>(null);
-  const [quoteError, setQuoteError] = useState<{
-    key: string;
-    message: string;
-  } | null>(null);
-
-  // Coupon State
-  const [couponCode, setCouponCode] = useState("");
-  const [appliedCoupon, setAppliedCoupon] = useState<{
-    code: string;
-    id: string;
-  } | null>(null);
-  const [couponError, setCouponError] = useState<string | null>(null);
-  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
-
-  const quoteKey = [
-    locale,
-    appliedCoupon?.id || "",
-    ...items.map((item) => `${item.id}:${item.quantity}`).sort(),
-  ].join("|");
+  const coupon = useCheckoutCoupon(items, locale);
+  const { appliedCoupon } = coupon;
+  const { quoteKey, setQuoteState, displayQuote, currentQuoteError } = useCheckoutQuote(items, appliedCoupon?.id || null, locale);
+  const { status: ageStatus, containsAlcohol, requireAgeConfirmation } = useCheckoutAgeRequirement(items);
+  const ageCheckMessage = ageStatus === "error"
+    ? locale === "fr" ? "Impossible de vérifier la restriction d’âge. Rechargez la page pour réessayer." : "Unable to check the age requirement. Reload the page to try again."
+    : locale === "fr" ? "Vérification de la restriction d’âge…" : "Checking the age requirement…";
 
   useEffect(() => {
     setPaymentCancelled(new URLSearchParams(window.location.search).get("payment") === "cancelled");
   }, []);
 
   useEffect(() => {
-    let isCurrent = true;
-
-    const loadAuthState = async () => {
-      try {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (isCurrent) setAuthStatus(user ? "authenticated" : "unauthenticated");
-      } catch (error) {
-        console.error("Failed to load authentication state", error);
-        if (isCurrent) setAuthStatus("unauthenticated");
-      }
-    };
-
-    loadAuthState();
-
-    return () => {
-      isCurrent = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (authStatus !== "authenticated") return;
-
-    const loadContactInfo = async () => {
-      try {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (!user) return;
-
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("full_name, phone")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        setContactInfo({
-          fullName: profile?.full_name || user.user_metadata?.full_name || "",
-          email: user.email || "",
-          phone: profile?.phone || "",
-        });
-      } catch (error) {
-        console.error("Failed to load contact information", error);
-      }
-    };
-
-    loadContactInfo();
-  }, [authStatus]);
-
-  useEffect(() => {
-    let isCurrent = true;
-
-    if (items.length === 0) {
-      setCatalogContainsAlcohol(false);
-      return () => {
-        isCurrent = false;
-      };
-    }
-
-    fetch("/api/products/age-requirement", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ product_ids: items.map((item) => item.id) }),
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        if (isCurrent) setCatalogContainsAlcohol(data.containsAlcohol === true);
-      })
-      .catch(() => {
-        if (isCurrent) setCatalogContainsAlcohol(false);
-      });
-
-    return () => {
-      isCurrent = false;
-    };
-  }, [items]);
-
-  useEffect(() => {
-    let isCurrent = true;
-
-    if (items.length === 0) {
-      return () => {
-        isCurrent = false;
-      };
-    }
-
-    fetchPricingQuote({
-      items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
-      couponId: appliedCoupon?.id || null,
-      locale,
-    })
-      .then((nextQuote) => {
-        if (isCurrent) {
-          setQuoteState({ key: quoteKey, quote: nextQuote });
-          setQuoteError(null);
-        }
-      })
-      .catch((error: unknown) => {
-        if (!isCurrent) return;
-        setQuoteError({
-          key: quoteKey,
-          message: error instanceof PricingQuoteRequestError
-            ? getPricingErrorMessage(error.code, error.message, locale)
-            : error instanceof Error ? error.message : getPricingErrorMessage("QUOTE_UNAVAILABLE", undefined, locale),
-        });
-      });
-
-    return () => {
-      isCurrent = false;
-    };
-  }, [items, appliedCoupon?.id, locale, quoteKey]);
-
-  const displayQuote = quoteState?.key === quoteKey ? quoteState.quote : null;
-  const currentQuoteError = quoteError?.key === quoteKey ? quoteError.message : null;
-  const subtotalCents = displayQuote?.subtotal_cents || 0;
-  const totalCents = displayQuote?.total_cents || 0;
-  const containsAlcohol = catalogContainsAlcohol || items.some((item) => item.is_alcoholic === true);
-
-  useEffect(() => {
     if (!containsAlcohol) setAgeConfirmed(false);
   }, [containsAlcohol]);
-
-  const handleApplyCoupon = async () => {
-    if (!couponCode.trim()) return;
-
-    setIsValidatingCoupon(true);
-    setCouponError(null);
-    setAppliedCoupon(null);
-
-    try {
-      const res = await fetch("/api/validate-coupon", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: couponCode.trim().toUpperCase(),
-          items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
-          locale,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!data.valid) {
-        setCouponError(data.message);
-      } else {
-        setAppliedCoupon({
-          id: data.coupon.id,
-          code: data.coupon.code,
-        });
-        setCouponCode(""); // Clear input on success
-      }
-    } catch (error) {
-      console.error(error);
-      setCouponError("Error validating coupon");
-    } finally {
-      setIsValidatingCoupon(false);
-    }
-  };
-
-  const removeCoupon = () => {
-    setAppliedCoupon(null);
-    setCouponCode("");
-  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
     setFormError(null);
+
+    if (ageStatus !== "ready") {
+      setFormError(ageCheckMessage);
+      setIsSubmitting(false);
+      return;
+    }
 
     if (!pickupAt) {
       setFormError(locale === "fr" ? "Veuillez choisir un créneau de retrait." : "Please choose a pickup slot.");
@@ -322,7 +144,7 @@ export default function CheckoutPage() {
           setFormError(locale === "fr" ? "Ce créneau n'est plus disponible. Choisissez-en un autre." : "This slot is no longer available. Please choose another one.");
         } else if (data?.error === "ALCOHOL_AGE_REQUIRED") {
           setFormError(locale === "fr" ? "La confirmation de majorité est requise pour cette commande." : "Age confirmation is required for this order.");
-          setCatalogContainsAlcohol(true);
+          requireAgeConfirmation();
           setAgeConfirmed(false);
         } else {
            setFormError(getPricingErrorMessage(data?.error || "CHECKOUT_UNAVAILABLE", data?.details || data?.error, locale));
@@ -572,120 +394,7 @@ export default function CheckoutPage() {
               <div>
                 <Card className="sticky top-24">
                   <CardContent className="p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                      {t("orderSummary")}
-                    </h2>
-
-                     {currentQuoteError && (
-                       <p className="mb-4 text-sm text-red-600" role="alert">
-                         {currentQuoteError}
-                       </p>
-                     )}
-
-                     {/* Items */}
-                     <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
-                       {items.map((item) => (
-                        <div
-                          key={item.id}
-                          className="flex justify-between text-sm"
-                        >
-                           <span className="text-gray-600">
-                             {item.name} × {item.quantity}
-                           </span>
-                           <span className="font-medium">
-                             {displayQuote
-                               ? formatPriceCents(
-                                   displayQuote.items.find((quoteItem) => quoteItem.product_id === item.id)?.total_price_cents || 0,
-                                   locale
-                                 )
-                               : "..."}
-                           </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Coupon Code */}
-                    <div className="mt-4 pt-4 border-t border-gray-100">
-                      {!appliedCoupon ? (
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium text-gray-700 block">
-                            {locale === "fr" ? "Code promo" : "Promo code"}
-                          </label>
-                          <div className="flex gap-2">
-                            <Input
-                              name="coupon"
-                              value={couponCode}
-                              onChange={(e) => setCouponCode(e.target.value)}
-                              placeholder="CODE123"
-                            />
-                            <Button
-                              type="button"
-                              onClick={handleApplyCoupon}
-                              variant="secondary"
-                              isLoading={isValidatingCoupon}
-                              disabled={!couponCode.trim()}
-                            >
-                              {locale === "fr" ? "Appliquer" : "Apply"}
-                            </Button>
-                          </div>
-                          {couponError && (
-                            <p className="text-red-500 text-xs mt-1">{couponError}</p>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex justify-between items-center">
-                          <div>
-                            <p className="text-green-700 font-medium text-sm">
-                              {appliedCoupon.code}
-                            </p>
-                             <p className="text-green-600 text-xs">
-                               -{displayQuote ? formatPriceCents(displayQuote.discount_cents, locale) : "..."}
-                             </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={removeCoupon}
-                            className="text-green-600 hover:text-green-800"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                     <div className="border-t border-gray-200 pt-4 space-y-2 mt-4">
-                       <div className="flex justify-between text-sm">
-                         <span className="text-gray-600">{t("subtotal")}</span>
-                         <span className="font-medium">
-                           {displayQuote ? formatPriceCents(subtotalCents, locale) : "..."}
-                         </span>
-                       </div>
-
-                        {displayQuote && displayQuote.preparation_fee_cents > 0 && (
-                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">
-                            {t("deliveryFee")}
-                           </span>
-                           <span className="font-medium">
-                              {formatPriceCents(displayQuote.preparation_fee_cents, locale)}
-                           </span>
-                         </div>
-                       )}
-
-                       {displayQuote && displayQuote.discount_cents > 0 && (
-                         <div className="flex justify-between text-sm text-green-600">
-                           <span>Reduction</span>
-                           <span>-{formatPriceCents(displayQuote.discount_cents, locale)}</span>
-                         </div>
-                       )}
-
-                      <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-200">
-                         <span>{t("total")}</span>
-                         <span className="text-primary-600">
-                            {displayQuote ? formatPriceCents(totalCents, locale) : "..."}
-                         </span>
-                      </div>
-                    </div>
+                    <OrderSummary items={items} locale={locale} quote={displayQuote} error={currentQuoteError} coupon={coupon} />
 
                     <label className="mt-6 flex items-start gap-3 text-sm text-gray-600">
                       <input
@@ -730,12 +439,16 @@ export default function CheckoutPage() {
                       </label>
                     )}
 
+                    {ageStatus !== "ready" && (
+                      <p role={ageStatus === "error" ? "alert" : "status"} className="mt-4 text-sm text-gray-600">{ageCheckMessage}</p>
+                    )}
+
                     <Button
                       type="submit"
                       variant="primary"
                       className="w-full mt-6"
                       isLoading={isSubmitting}
-                      disabled={!displayQuote || !!currentQuoteError}
+                      disabled={!displayQuote || !!currentQuoteError || ageStatus !== "ready"}
                     >
                       {t("placeOrder")}
                     </Button>
