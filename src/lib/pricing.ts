@@ -46,11 +46,18 @@ export class PricingError extends Error {
 }
 
 export function toCents(value: unknown, code: PricingErrorCode = "INVALID_PRICE"): number {
-  const amount = Number(value);
-  if (!Number.isFinite(amount) || amount < 0) {
+  if (
+    (typeof value !== "number" && typeof value !== "string")
+    || (typeof value === "string" && value.trim() === "")
+  ) {
     throw new PricingError(code, "Invalid monetary amount");
   }
-  return Math.round(amount * 100);
+  const amount = Number(value);
+  const cents = Math.round(amount * 100);
+  if (!Number.isFinite(amount) || amount < 0 || !Number.isSafeInteger(cents)) {
+    throw new PricingError(code, "Invalid monetary amount");
+  }
+  return cents;
 }
 
 export function fromCents(value: number): number {
@@ -224,9 +231,11 @@ export async function getPricingQuote(
   if (productsError || !products || products.length !== items.length) {
     throw new PricingError("PRODUCT_UNAVAILABLE", "One or more products are unavailable");
   }
-  if (settingsError) {
+  if (settingsError || !settings) {
     throw new PricingError("SETTINGS_UNAVAILABLE", "Store settings are unavailable");
   }
+  const preparationFeeCents = toCents(settings.preparation_fee, "SETTINGS_UNAVAILABLE");
+  const minimumOrderCents = toCents(settings.min_order_amount, "SETTINGS_UNAVAILABLE");
 
   const productById = new Map(
     (products as ProductRow[]).map((product) => [product.id, product])
@@ -245,13 +254,17 @@ export async function getPricingQuote(
     const unitPriceCents = discountedPriceCents !== null && discountedPriceCents < basePriceCents
       ? discountedPriceCents
       : basePriceCents;
+    const totalPriceCents = unitPriceCents * item.quantity;
+    if (!Number.isSafeInteger(totalPriceCents)) {
+      throw new PricingError("INVALID_PRICE", "Invalid monetary amount");
+    }
 
     return {
       product_id: product.id,
       product_name: product.translations?.[language]?.name || product.id,
       quantity: item.quantity,
       unit_price_cents: unitPriceCents,
-      total_price_cents: unitPriceCents * item.quantity,
+      total_price_cents: totalPriceCents,
     };
   });
 
@@ -259,13 +272,11 @@ export async function getPricingQuote(
     (sum, item) => sum + item.total_price_cents,
     0
   );
-  const preparationFeeCents = toCents(settings?.preparation_fee || 0);
+  if (!Number.isSafeInteger(subtotalCents)) {
+    throw new PricingError("INVALID_PRICE", "Invalid monetary amount");
+  }
 
   // The minimum is configured by an administrator in the store settings.
-  const configuredMinimumCents = settings?.min_order_amount === null || settings?.min_order_amount === undefined
-    ? 0
-    : toCents(settings.min_order_amount, "SETTINGS_UNAVAILABLE");
-  const minimumOrderCents = configuredMinimumCents;
   if (subtotalCents < minimumOrderCents) {
     throw new PricingError(
       "MIN_ORDER_NOT_MET",
@@ -280,6 +291,10 @@ export async function getPricingQuote(
     await assertCouponAllowed(supabase, coupon, options.userId, subtotalCents, options.locale);
     discountCents = calculateDiscountCents(coupon, subtotalCents);
   }
+  const totalCents = subtotalCents - discountCents + preparationFeeCents;
+  if (!Number.isSafeInteger(totalCents)) {
+    throw new PricingError("INVALID_PRICE", "Invalid monetary amount");
+  }
 
   return {
     currency: PRICING_CURRENCY,
@@ -287,7 +302,7 @@ export async function getPricingQuote(
     subtotal_cents: subtotalCents,
     preparation_fee_cents: preparationFeeCents,
     discount_cents: discountCents,
-    total_cents: subtotalCents + preparationFeeCents - discountCents,
+    total_cents: totalCents,
     coupon: coupon ? { id: coupon.id, code: coupon.code } : null,
   };
 }
