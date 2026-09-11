@@ -6,6 +6,7 @@ import { AlertTriangle, ChevronDown, Eye, RotateCcw, Search } from "lucide-react
 import { PickupSlotPicker } from "@/components/pickup/PickupSlotPicker";
 import type { Order, OrderItem, OrderRefund, Profile } from "@/types/database.types";
 import { useState, useEffect, useEffectEvent } from "react";
+import { useAdminOrderRealtime } from "@/components/admin/AdminOrderRealtimeProvider";
 
 type OrderWithDetails = Order & {
   order_items: OrderItem[];
@@ -143,6 +144,7 @@ function getRefundedQuantities(order: OrderWithDetails): Map<string, number> {
 }
 
 export default function OrdersPage() {
+  const { refreshKey, acknowledgeOrder } = useAdminOrderRealtime();
   const [orders, setOrders] = useState<OrderWithDetails[]>([]);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({
     pending: 0,
@@ -204,6 +206,10 @@ export default function OrdersPage() {
   }, []);
 
   useEffect(() => {
+    if (refreshKey > 0) refreshOrders();
+  }, [refreshKey]);
+
+  useEffect(() => {
     if (!orders.some((order) => order.order_refunds.some((refund) => refund.status === "pending"))) return;
 
     const interval = window.setInterval(refreshOrders, 15000);
@@ -232,6 +238,7 @@ export default function OrdersPage() {
   };
 
   const handleViewOrder = (order: OrderWithDetails) => {
+    acknowledgeOrder(order.id);
     setSelectedOrder(order);
     setAdminPickupAt(order.pickup_at);
     setPickupError(null);

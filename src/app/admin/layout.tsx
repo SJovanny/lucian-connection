@@ -1,4 +1,5 @@
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { AdminOrderRealtimeProvider } from "@/components/admin/AdminOrderRealtimeProvider";
 import { headers } from "next/headers";
 import { getAdminUser } from "@/lib/admin-actions";
 
@@ -29,11 +30,13 @@ export default async function AdminLayout({
   const adminUser = await getAdminUser();
 
   return (
-    <div className="min-h-screen flex bg-gray-50 admin-no-motion">
-      <AdminSidebar isAdmin={adminUser?.profile.role === "admin"} />
-      <main className="min-w-0 flex-1 lg:ml-0">
-        <div className="p-6 pt-20 lg:p-8">{children}</div>
-      </main>
-    </div>
+    <AdminOrderRealtimeProvider>
+      <div className="min-h-screen flex bg-gray-50 admin-no-motion">
+        <AdminSidebar isAdmin={adminUser?.profile.role === "admin"} />
+        <main className="min-w-0 flex-1 lg:ml-0">
+          <div className="p-6 pt-20 lg:p-8">{children}</div>
+        </main>
+      </div>
+    </AdminOrderRealtimeProvider>
   );
 }

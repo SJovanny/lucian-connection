@@ -15,6 +15,8 @@ import { getProducts, getCategories, getRecentOrders, getOrderStats } from "@/li
 import Link from "next/link";
 import Image from "next/image";
 import type { Order, OrderItem } from "@/types/database.types";
+import { LiveRecentOrders } from "@/components/admin/LiveRecentOrders";
+import { AdminNotificationCenter } from "@/components/admin/AdminNotificationCenter";
 
 type OrderWithItems = Order & {
   order_items: OrderItem[];
@@ -55,39 +57,6 @@ async function getStats() {
   };
 }
 
-// Formater le temps écoulé
-function formatTimeAgo(date: string) {
-  const now = new Date();
-  const orderDate = new Date(date);
-  const diffMs = now.getTime() - orderDate.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return "À l'instant";
-  if (diffMins < 60) return `Il y a ${diffMins} min`;
-  if (diffHours < 24) return `Il y a ${diffHours}h`;
-  return `Il y a ${diffDays}j`;
-}
-
-const statusColors = {
-  pending: "bg-yellow-100 text-yellow-800",
-  preparing: "bg-purple-100 text-purple-800",
-  ready: "bg-green-100 text-green-800",
-  completed: "bg-blue-100 text-blue-800",
-  cancelled: "bg-red-100 text-red-800",
-  refunded: "bg-orange-100 text-orange-800",
-};
-
-const statusLabels = {
-  pending: "En attente",
-  preparing: "En préparation",
-  ready: "Prête",
-  completed: "Terminée",
-  cancelled: "Annulée",
-  refunded: "Remboursement",
-};
-
 export default async function AdminDashboard() {
   const [stats, recentOrders] = await Promise.all([
     getStats(),
@@ -123,6 +92,7 @@ export default async function AdminDashboard() {
             <Eye className="w-4 h-4" />
             Voir commandes
           </Link>
+          <AdminNotificationCenter />
         </div>
       </div>
 
@@ -234,33 +204,9 @@ export default async function AdminDashboard() {
                     <th className="pb-3 font-medium">Statut</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {orders.map((order) => (
-                    <tr key={order.id}>
-                      <td className="py-3">
-                        <span className="font-medium text-gray-900">#{order.id.slice(0, 8)}</span>
-                        <p className="text-xs text-gray-400">{formatTimeAgo(order.created_at)}</p>
-                      </td>
-                      <td className="py-3 text-gray-600">{order.order_items?.length || 0} articles</td>
-                      <td className="py-3 font-semibold text-gray-900">
-                        ${order.total_amount.toFixed(2)}
-                      </td>
-                      <td className="py-3">
-                        <span className={`inline-block px-2 py-1 text-xs rounded-full ${statusColors[order.status]}`}>
-                          {statusLabels[order.status]}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
+                <LiveRecentOrders initialOrders={orders} />
               </table>
             </div>
-            {orders.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                <ShoppingCart className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p>Aucune commande pour le moment</p>
-              </div>
-            )}
           </CardContent>
         </Card>
 
