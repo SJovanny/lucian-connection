@@ -17,6 +17,7 @@ import Image from "next/image";
 import type { Order, OrderItem } from "@/types/database.types";
 import { LiveRecentOrders } from "@/components/admin/LiveRecentOrders";
 import { AdminNotificationCenter } from "@/components/admin/AdminNotificationCenter";
+import { LivePendingPayments } from "@/components/admin/LivePendingPayments";
 
 type OrderWithItems = Order & {
   order_items: OrderItem[];
@@ -95,6 +96,8 @@ export default async function AdminDashboard() {
           <AdminNotificationCenter />
         </div>
       </div>
+
+      <LivePendingPayments />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">

@@ -73,6 +73,7 @@ export async function GET(request: NextRequest) {
     };
 
     ordersWithRefunds.forEach((order: any) => {
+      if (!["paid", "partially_refunded"].includes(order.payment_status)) return;
       statusCounts[order.status as keyof typeof statusCounts]++;
     });
 

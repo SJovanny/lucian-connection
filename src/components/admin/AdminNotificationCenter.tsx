@@ -1,14 +1,28 @@
 "use client";
 
 import { Bell, Volume2, VolumeX, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAdminOrderRealtime } from "./AdminOrderRealtimeProvider";
 
 export function AdminNotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
-  const { notifications, unreadCount, soundEnabled, toggleSound, connectionStatus } = useAdminOrderRealtime();
+  const { notifications, unreadCount, soundEnabled, toggleSound, connectionStatus, acknowledgeOrder } = useAdminOrderRealtime();
   const panelOpen = isOpen || isHovering;
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [isOpen]);
 
   const togglePanel = () => {
     setIsOpen((open) => !open);
@@ -16,6 +30,7 @@ export function AdminNotificationCenter() {
 
   return (
     <div
+      ref={containerRef}
       className="relative z-50"
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
@@ -68,9 +83,22 @@ export function AdminNotificationCenter() {
           ) : (
             notifications.map((notification) => (
               <div key={notification.id} className="border-b border-gray-100 px-2 py-3 last:border-0">
-                <p className="text-sm font-medium">{notification.title}</p>
-                <p className="text-xs text-gray-500">{notification.message}</p>
-                <p className="mt-1 text-[11px] text-gray-400">{new Date(notification.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</p>
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">{notification.title}</p>
+                    <p className="text-xs text-gray-500">{notification.message}</p>
+                    <p className="mt-1 text-[11px] text-gray-400">{new Date(notification.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => acknowledgeOrder(notification.orderId)}
+                    className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                    aria-label={`Supprimer la notification ${notification.title}`}
+                    title="Supprimer cette notification"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             ))
           )}

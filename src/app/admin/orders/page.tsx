@@ -159,6 +159,7 @@ export default function OrdersPage() {
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [filterMonth, setFilterMonth] = useState("");
   const [adminPickupAt, setAdminPickupAt] = useState<string | null>(null);
@@ -223,17 +224,19 @@ export default function OrdersPage() {
       (order.profiles?.full_name ?? "").toLowerCase().includes(term) ||
       (order.phone ?? "").toLowerCase().includes(term);
     const matchesStatus = !filterStatus || order.status === filterStatus;
+    const matchesPaymentStatus = !filterPaymentStatus || order.payment_status === filterPaymentStatus;
     const matchesMonth = !filterMonth || orderMonthKey(order.created_at) === filterMonth;
-    return matchesSearch && matchesStatus && matchesMonth;
+    return matchesSearch && matchesStatus && matchesPaymentStatus && matchesMonth;
   });
   const selectedRefundedQuantities = selectedOrder ? getRefundedQuantities(selectedOrder) : new Map<string, number>();
   const hasPendingRefund = selectedOrder?.order_refunds.some((refund) => refund.status === "pending") || false;
 
-  const hasActiveFilters = searchTerm !== "" || filterStatus !== "" || filterMonth !== "";
+  const hasActiveFilters = searchTerm !== "" || filterStatus !== "" || filterPaymentStatus !== "" || filterMonth !== "";
 
   const handleResetFilters = () => {
     setSearchTerm("");
     setFilterStatus("");
+    setFilterPaymentStatus("");
     setFilterMonth("");
   };
 
@@ -484,6 +487,17 @@ export default function OrdersPage() {
             <option value="cancelled">Annulée</option>
             <option value="refunded">Remboursement</option>
           </select>
+          <select
+            value={filterPaymentStatus}
+            onChange={(e) => setFilterPaymentStatus(e.target.value)}
+            aria-label="Filtrer par paiement"
+            className="h-11 px-4 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
+          >
+            <option value="">Tous les paiements</option>
+            <option value="paid">Paiements confirmés</option>
+            <option value="pending_payment">Paiements en attente</option>
+            <option value="cancelled">Paiements annulés</option>
+          </select>
           <input
             type="month"
             value={filterMonth}
@@ -564,14 +578,16 @@ export default function OrdersPage() {
                           ${order.total_amount.toFixed(2)}
                         </p>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="relative inline-block">
-                          <span
-                            className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${
-                              statusConfig[order.status].color
+                        <td className="px-6 py-4">
+                          <div className="relative inline-block">
+                            <span
+                              className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${
+                              order.payment_status === "pending_payment"
+                                ? "bg-amber-100 text-amber-800"
+                                : statusConfig[order.status].color
                             }`}
                           >
-                            {statusConfig[order.status].label}
+                            {order.payment_status === "pending_payment" ? "Paiement en attente" : statusConfig[order.status].label}
                           </span>
                         </div>
                       </td>

@@ -34,7 +34,7 @@ function formatTimeAgo(date: string) {
 }
 
 export function LiveRecentOrders({ initialOrders }: { initialOrders: OrderWithItems[] }) {
-  const [orders, setOrders] = useState(initialOrders);
+  const [orders, setOrders] = useState(() => initialOrders.filter((order) => ["paid", "partially_refunded"].includes(order.payment_status)));
   const { refreshKey } = useAdminOrderRealtime();
 
   useEffect(() => {
@@ -46,6 +46,7 @@ export function LiveRecentOrders({ initialOrders }: { initialOrders: OrderWithIt
         if (!active || !Array.isArray(data.orders)) return;
         setOrders(
           (data.orders as OrderWithItems[])
+            .filter((order) => ["paid", "partially_refunded"].includes(order.payment_status))
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
             .slice(0, 5),
         );
@@ -75,8 +76,8 @@ export function LiveRecentOrders({ initialOrders }: { initialOrders: OrderWithIt
           <td className="py-3 text-gray-600">{order.order_items?.length || 0} articles</td>
           <td className="py-3 font-semibold text-gray-900">{order.total_amount.toFixed(2)} €</td>
           <td className="py-3">
-            <span className={`inline-block rounded-full px-2 py-1 text-xs ${statusColors[order.status] || "bg-gray-100 text-gray-700"}`}>
-              {statusLabels[order.status] || order.status}
+            <span className={`inline-block rounded-full px-2 py-1 text-xs ${order.payment_status === "pending_payment" ? "bg-amber-100 text-amber-800" : statusColors[order.status] || "bg-gray-100 text-gray-700"}`}>
+              {order.payment_status === "pending_payment" ? "Paiement en attente" : statusLabels[order.status] || order.status}
             </span>
           </td>
         </tr>

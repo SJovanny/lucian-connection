@@ -327,7 +327,7 @@ export async function getOrderStats() {
   
   const { data: todayOrders, error: todayError } = await supabase
     .from("orders")
-    .select("id, total_amount, status")
+    .select("id, total_amount, status, payment_status")
     .gte("created_at", today.toISOString());
 
   if (todayError) {
@@ -336,12 +336,14 @@ export async function getOrderStats() {
 
   const { count: totalOrders } = await supabase
     .from("orders")
-    .select("*", { count: "exact", head: true });
+    .select("*", { count: "exact", head: true })
+    .in("payment_status", ["paid", "partially_refunded"]);
 
   const { count: pendingOrders } = await supabase
     .from("orders")
     .select("*", { count: "exact", head: true })
-    .in("status", ["pending", "preparing"]);
+    .in("status", ["pending", "preparing"])
+    .in("payment_status", ["paid", "partially_refunded"]);
 
   const { count: cancelledOrders } = await supabase
     .from("orders")
@@ -353,11 +355,15 @@ export async function getOrderStats() {
     .select("*", { count: "exact", head: true })
     .eq("status", "refunded");
 
-  const typedTodayOrders = (todayOrders || []) as Array<Pick<Order, "status" | "total_amount">>;
+  const typedTodayOrders = (todayOrders || []) as Array<Pick<Order, "status" | "total_amount" | "payment_status">>;
   const todayRevenue = typedTodayOrders
-    .filter((order) => order.status !== "cancelled" && order.status !== "refunded")
+    .filter((order) => (
+      ["paid", "partially_refunded"].includes(order.payment_status) &&
+      order.status !== "cancelled" &&
+      order.status !== "refunded"
+    ))
     .reduce((acc, o) => acc + (o.total_amount || 0), 0);
-  const todayCount = todayOrders?.length || 0;
+  const todayCount = todayOrders?.filter((order) => ["paid", "partially_refunded"].includes(order.payment_status)).length || 0;
 
   return {
     todayOrders: todayCount,

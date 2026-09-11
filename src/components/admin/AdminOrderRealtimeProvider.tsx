@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 
-type OrderRow = { id: string; status: string; total_amount: number; created_at?: string };
+type OrderRow = { id: string; status: string; payment_status: string; total_amount: number; created_at?: string };
 type OrderChange = RealtimePostgresChangesPayload<OrderRow>;
 type AdminNotification = {
   id: string;
@@ -13,6 +13,7 @@ type AdminNotification = {
   message: string;
   createdAt: string;
   read: boolean;
+  paymentPending?: boolean;
 };
 
 type AdminOrderRealtimeContextValue = {
@@ -37,34 +38,52 @@ function playNotificationSound() {
   if (!AudioContextClass) return;
 
   const context = new AudioContextClass();
-  const notes = [
-    { frequency: 523.25, start: 0, duration: 0.18 },
-    { frequency: 659.25, start: 0.18, duration: 0.18 },
-    { frequency: 783.99, start: 0.36, duration: 0.2 },
-    { frequency: 659.25, start: 0.56, duration: 0.28 },
-  ];
+  void context.resume().then(() => {
+    const notes = [
+      { frequency: 523.25, start: 0, duration: 0.18 },
+      { frequency: 659.25, start: 0.18, duration: 0.18 },
+      { frequency: 783.99, start: 0.36, duration: 0.2 },
+      { frequency: 659.25, start: 0.56, duration: 0.28 },
+    ];
 
-  for (const note of notes) {
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    const start = context.currentTime + note.start;
-    const end = start + note.duration;
-    oscillator.type = "triangle";
-    oscillator.frequency.setValueAtTime(note.frequency, start);
-    gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(0.08, start + 0.015);
-    gain.gain.exponentialRampToValueAtTime(0.0001, end);
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start(start);
-    oscillator.stop(end);
-  }
+    for (const note of notes) {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      const start = context.currentTime + note.start;
+      const end = start + note.duration;
+      oscillator.type = "triangle";
+      oscillator.frequency.setValueAtTime(note.frequency, start);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.08, start + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, end);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start(start);
+      oscillator.stop(end);
+    }
 
-  window.setTimeout(() => void context.close(), 950);
+    window.setTimeout(() => void context.close(), 950);
+  }).catch(() => void context.close());
 }
 
 function notificationForChange(change: OrderChange): AdminNotification | null {
-  if (change.eventType === "INSERT") {
+  if (change.eventType === "INSERT" && change.new.payment_status === "paid") {
+    const total = Number(change.new.total_amount || 0).toFixed(2);
+    return {
+      id: `${change.commit_timestamp}-${change.new.id}`,
+      orderId: change.new.id,
+      title: "Nouvelle commande",
+      message: `Commande #${change.new.id.slice(0, 8)} · ${total} €`,
+      createdAt: change.commit_timestamp || new Date().toISOString(),
+      read: false,
+    };
+  }
+
+  if (
+    change.eventType === "UPDATE" &&
+    change.old.payment_status !== "paid" &&
+    change.new.payment_status === "paid"
+  ) {
     const total = Number(change.new.total_amount || 0).toFixed(2);
     return {
       id: `${change.commit_timestamp}-${change.new.id}`,
@@ -77,6 +96,7 @@ function notificationForChange(change: OrderChange): AdminNotification | null {
   }
 
   if (change.eventType === "UPDATE" && change.old.status !== change.new.status) {
+    if (!["paid", "partially_refunded"].includes(change.new.payment_status)) return null;
     return {
       id: `${change.commit_timestamp}-${change.new.id}`,
       orderId: change.new.id,
@@ -95,15 +115,7 @@ export function AdminOrderRealtimeProvider({ children }: { children: React.React
   const [soundEnabled, setSoundEnabled] = useState(() => (
     typeof window === "undefined" || window.localStorage.getItem("admin-order-sound") !== "off"
   ));
-  const [notifications, setNotifications] = useState<AdminNotification[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const stored = JSON.parse(window.localStorage.getItem(notificationsStorageKey) || "[]");
-      return Array.isArray(stored) ? stored : [];
-    } catch {
-      return [];
-    }
-  });
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<AdminOrderRealtimeContextValue["connectionStatus"]>("connecting");
   const notificationsRef = useRef(notifications);
   const soundEnabledRef = useRef(soundEnabled);
@@ -128,6 +140,17 @@ export function AdminOrderRealtimeProvider({ children }: { children: React.React
     let active = true;
     const supabase = createClient();
 
+    // Restore browser-persisted notifications after hydration to keep the server
+    // and client markup identical on the first render.
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(notificationsStorageKey) || "[]");
+      if (Array.isArray(stored) && stored.length > 0) {
+        persistNotifications(stored.filter((notification) => !notification.paymentPending));
+      }
+    } catch {
+      console.warn("Unable to restore admin notifications from local storage");
+    }
+
     const pollOrders = async () => {
       try {
         const response = await fetch("/api/admin/orders", { cache: "no-store" });
@@ -135,29 +158,59 @@ export function AdminOrderRealtimeProvider({ children }: { children: React.React
         const data = await response.json();
         if (!active || !Array.isArray(data.orders)) return;
 
+        // Polling is the reliable source of truth when Realtime is unavailable.
+        // Notify both the dashboard list and the orders page of fresh data.
+        setRefreshKey((key) => key + 1);
+
         const acknowledged = getAcknowledgedOrders();
-        const existingOrderIds = new Set(notificationsRef.current.map((notification) => notification.orderId));
+        const currentNotifications = notificationsRef.current;
+        const existingOrderIds = new Set(currentNotifications.map((notification) => notification.orderId));
         const cutoff = Date.now() - 48 * 60 * 60 * 1000;
-        const recovered = data.orders
+        const recentOrders = data.orders
           .filter((order: OrderRow) => (
             Boolean(order.created_at) &&
             new Date(order.created_at as string).getTime() >= cutoff &&
-            !acknowledged.has(order.id) &&
-            !existingOrderIds.has(order.id)
-          ))
+            order.payment_status === "paid" &&
+            !acknowledged.has(order.id)
+          ));
+        const recovered = recentOrders
+          .filter((order: OrderRow) => !existingOrderIds.has(order.id))
           .slice(0, 30)
-          .map((order: OrderRow) => ({
+          .map((order: OrderRow): AdminNotification => ({
             id: `recovered-${order.id}`,
             orderId: order.id,
             title: "Nouvelle commande",
             message: `Commande #${order.id.slice(0, 8)} · ${Number(order.total_amount || 0).toFixed(2)} €`,
             createdAt: order.created_at || new Date().toISOString(),
             read: false,
+            paymentPending: false,
+          }));
+        const paidTransitions = recentOrders
+          .filter((order: OrderRow) => {
+            const existing = currentNotifications.find((notification) => notification.orderId === order.id);
+            return existing?.paymentPending && order.payment_status === "paid";
+          })
+          .map((order: OrderRow): AdminNotification => ({
+            id: `paid-${order.id}`,
+            orderId: order.id,
+            title: "Nouvelle commande",
+            message: `Commande #${order.id.slice(0, 8)} · ${Number(order.total_amount || 0).toFixed(2)} €`,
+            createdAt: order.created_at || new Date().toISOString(),
+            read: false,
+            paymentPending: false,
           }));
 
-        if (recovered.length > 0) {
-          persistNotifications([...recovered, ...notificationsRef.current].slice(0, 30));
-          if (soundEnabledRef.current) playNotificationSound();
+        if (recovered.length > 0 || paidTransitions.length > 0) {
+          const replacements = new Map(paidTransitions.map((notification: AdminNotification) => [notification.orderId, notification]));
+          const next = [
+            ...recovered,
+            ...currentNotifications.filter((notification: AdminNotification) => !replacements.has(notification.orderId)),
+          ];
+          for (const notification of paidTransitions) next.unshift(notification);
+          persistNotifications(next.slice(0, 30));
+          if (soundEnabledRef.current && (paidTransitions.length > 0 || recovered.some((notification: AdminNotification) => !notification.paymentPending))) {
+            playNotificationSound();
+          }
         }
         setConnectionStatus((status) => status === "live" ? status : "polling");
       } catch (error) {

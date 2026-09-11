@@ -120,7 +120,11 @@ export async function POST(request: NextRequest) {
     if (reservationError) {
       console.error(`Webhook: unable to release coupon reservation for order ${orderId}`, reservationError);
     }
-    await supabase.from("orders").update({ payment_status: "cancelled" }).eq("id", orderId);
+    await supabase.from("orders").update({
+      payment_status: "cancelled",
+      status: "cancelled",
+      updated_at: new Date().toISOString(),
+    }).eq("id", orderId).eq("payment_status", "pending_payment");
   }
 
   if (event.type === "refund.created" || event.type === "refund.updated" || event.type === "refund.failed") {
