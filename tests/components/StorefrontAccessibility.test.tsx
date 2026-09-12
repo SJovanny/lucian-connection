@@ -33,7 +33,8 @@ vi.mock("@/lib/client-pricing", () => ({
 
 const product = {
   id: "juice", slug: "juice", price: 2, image_url: "/juice.png", unit: "1L", stock: 0,
-  is_alcoholic: false, translations: { en: { name: "Juice" }, fr: { name: "Jus" } }, categories: null,
+  track_stock: false, is_alcoholic: false,
+  translations: { en: { name: "Juice" }, fr: { name: "Jus" } }, categories: null,
 } as ProductWithCategory;
 
 let reduced: boolean;

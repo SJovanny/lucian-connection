@@ -35,7 +35,7 @@ export function ProductForm({ product, categories, isEditing = false }: ProductF
     unit: product?.unit || "each",
     stock: product?.stock?.toString() || "0",
     low_stock_threshold: product?.low_stock_threshold?.toString() || "5",
-    track_stock: product?.track_stock !== false,
+    track_stock: product?.track_stock === true,
     is_alcoholic: product?.is_alcoholic === true,
     is_active: product?.is_active !== false,
     is_featured: product?.is_featured || false,
