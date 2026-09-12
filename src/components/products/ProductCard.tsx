@@ -54,9 +54,6 @@ export function ProductCard({ product }: ProductCardProps) {
     : product.price;
   const hasDiscount = discountedPrice !== null && discountedPrice < product.price;
   const { whole, decimal } = formatPriceParts(displayPrice);
-  const isStockTracked = product.track_stock === true;
-  const isOutOfStock = isStockTracked && product.stock <= 0;
-
   const animateToCart = () => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const cartIcon = document.getElementById("cart-icon-container");
@@ -113,7 +110,6 @@ export function ProductCard({ product }: ProductCardProps) {
   };
 
   const handleAddToCart = () => {
-    if (isOutOfStock) return;
     animateToCart();
     addItem({
       id: product.id,
@@ -126,7 +122,6 @@ export function ProductCard({ product }: ProductCardProps) {
   };
 
   const handleIncrement = () => {
-    if (isStockTracked && quantity >= product.stock) return;
     updateQuantity(product.id, quantity + 1);
   };
 
@@ -156,13 +151,6 @@ export function ProductCard({ product }: ProductCardProps) {
         ) : (
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
             <Package className="w-8 h-8 text-gray-400" />
-          </div>
-        )}
-        {isOutOfStock && (
-          <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
-            <span className="text-sm font-medium text-gray-500">
-              {t("outOfStock")}
-            </span>
           </div>
         )}
       </div>
@@ -217,8 +205,7 @@ export function ProductCard({ product }: ProductCardProps) {
             <button
               onClick={handleAddToCart}
               aria-label={locale === "fr" ? `Ajouter ${productName} au panier` : `Add ${productName} to cart`}
-              disabled={isOutOfStock}
-              className="w-full h-12 bg-gray-100 hover:bg-primary-100 rounded-xl flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed btn-press active:bg-primary-200"
+              className="w-full h-12 bg-gray-100 hover:bg-primary-100 rounded-xl flex items-center justify-center transition-colors btn-press active:bg-primary-200"
             >
               <Plus className="w-6 h-6 text-gray-700" />
             </button>
@@ -235,7 +222,6 @@ export function ProductCard({ product }: ProductCardProps) {
               <button
                 onClick={handleIncrement}
                 aria-label={locale === "fr" ? `Augmenter la quantité de ${productName}` : `Increase quantity of ${productName}`}
-                disabled={isStockTracked && quantity >= product.stock}
                 className="w-8 h-8 border-2 border-white rounded-full flex items-center justify-center text-white hover:bg-primary-400 transition-colors disabled:opacity-50"
               >
                 <Plus className="w-4 h-4" />

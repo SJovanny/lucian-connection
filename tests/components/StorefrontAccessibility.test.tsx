@@ -33,7 +33,7 @@ vi.mock("@/lib/client-pricing", () => ({
 
 const product = {
   id: "juice", slug: "juice", price: 2, image_url: "/juice.png", unit: "1L", stock: 0,
-  track_stock: false, is_alcoholic: false,
+  track_stock: true, is_alcoholic: false,
   translations: { en: { name: "Juice" }, fr: { name: "Jus" } }, categories: null,
 } as ProductWithCategory;
 
@@ -56,6 +56,7 @@ describe.each(["en", "fr"])("%s storefront accessible controls", (locale) => {
   it("names product controls and preserves add/increment/decrement behavior at zero stock", () => {
     mocks.locale = locale;
     render(<ProductCard product={product} />);
+    expect(screen.queryByText("outOfStock")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: locale === "fr" ? "Ajouter Jus au panier" : "Add Juice to cart" }));
     fireEvent.click(screen.getByRole("button", { name: locale === "fr" ? "Augmenter la quantité de Jus" : "Increase quantity of Juice" }));
     expect(useCartStore.getState().items[0].quantity).toBe(2);
