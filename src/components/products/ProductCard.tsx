@@ -54,9 +54,8 @@ export function ProductCard({ product }: ProductCardProps) {
     : product.price;
   const hasDiscount = discountedPrice !== null && discountedPrice < product.price;
   const { whole, decimal } = formatPriceParts(displayPrice);
-  // TODO: Réactiver quand on aura les données de stock
-  // const isOutOfStock = product.stock === 0;
-  const isOutOfStock = false;
+  const isStockTracked = product.track_stock === true;
+  const isOutOfStock = isStockTracked && product.stock <= 0;
 
   const animateToCart = () => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -127,10 +126,8 @@ export function ProductCard({ product }: ProductCardProps) {
   };
 
   const handleIncrement = () => {
-    // TODO: Réactiver la limite de stock quand disponible
-    // if (quantity < product.stock) {
+    if (isStockTracked && quantity >= product.stock) return;
     updateQuantity(product.id, quantity + 1);
-    // }
   };
 
   const handleDecrement = () => {
@@ -238,8 +235,7 @@ export function ProductCard({ product }: ProductCardProps) {
               <button
                 onClick={handleIncrement}
                 aria-label={locale === "fr" ? `Augmenter la quantité de ${productName}` : `Increase quantity of ${productName}`}
-                // TODO: Réactiver la limite de stock quand disponible
-                // disabled={quantity >= product.stock}
+                disabled={isStockTracked && quantity >= product.stock}
                 className="w-8 h-8 border-2 border-white rounded-full flex items-center justify-center text-white hover:bg-primary-400 transition-colors disabled:opacity-50"
               >
                 <Plus className="w-4 h-4" />

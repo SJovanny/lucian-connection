@@ -55,13 +55,13 @@ describe("Stripe checkout gateway", () => {
     const attempted = vi.fn();
     await createStripeCheckoutGateway().createSession(input, attempted);
     expect(mocks.productCreate.mock.calls).toEqual([
-      [{ name: "First", metadata: { order_id: "order-1", product_id: "item-1" } }],
-      [{ name: "Second", metadata: { order_id: "order-1", product_id: "item-2" } }],
-      [{ name: "Preparation fee", metadata: { order_id: "order-1", type: "preparation_fee" } }],
+      [{ name: "First", metadata: { order_id: "order-1", product_id: "item-1" } }, { idempotencyKey: "checkout-product:order-1:item-1" }],
+      [{ name: "Second", metadata: { order_id: "order-1", product_id: "item-2" } }, { idempotencyKey: "checkout-product:order-1:item-2" }],
+      [{ name: "Preparation fee", metadata: { order_id: "order-1", type: "preparation_fee" } }, { idempotencyKey: "checkout-product:order-1:preparation-fee" }],
     ]);
     expect(mocks.couponCreate).toHaveBeenCalledWith({
       amount_off: 225, currency: "eur", duration: "once", applies_to: { products: ["prod-1", "prod-2"] },
-    });
+    }, { idempotencyKey: "checkout-coupon:order-1" });
     expect(mocks.sessionCreate).toHaveBeenCalledWith({
       mode: "payment",
       customer_email: input.email,

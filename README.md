@@ -20,6 +20,7 @@ Create `.env.local` from `.env.example` and supply values for the services you n
 - `NEXT_PUBLIC_HCAPTCHA_SITE_KEY`: authentication CAPTCHA; configure its matching secret in Supabase.
 - Optional analytics and legal/mediator configuration are listed in `.env.example`.
 - `DATABASE_URL` (or `DIRECT_URL`, preferred by migration/backup scripts): direct PostgreSQL tooling access, separate from the application's Supabase HTTP access.
+- `SUPABASE_DB_CA`: local path to Supabase's PostgreSQL root CA certificate. Direct tooling requires certificate verification; for example, set `SUPABASE_DB_CA=/absolute/path/to/prod-ca-2021.crt` in the shell before running a database command. Do not commit the certificate or any environment file.
 
 Open <http://localhost:3000>. `/` uses next-intl locale detection (locale cookie, browser language, then French fallback) to reach `/fr` or `/en`. Storefront routes live under `src/app/[locale]`; staff routes use `/admin`, with role-based access. Checkout uses server-side pricing, pickup slots, and Stripe. The legacy `/api/orders` endpoint remains an HTTP **410 Gone** compatibility endpoint; clients should use the payment checkout flow.
 
@@ -51,9 +52,11 @@ The GitHub Actions workflow at `.github/workflows/quality.yml` runs on pushes an
 
 **The current database baseline is not reproducible from this repository alone.** Files in `supabase/migrations/` are incremental changes to an existing schema: the first migration already assumes `public.orders` and `public.profiles` exist. A clean-database replay is not an established setup path. Obtain and verify the matching baseline and applied migration history before attempting a rebuild or upgrade.
 
-Direct database verification currently has a reported **TLS/certificate connection blocker**. Its resolution and a successful baseline replay are still unverified; application checks are not evidence that this blocker is fixed. Verify the connection's certificate trust and TLS configuration before relying on direct database tooling.
+Direct database verification is now working with strict PostgreSQL TLS certificate verification. A production backup was created and its custom-format archive was inspected with `pg_restore --list`. The migration set in this repository was first executed in a live transaction and rolled back successfully, including a checkout/payment/refund scenario.
 
-`scripts/apply_migration.js` reads `.env.local`, prefers `DIRECT_URL` over `DATABASE_URL`, and executes the supplied SQL file directly. It has no migration-history tracking or automatic transaction wrapper, and currently sets `rejectUnauthorized: false`; that is not a verified TLS fix. Do not blindly replay the directory or treat this script as a fresh-project bootstrap. Review each migration's prerequisites, transaction requirements, data effects, and existing application state first.
+The live schema and `supabase_migrations.schema_migrations` are now reconciled through `202609120004_refund_fee_only_stock`; all 29 repository migrations have been applied sequentially after fresh backups. Rollbacked live smoke tests covered checkout preparation, idempotent retry, payment finalization, product refund synchronization, fee-only refund handling, stock restoration, and loyalty reconciliation without leaving test data behind. Future migrations still require a verified target, backup, and review of prerequisites and data effects.
+
+`scripts/apply_migration.js` reads `.env.local`, prefers `DIRECT_URL` over `DATABASE_URL`, requires a trusted CA, runs one migration in a transaction, takes an advisory lock, and records it in `supabase_migrations.schema_migrations`. `npm run db:migrate` applies the directory in filename order. Do not blindly replay the directory or treat this script as a fresh-project bootstrap. Review each migration's prerequisites, transaction requirements, data effects, and existing application state first.
 
 Backup commands require PostgreSQL's `pg_dump`:
 

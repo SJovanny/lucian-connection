@@ -108,6 +108,21 @@ export const pickupUpdateSchema = z.object({
   pickup_at: z.string().datetime({ offset: true }),
 }).strict();
 
+export const refundRequestSchema = z.object({
+  full_order: z.boolean().default(false),
+  item_ids: z.array(uuidSchema).max(100).default([]).refine(
+    (items) => new Set(items).size === items.length,
+    "Duplicate order item"
+  ),
+}).strict().superRefine((value, context) => {
+  if (value.full_order && value.item_ids.length > 0) {
+    context.addIssue({ code: "custom", message: "Full refunds cannot include item IDs" });
+  }
+  if (!value.full_order && value.item_ids.length === 0) {
+    context.addIssue({ code: "custom", message: "Select at least one order item" });
+  }
+});
+
 const positivePageSchema = z.string().regex(/^\d+$/).transform(Number).pipe(
   z.number().int().min(1).max(Number.MAX_SAFE_INTEGER)
 );

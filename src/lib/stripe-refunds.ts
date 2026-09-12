@@ -4,7 +4,19 @@ import type { Database, Order, OrderRefund, OrderRefundItem } from "@/types/data
 
 type StoredRefund = Pick<
   OrderRefund,
-  "id" | "order_id" | "user_id" | "amount" | "product_amount" | "items" | "status" | "stripe_status" | "stripe_reference" | "stripe_reference_status" | "stripe_reference_type"
+  | "id"
+  | "order_id"
+  | "user_id"
+  | "request_key"
+  | "amount"
+  | "product_amount"
+  | "items"
+  | "status"
+  | "stripe_refund_id"
+  | "stripe_status"
+  | "stripe_reference"
+  | "stripe_reference_status"
+  | "stripe_reference_type"
 >;
 
 type SyncedOrder = Pick<Order, "payment_status" | "status" | "refunded_at">;
@@ -40,7 +52,7 @@ function parseRefundItems(value: string | undefined): OrderRefundItem[] {
 }
 
 function getPaymentIntentId(refund: Stripe.Refund): string | null {
-  return typeof refund.payment_intent === "string" ? refund.payment_intent : null;
+  return typeof refund.payment_intent === "string" ? refund.payment_intent : refund.payment_intent?.id || null;
 }
 
 function getRefundReference(refund: Stripe.Refund) {
@@ -66,6 +78,11 @@ function getRefundReference(refund: Stripe.Refund) {
   return { reference: null, status: null, type: null };
 }
 
+function isUuid(value: unknown): value is string {
+  return typeof value === "string"
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
 export async function syncStripeRefund({
   supabase,
   stripe,
@@ -77,146 +94,135 @@ export async function syncStripeRefund({
   stripeRefundId: string;
   localRefundId?: string;
 }): Promise<StripeRefundSync> {
+  if (!/^re_[A-Za-z0-9]+$/.test(stripeRefundId)) {
+    throw new Error("Invalid Stripe refund identifier");
+  }
+
   // Retrieve the current Stripe object because webhook delivery order is not guaranteed.
   const stripeRefund = await stripe.refunds.retrieve(stripeRefundId);
   const metadata = stripeRefund.metadata || {};
   const metadataOrderId = metadata.order_id;
-  const refundId = localRefundId || metadata.order_refund_id;
+  const metadataRefundId = isUuid(metadata.order_refund_id) ? metadata.order_refund_id : null;
+  const requestedRefundId = localRefundId || metadataRefundId;
+  if (localRefundId && !isUuid(localRefundId)) throw new Error("Invalid local refund identifier");
 
+  const refundFields = "id, order_id, user_id, request_key, amount, product_amount, items, status, stripe_refund_id, stripe_status, stripe_reference, stripe_reference_status, stripe_reference_type";
   let storedRefund: StoredRefund | null = null;
-  if (refundId) {
+  if (requestedRefundId) {
     const { data, error } = await supabase
       .from("order_refunds")
-      .select("id, order_id, user_id, amount, product_amount, items, status, stripe_status, stripe_reference, stripe_reference_status, stripe_reference_type")
-      .eq("id", refundId)
+      .select(refundFields)
+      .eq("id", requestedRefundId)
       .maybeSingle();
     if (error) throw error;
-    storedRefund = data as StoredRefund | null;
+    if (!data) throw new Error("Local refund reservation was not found");
+    storedRefund = data as StoredRefund;
   } else {
     const { data, error } = await supabase
       .from("order_refunds")
-      .select("id, order_id, user_id, amount, product_amount, items, status, stripe_status, stripe_reference, stripe_reference_status, stripe_reference_type")
+      .select(refundFields)
       .eq("stripe_refund_id", stripeRefund.id)
       .maybeSingle();
     if (error) throw error;
     storedRefund = data as StoredRefund | null;
   }
 
-  let orderId = storedRefund?.order_id || metadataOrderId || null;
-  if (!orderId) {
-    const paymentIntentId = getPaymentIntentId(stripeRefund);
-    if (paymentIntentId) {
-      const { data, error } = await supabase
-        .from("orders")
-        .select("id")
-        .eq("payment_reference", paymentIntentId)
-        .maybeSingle();
-      if (error) throw error;
-      orderId = data?.id || null;
-    }
+  let orderId = storedRefund?.order_id || (isUuid(metadataOrderId) ? metadataOrderId : null);
+  const paymentIntentId = getPaymentIntentId(stripeRefund);
+  if (!paymentIntentId || !/^pi_[A-Za-z0-9]+$/.test(paymentIntentId)) {
+    throw new Error("Stripe refund payment intent is missing");
+  }
+  if (!orderId && paymentIntentId) {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("id")
+      .eq("payment_reference", paymentIntentId)
+      .maybeSingle();
+    if (error) throw error;
+    orderId = data?.id || null;
   }
   if (!orderId) throw new Error(`Unable to associate Stripe refund ${stripeRefund.id} with an order`);
   if (metadataOrderId && metadataOrderId !== orderId) {
-    throw new Error(`Stripe refund ${stripeRefund.id} has inconsistent order metadata`);
+    throw new Error("Stripe refund has inconsistent order metadata");
   }
 
   const { data: orderData, error: orderError } = await supabase
     .from("orders")
-    .select("id, user_id, subtotal, total_amount, discount_amount")
+    .select("id, user_id, subtotal, total_amount, discount_amount, payment_reference")
     .eq("id", orderId)
     .single();
   if (orderError) throw orderError;
-  if (!orderData?.user_id) throw new Error(`Order ${orderId} has no customer`);
+  if (!orderData?.user_id) throw new Error("Refund order has no customer");
+  if (orderData.payment_reference?.startsWith("pi_")
+    && paymentIntentId !== orderData.payment_reference) {
+    throw new Error("Stripe refund payment intent does not match order");
+  }
 
   const productTotalCents = Math.min(
     toCents(orderData.total_amount),
-    Math.max(0, toCents(orderData.subtotal) - toCents(orderData.discount_amount))
+    Math.max(0, toCents(orderData.subtotal) - toCents(orderData.discount_amount)),
   );
-  const metadataProductAmount = Number(metadata.product_amount);
-  const productAmountCents = Number.isFinite(metadataProductAmount)
-    ? Math.min(toCents(metadataProductAmount), productTotalCents, stripeRefund.amount)
-    : Math.min(
-      storedRefund ? toCents(storedRefund.product_amount) : stripeRefund.amount,
-      productTotalCents,
-      stripeRefund.amount
-    );
-  const refundItems = Array.isArray(storedRefund?.items) && storedRefund.items.length > 0
+  const metadataProductAmount = metadata.product_amount === undefined
+    ? null
+    : Number(metadata.product_amount);
+  if (metadataProductAmount !== null
+    && (!Number.isFinite(metadataProductAmount) || metadataProductAmount < 0)) {
+    throw new Error("Stripe refund product amount is invalid");
+  }
+
+  // A local reservation is authoritative, including an intentionally empty
+  // item list for a fee-only or full itemless refund.
+  const refundItems = storedRefund
     ? storedRefund.items
     : parseRefundItems(metadata.items);
   const refundStatus = getRefundStatus(stripeRefund.status);
   const reference = getRefundReference(stripeRefund);
-  const crossedConfirmationBoundary = (storedRefund?.status === "succeeded") !== (refundStatus === "succeeded");
-  const refundUpdate = {
-    stripe_refund_id: stripeRefund.id,
-    stripe_status: stripeRefund.status || "unknown",
-    failure_reason: stripeRefund.failure_reason || null,
-    pending_reason: stripeRefund.pending_reason || null,
-    last_stripe_sync_at: new Date().toISOString(),
-    stripe_reference: reference.reference || storedRefund?.stripe_reference || null,
-    stripe_reference_status: reference.status || storedRefund?.stripe_reference_status || null,
-    stripe_reference_type: reference.type || storedRefund?.stripe_reference_type || null,
-    amount: fromCents(stripeRefund.amount),
-    product_amount: fromCents(productAmountCents),
-    items: refundItems,
-    status: refundStatus,
-  };
+  const productAmountCents = storedRefund
+    ? toCents(storedRefund.product_amount)
+    : metadataProductAmount !== null
+      ? Math.round(metadataProductAmount * 100)
+      : stripeRefund.amount === toCents(orderData.total_amount)
+        ? productTotalCents
+        : (() => { throw new Error("Partial Stripe refund has no trusted product allocation"); })();
 
-  let refund: OrderRefund;
-  if (storedRefund) {
-    const { data, error } = await supabase
-      .from("order_refunds")
-      .update(refundUpdate)
-      .eq("id", storedRefund.id)
-      .select()
-      .single();
-    if (error || !data) throw error || new Error(`Unable to update Stripe refund ${stripeRefund.id}`);
-    refund = data as OrderRefund;
-  } else {
-    const { data, error } = await supabase
-      .from("order_refunds")
-      .upsert({
-        order_id: orderId,
-        user_id: orderData.user_id,
-        ...refundUpdate,
-      }, { onConflict: "stripe_refund_id" })
-      .select()
-      .single();
-    if (error || !data) throw error || new Error(`Unable to store Stripe refund ${stripeRefund.id}`);
-    refund = data as OrderRefund;
-  }
-
-  const { data: orderStates, error: orderStateError } = await supabase.rpc("recompute_order_refund_state", {
+  const localRefundIdForRpc = storedRefund?.id || metadataRefundId;
+  const { data: syncedRows, error: syncError } = await supabase.rpc("sync_stripe_refund", {
+    p_local_refund_id: localRefundIdForRpc,
     p_order_id: orderId,
+    p_user_id: orderData.user_id,
+    p_stripe_refund_id: stripeRefund.id,
+    p_payment_intent: paymentIntentId,
+    p_stripe_status: stripeRefund.status || null,
+    p_failure_reason: stripeRefund.failure_reason || null,
+    p_pending_reason: stripeRefund.pending_reason || null,
+    p_stripe_reference: reference.reference,
+    p_stripe_reference_status: reference.status,
+    p_stripe_reference_type: reference.type,
+    p_amount: fromCents(stripeRefund.amount),
+    p_product_amount: fromCents(productAmountCents),
+    p_items: refundItems,
+    p_status: refundStatus,
   });
-  if (orderStateError || !orderStates?.[0]) {
-    throw orderStateError || new Error(`Unable to update refund state for order ${orderId}`);
+  if (syncError || !syncedRows?.[0]) {
+    throw syncError || new Error(`Unable to synchronize Stripe refund ${stripeRefund.id}`);
   }
 
-  const { data: loyaltyStates, error: loyaltyError } = await supabase.rpc("reconcile_order_refund_loyalty", {
-    p_order_id: orderId,
-    p_refund_id: crossedConfirmationBoundary ? refund.id : null,
-  });
-  if (loyaltyError) throw loyaltyError;
-
-  if ((loyaltyStates?.[0]?.points_adjustment || 0) !== 0) {
-    const { data: refreshedRefund, error: refreshedRefundError } = await supabase
-      .from("order_refunds")
-      .select()
-      .eq("id", refund.id)
-      .single();
-    if (refreshedRefundError || !refreshedRefund) {
-      throw refreshedRefundError || new Error(`Unable to refresh Stripe refund ${stripeRefund.id}`);
-    }
-    refund = refreshedRefund as OrderRefund;
+  const syncedRow = syncedRows[0];
+  const { data: refund, error: refundError } = await supabase
+    .from("order_refunds")
+    .select("*")
+    .eq("id", syncedRow.refund_id)
+    .single();
+  if (refundError || !refund) {
+    throw refundError || new Error(`Unable to reload Stripe refund ${stripeRefund.id}`);
   }
 
-  const orderState = orderStates[0];
   return {
-    refund,
+    refund: refund as OrderRefund,
     order: {
-      payment_status: orderState.payment_status as Order["payment_status"],
-      status: orderState.order_status as Order["status"],
-      refunded_at: orderState.refunded_at,
+      payment_status: syncedRow.payment_status as Order["payment_status"],
+      status: syncedRow.order_status as Order["status"],
+      refunded_at: syncedRow.refunded_at,
     },
   };
 }

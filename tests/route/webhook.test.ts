@@ -1,8 +1,16 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ createAdminClient: vi.fn(), retrieve: vi.fn(), constructEvent: vi.fn(), safeLogError: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  createAdminClient: vi.fn(),
+  retrieve: vi.fn(),
+  constructEvent: vi.fn(),
+  syncStripeRefund: vi.fn(),
+  safeLogError: vi.fn(),
+}));
+
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.createAdminClient }));
+vi.mock("@/lib/stripe-refunds", () => ({ syncStripeRefund: mocks.syncStripeRefund }));
 vi.mock("@/lib/api-request", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/api-request")>(),
   safeLogError: mocks.safeLogError,
@@ -11,25 +19,44 @@ vi.mock("stripe", () => ({ default: class {
   webhooks = { constructEvent: mocks.constructEvent };
   checkout = { sessions: { retrieve: mocks.retrieve } };
 } }));
+
 import { POST } from "@/app/api/payments/webhook/route";
 
 const orderId = "11111111-1111-4111-8111-111111111111";
+const userId = "22222222-2222-4222-8222-222222222222";
 const session = {
-  id: "cs_test_webhook", status: "complete", payment_status: "paid", currency: "eur",
-  amount_total: 2000, metadata: { order_id: orderId, total_cents: "2000" }, payment_intent: "pi_test",
+  id: "cs_test_webhook",
+  status: "complete",
+  payment_status: "paid",
+  currency: "eur",
+  amount_total: 2000,
+  metadata: { order_id: orderId, user_id: userId, total_cents: "2000" },
+  payment_intent: "pi_test",
 };
-const deliver = () => POST(new NextRequest("https://shop.example/api/payments/webhook", {
-  method: "POST", headers: { "stripe-signature": "test" }, body: "signed-event",
-}));
+const refund = {
+  id: "re_test_refund",
+  metadata: { order_id: orderId, order_refund_id: "33333333-3333-4333-8333-333333333333" },
+};
+
+function request() {
+  return new NextRequest("https://shop.example/api/payments/webhook", {
+    method: "POST",
+    headers: { "stripe-signature": "test" },
+    body: "signed-event",
+  });
+}
 
 describe("payment webhook reliability", () => {
-  let order: { payment_status: string; paid_at: string | null; user_id: string; subtotal: number; total_amount: number; coupon_id: string };
-  let settings: { loyalty_points_per_euro?: unknown } | null;
-  let settingsError: object | null;
-  let readError: object | null;
-  let updateError: object | null;
-  let concurrentStatus: string | undefined;
-  const updates = vi.fn();
+  let event: { id: string; type: string; data: { object: unknown } };
+  let order: {
+    user_id: string;
+    subtotal: number;
+    total_amount: number;
+    coupon_id: string | null;
+    payment_status: string;
+    payment_reference: string | null;
+    payment_session_id: string | null;
+  };
   const rpc = vi.fn();
   const from = vi.fn();
 
@@ -37,195 +64,238 @@ describe("payment webhook reliability", () => {
     vi.resetAllMocks();
     vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_mock");
     vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_mock");
-    order = { payment_status: "pending_payment", paid_at: null, user_id: "user-1", subtotal: 20, total_amount: 20, coupon_id: "coupon-1" };
-    settings = { loyalty_points_per_euro: 2 };
-    settingsError = readError = updateError = null;
-    concurrentStatus = undefined;
-    mocks.constructEvent.mockReturnValue({ id: "evt_test", type: "checkout.session.completed", data: { object: session } });
+    event = { id: "evt_test", type: "checkout.session.completed", data: { object: session } };
+    order = {
+      user_id: userId,
+      subtotal: 20,
+      total_amount: 20,
+      coupon_id: "coupon-1",
+      payment_status: "pending_payment",
+      payment_reference: null,
+      payment_session_id: session.id,
+    };
+    mocks.constructEvent.mockImplementation(() => event);
     mocks.retrieve.mockResolvedValue(session);
-    rpc.mockResolvedValue({ data: true, error: null });
+    mocks.syncStripeRefund.mockResolvedValue({
+      refund: { id: "refund-1", stripe_status: "succeeded" },
+      order: { payment_status: "refunded", status: "refunded", refunded_at: "2026-09-11T00:00:00.000Z" },
+    });
+    rpc.mockImplementation(async (name: string) => {
+      if (name === "claim_stripe_webhook_event") return { data: true, error: null };
+      if (name === "finalize_paid_order") return { data: [{ payment_status: "paid", processed: true }], error: null };
+      if (name === "cancel_pending_order") return { data: true, error: null };
+      if (name === "complete_stripe_webhook_event") return { data: true, error: null };
+      if (name === "fail_stripe_webhook_event") return { data: true, error: null };
+      throw new Error(`Unexpected RPC ${name}`);
+    });
     from.mockImplementation((table: string) => {
-      let patch: Partial<typeof order> | undefined;
-      const filters: Record<string, unknown> = {};
-      const execute = async () => {
-        if (table === "store_settings") return { data: settings, error: settingsError };
-        if (!patch) return { data: readError ? null : { ...order }, error: readError };
-        updates(patch, filters);
-        if (updateError) return { data: null, error: updateError };
-        if (concurrentStatus !== undefined) order.payment_status = concurrentStatus;
-        if (filters.payment_status !== order.payment_status) return { data: null, error: null };
-        Object.assign(order, patch);
-        return { data: { id: orderId }, error: null };
-      };
+      if (table !== "orders") throw new Error(`Unexpected table ${table}`);
       const builder = {
-        select: vi.fn().mockReturnThis(), limit: vi.fn().mockReturnThis(),
-        eq: vi.fn((key: string, value: unknown) => { filters[key] = value; return builder; }),
-        update: vi.fn((value: Partial<typeof order>) => { patch = value; return builder; }),
-        single: execute, maybeSingle: execute,
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: { ...order }, error: null }),
       };
       return builder;
     });
     mocks.createAdminClient.mockReturnValue({ from, rpc });
   });
-  afterEach(() => vi.unstubAllEnvs());
 
-  function cancellation(type = "checkout.session.expired") {
-    mocks.constructEvent.mockReturnValue({ id: "evt_cancel", type, data: { object: session } });
-    mocks.retrieve.mockResolvedValue({ ...session, status: "expired", payment_status: "unpaid" });
-  }
-
-  it("retries a failed loyalty award without rewriting paid_at or skipping side effects", async () => {
-    rpc.mockImplementation(async (name: string) => ({ data: true, error: name === "loyalty_earn_points" ? { message: "outage" } : null }));
-    expect((await deliver()).status).toBe(500);
-    expect(order.payment_status).toBe("paid");
-    const paidAt = order.paid_at;
-    expect(paidAt).toEqual(expect.any(String));
-    rpc.mockResolvedValue({ data: false, error: null });
-    expect((await deliver()).status).toBe(200);
-    expect(order.paid_at).toBe(paidAt);
-    expect(updates).toHaveBeenCalledTimes(1);
-    expect(rpc.mock.calls.map(([name]) => name)).toEqual(["use_coupon", "loyalty_earn_points", "use_coupon", "loyalty_earn_points"]);
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
-  it.each([null, {}, { loyalty_points_per_euro: null }, { loyalty_points_per_euro: "" },
-    { loyalty_points_per_euro: " " }, { loyalty_points_per_euro: "invalid" },
-    { loyalty_points_per_euro: -1 }, { loyalty_points_per_euro: Infinity },
-    { loyalty_points_per_euro: false }])("retries missing or invalid loyalty settings %j", async (value) => {
-    settings = value;
-    expect((await deliver()).status).toBe(500);
+  it("returns service unavailable when Stripe is not configured", async () => {
+    vi.stubEnv("STRIPE_SECRET_KEY", "");
+    const response = await POST(request());
+    expect(response.status).toBe(503);
+    expect(mocks.constructEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects requests without a Stripe signature", async () => {
+    const response = await POST(new NextRequest("https://shop.example/api/payments/webhook", {
+      method: "POST",
+      body: "signed-event",
+    }));
+    expect(response.status).toBe(400);
+    expect(mocks.constructEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid Stripe signature without touching the database", async () => {
+    mocks.constructEvent.mockImplementation(() => { throw new Error("private signature detail"); });
+    const response = await POST(request());
+    expect(response.status).toBe(400);
+    expect(await response.text()).not.toContain("private signature detail");
+    expect(mocks.safeLogError).toHaveBeenCalled();
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("acknowledges unsupported event types without claiming them", async () => {
+    event = { id: "evt_unsupported", type: "charge.succeeded", data: { object: {} } };
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ received: true });
+    expect(mocks.createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("acknowledges an event already claimed by another worker", async () => {
+    rpc.mockImplementation(async (name: string) => name === "claim_stripe_webhook_event"
+      ? { data: false, error: null }
+      : { data: true, error: null });
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ received: true });
+    expect(mocks.retrieve).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("finalizes a verified checkout through the atomic payment RPC", async () => {
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ received: true });
+    expect(rpc).toHaveBeenNthCalledWith(1, "claim_stripe_webhook_event", {
+      p_event_id: "evt_test",
+      p_event_type: "checkout.session.completed",
+    });
+    expect(rpc).toHaveBeenCalledWith("finalize_paid_order", {
+      p_order_id: orderId,
+      p_session_id: session.id,
+      p_payment_intent: "pi_test",
+      p_event_id: "evt_test",
+    });
+    expect(rpc).toHaveBeenCalledWith("complete_stripe_webhook_event", { p_event_id: "evt_test" });
+    expect(rpc).not.toHaveBeenCalledWith("use_coupon", expect.anything());
     expect(rpc).not.toHaveBeenCalledWith("loyalty_earn_points", expect.anything());
-    settings = { loyalty_points_per_euro: 2 };
-    expect((await deliver()).status).toBe(200);
-    expect(rpc).toHaveBeenCalledWith("loyalty_earn_points", expect.objectContaining({ p_points: 40 }));
-    expect(updates).toHaveBeenCalledTimes(1);
   });
 
-  it("retries loyalty settings read errors even when data is returned", async () => {
-    settingsError = { message: "database unavailable" };
-    expect((await deliver()).status).toBe(500);
-    expect(rpc).not.toHaveBeenCalledWith("loyalty_earn_points", expect.anything());
-    settingsError = null;
-    expect((await deliver()).status).toBe(200);
-  });
-
-  it.each([0, "0"])("preserves a legitimate zero loyalty rate %j", async (rate) => {
-    settings = { loyalty_points_per_euro: rate };
-    expect((await deliver()).status).toBe(200);
-    expect(rpc).toHaveBeenCalledWith("loyalty_earn_points", expect.objectContaining({ p_points: 0 }));
-  });
-
-  it("acknowledges delayed unpaid completion and processes later async success", async () => {
+  it("acknowledges a completed event whose payment is still unpaid", async () => {
     mocks.retrieve.mockResolvedValue({ ...session, payment_status: "unpaid" });
-    expect((await deliver()).status).toBe(200);
+    const response = await POST(request());
+    expect(response.status).toBe(200);
     expect(from).not.toHaveBeenCalled();
-    expect(rpc).not.toHaveBeenCalled();
-    mocks.constructEvent.mockReturnValue({ id: "evt_success", type: "checkout.session.async_payment_succeeded", data: { object: session } });
-    mocks.retrieve.mockResolvedValue(session);
-    expect((await deliver()).status).toBe(200);
-    expect(order.payment_status).toBe("paid");
-    expect(rpc).toHaveBeenCalledWith("loyalty_earn_points", expect.anything());
+    expect(rpc).not.toHaveBeenCalledWith("finalize_paid_order", expect.anything());
+    expect(rpc).toHaveBeenCalledWith("complete_stripe_webhook_event", { p_event_id: "evt_test" });
   });
 
-  it.each(["cancelled", "refunded", "partially_refunded"])("skips paid side effects for %s orders", async (status) => {
-    order.payment_status = status;
-    expect((await deliver()).status).toBe(200);
-    expect(updates).not.toHaveBeenCalled();
-    expect(rpc).not.toHaveBeenCalled();
+  it("processes a delayed async payment success with the same finalization RPC", async () => {
+    event = { id: "evt_success", type: "checkout.session.async_payment_succeeded", data: { object: session } };
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    expect(rpc).toHaveBeenCalledWith("finalize_paid_order", expect.objectContaining({ p_event_id: "evt_success" }));
   });
 
-  it.each(["cancelled", "refunded", "partially_refunded"])("detects a zero-row paid update racing with %s", async (status) => {
-    concurrentStatus = status;
-    expect((await deliver()).status).toBe(200);
-    expect(updates).toHaveBeenCalledWith(expect.objectContaining({ payment_status: "paid" }), { id: orderId, payment_status: "pending_payment" });
-    expect(rpc).not.toHaveBeenCalled();
+  it("rejects a payment with mismatched metadata and records a retryable failure", async () => {
+    mocks.retrieve.mockResolvedValue({ ...session, metadata: { ...session.metadata, order_id: "44444444-4444-4444-8444-444444444444" } });
+    const response = await POST(request());
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Payment metadata does not match order" });
+    expect(rpc).toHaveBeenCalledWith("fail_stripe_webhook_event", {
+      p_event_id: "evt_test",
+      p_error_code: "WebhookProcessingError",
+    });
+    expect(rpc).not.toHaveBeenCalledWith("complete_stripe_webhook_event", expect.anything());
   });
 
-  it("retries side effects after a concurrent paid update without changing paid_at", async () => {
-    concurrentStatus = "paid";
-    order.paid_at = "2026-09-01T00:00:00.000Z";
-    expect((await deliver()).status).toBe(200);
-    expect(order.paid_at).toBe("2026-09-01T00:00:00.000Z");
-    expect(rpc).toHaveBeenCalledWith("loyalty_earn_points", expect.anything());
+  it("rejects a payment with an invalid amount", async () => {
+    mocks.retrieve.mockResolvedValue({ ...session, amount_total: 1900 });
+    const response = await POST(request());
+    expect(response.status).toBe(400);
+    expect(rpc).toHaveBeenCalledWith("fail_stripe_webhook_event", expect.anything());
+    expect(rpc).not.toHaveBeenCalledWith("finalize_paid_order", expect.anything());
   });
 
-  it("retries paid update errors before running side effects", async () => {
-    updateError = { message: "write failed" };
-    expect((await deliver()).status).toBe(500);
-    expect(rpc).not.toHaveBeenCalled();
-    updateError = null;
-    expect((await deliver()).status).toBe(200);
-  });
-
-  it("retries coupon usage errors on a locally paid order", async () => {
-    rpc.mockResolvedValueOnce({ error: { message: "coupon unavailable" } });
-    expect((await deliver()).status).toBe(500);
-    expect((await deliver()).status).toBe(200);
-    expect(updates).toHaveBeenCalledTimes(1);
-    expect(rpc).toHaveBeenCalledWith("loyalty_earn_points", expect.anything());
-  });
-
-  it.each(["checkout.session.expired", "checkout.session.async_payment_failed"])("retries cancellation DB errors for %s before releasing coupon", async (type) => {
-    cancellation(type);
-    updateError = { message: "write failed" };
-    expect((await deliver()).status).toBe(500);
-    expect(rpc).not.toHaveBeenCalled();
-    updateError = null;
-    expect((await deliver()).status).toBe(200);
-    expect(order.payment_status).toBe("cancelled");
-    expect(rpc).toHaveBeenCalledWith("release_coupon_reservation", { p_order_id: orderId, p_user_id: null });
-  });
-
-  it("retries coupon release for an already cancelled order", async () => {
-    cancellation();
-    rpc.mockResolvedValueOnce({ error: { message: "release failed" } });
-    expect((await deliver()).status).toBe(500);
-    expect(order.payment_status).toBe("cancelled");
-    expect((await deliver()).status).toBe(200);
-    expect(updates).toHaveBeenCalledTimes(1);
-    expect(rpc).toHaveBeenCalledTimes(2);
-  });
-
-  it.each(["paid", "refunded", "partially_refunded"])("does not release coupons on a stale failure for a %s order", async (status) => {
-    cancellation("checkout.session.async_payment_failed");
-    order.payment_status = status;
-    expect((await deliver()).status).toBe(200);
-    expect(updates).not.toHaveBeenCalled();
-    expect(rpc).not.toHaveBeenCalled();
-  });
-
-  it("does not cancel or release when canonical Stripe session is already paid", async () => {
-    cancellation();
-    mocks.retrieve.mockResolvedValue(session);
-    expect((await deliver()).status).toBe(200);
-    expect(updates).not.toHaveBeenCalled();
-    expect(rpc).not.toHaveBeenCalled();
-  });
-
-  it("does not release a coupon if payment wins the cancellation update race", async () => {
-    cancellation();
-    concurrentStatus = "paid";
-    expect((await deliver()).status).toBe(200);
-    expect(order.payment_status).toBe("paid");
-    expect(rpc).not.toHaveBeenCalled();
-  });
-
-  it.each(["checkout.session.completed", "checkout.session.expired", "checkout.session.async_payment_failed"])("logs and retries external retrieval failure for %s", async (type) => {
-    mocks.constructEvent.mockReturnValue({ id: "evt_test", type, data: { object: session } });
-    const error = new Error("private Stripe detail");
-    mocks.retrieve.mockRejectedValue(error);
-    const response = await deliver();
+  it("retries when the finalization RPC fails", async () => {
+    rpc.mockImplementation(async (name: string) => {
+      if (name === "claim_stripe_webhook_event") return { data: true, error: null };
+      if (name === "finalize_paid_order") return { data: null, error: { message: "database unavailable" } };
+      if (name === "fail_stripe_webhook_event") return { data: true, error: null };
+      return { data: true, error: null };
+    });
+    const response = await POST(request());
     expect(response.status).toBe(500);
-    expect(await response.text()).not.toContain("private Stripe detail");
-    expect(mocks.safeLogError).toHaveBeenCalledWith(expect.any(String), error);
-    expect(updates).not.toHaveBeenCalled();
-    expect(rpc).not.toHaveBeenCalled();
+    expect(await response.json()).toEqual({ error: "Unable to finalize order" });
+    expect(rpc).toHaveBeenCalledWith("fail_stripe_webhook_event", expect.objectContaining({ p_event_id: "evt_test" }));
+    expect(rpc).not.toHaveBeenCalledWith("complete_stripe_webhook_event", expect.anything());
   });
 
-  it.each(["checkout.session.completed", "checkout.session.expired"])("retries order read failures for %s", async (type) => {
-    mocks.constructEvent.mockReturnValue({ id: "evt_test", type, data: { object: session } });
-    readError = { message: "read failed" };
-    expect((await deliver()).status).toBe(500);
-    expect(updates).not.toHaveBeenCalled();
-    expect(rpc).not.toHaveBeenCalled();
+  it.each(["checkout.session.expired", "checkout.session.async_payment_failed"])(
+    "cancels a pending checkout through the atomic RPC for %s",
+    async (type) => {
+      event = { id: `evt_${type}`, type, data: { object: { ...session, payment_status: "unpaid" } } };
+      mocks.retrieve.mockResolvedValue({ ...session, payment_status: "unpaid" });
+      const response = await POST(request());
+      expect(response.status).toBe(200);
+      expect(rpc).toHaveBeenCalledWith("cancel_pending_order", { p_order_id: orderId });
+      expect(rpc).toHaveBeenCalledWith("complete_stripe_webhook_event", { p_event_id: event.id });
+    },
+  );
+
+  it("does not cancel an order already paid when a stale expiration arrives", async () => {
+    order.payment_status = "paid";
+    event = { id: "evt_expired", type: "checkout.session.expired", data: { object: session } };
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    expect(mocks.retrieve).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalledWith("cancel_pending_order", expect.anything());
+    expect(rpc).toHaveBeenCalledWith("complete_stripe_webhook_event", { p_event_id: event.id });
+  });
+
+  it("does not cancel when Stripe confirms the canonical session as paid", async () => {
+    event = { id: "evt_expired", type: "checkout.session.expired", data: { object: { ...session, payment_status: "unpaid" } } };
+    mocks.retrieve.mockResolvedValue(session);
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    expect(rpc).not.toHaveBeenCalledWith("cancel_pending_order", expect.anything());
+    expect(rpc).toHaveBeenCalledWith("complete_stripe_webhook_event", { p_event_id: event.id });
+  });
+
+  it("retries cancellation failures without completing the event", async () => {
+    event = { id: "evt_expired", type: "checkout.session.expired", data: { object: { ...session, payment_status: "unpaid" } } };
+    mocks.retrieve.mockResolvedValue({ ...session, payment_status: "unpaid" });
+    rpc.mockImplementation(async (name: string) => {
+      if (name === "claim_stripe_webhook_event") return { data: true, error: null };
+      if (name === "cancel_pending_order") return { data: null, error: { message: "database unavailable" } };
+      if (name === "fail_stripe_webhook_event") return { data: true, error: null };
+      return { data: true, error: null };
+    });
+    const response = await POST(request());
+    expect(response.status).toBe(500);
+    expect(rpc).toHaveBeenCalledWith("fail_stripe_webhook_event", expect.objectContaining({ p_event_id: event.id }));
+    expect(rpc).not.toHaveBeenCalledWith("complete_stripe_webhook_event", expect.anything());
+  });
+
+  it.each(["refund.created", "refund.updated", "refund.failed"])(
+    "synchronizes %s through the refund service",
+    async (type) => {
+      event = { id: `evt_${type}`, type, data: { object: refund } };
+      const response = await POST(request());
+      expect(response.status).toBe(200);
+      expect(mocks.syncStripeRefund).toHaveBeenCalledWith(expect.objectContaining({
+        stripeRefundId: refund.id,
+        localRefundId: refund.metadata.order_refund_id,
+      }));
+      expect(rpc).toHaveBeenCalledWith("complete_stripe_webhook_event", { p_event_id: event.id });
+    },
+  );
+
+  it("retries a refund event when Stripe synchronization fails", async () => {
+    event = { id: "evt_refund", type: "refund.updated", data: { object: refund } };
+    mocks.syncStripeRefund.mockRejectedValue(new Error("private refund detail"));
+    const response = await POST(request());
+    expect(response.status).toBe(500);
+    expect(await response.text()).not.toContain("private refund detail");
+    expect(rpc).toHaveBeenCalledWith("fail_stripe_webhook_event", expect.objectContaining({ p_event_id: event.id }));
+    expect(rpc).not.toHaveBeenCalledWith("complete_stripe_webhook_event", expect.anything());
+  });
+
+  it("retries when marking a successfully processed event fails", async () => {
+    rpc.mockImplementation(async (name: string) => {
+      if (name === "claim_stripe_webhook_event") return { data: true, error: null };
+      if (name === "complete_stripe_webhook_event") return { data: null, error: { message: "write failed" } };
+      if (name === "fail_stripe_webhook_event") return { data: true, error: null };
+      return { data: [{ payment_status: "paid", processed: true }], error: null };
+    });
+    const response = await POST(request());
+    expect(response.status).toBe(500);
+    expect(rpc).toHaveBeenCalledWith("fail_stripe_webhook_event", expect.objectContaining({ p_event_id: "evt_test" }));
   });
 });

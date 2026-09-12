@@ -16,6 +16,7 @@ export interface CheckoutGateway {
     input: CheckoutSessionInput,
     onSessionCreationAttempt: (idempotencyKey: string) => void,
   ): Promise<{ id: string; url: string | null }>;
+  retrieveSession(sessionId: string): Promise<{ id: string; url: string | null; status: string | null }>;
   expireSession(sessionId: string): Promise<void>;
   isDefinitiveCreationError(error: unknown): boolean;
 }
@@ -29,25 +30,34 @@ export function createStripeCheckoutGateway(): CheckoutGateway {
     async createSession(input, onSessionCreationAttempt) {
       const { quote, orderId, locale } = input;
       const products = await Promise.all(
-        quote.items.map((item) => stripe.products.create({
-          name: item.product_name,
-          metadata: { order_id: orderId, product_id: item.product_id },
-        }))
+        quote.items.map((item) => stripe.products.create(
+          {
+            name: item.product_name,
+            metadata: { order_id: orderId, product_id: item.product_id },
+          },
+          { idempotencyKey: `checkout-product:${orderId}:${item.product_id}` },
+        ))
       );
       const feeProduct = quote.preparation_fee_cents > 0
-        ? await stripe.products.create({
-            name: locale === "en" ? "Preparation fee" : "Frais de préparation",
-            metadata: { order_id: orderId, type: "preparation_fee" },
-          })
+        ? await stripe.products.create(
+            {
+              name: locale === "en" ? "Preparation fee" : "Frais de préparation",
+              metadata: { order_id: orderId, type: "preparation_fee" },
+            },
+            { idempotencyKey: `checkout-product:${orderId}:preparation-fee` },
+          )
         : null;
       const discounts = quote.discount_cents > 0
         ? [{
-            coupon: (await stripe.coupons.create({
-              amount_off: quote.discount_cents,
-              currency: PRICING_CURRENCY,
-              duration: "once",
-              applies_to: { products: products.map((product) => product.id) },
-            })).id,
+            coupon: (await stripe.coupons.create(
+              {
+                amount_off: quote.discount_cents,
+                currency: PRICING_CURRENCY,
+                duration: "once",
+                applies_to: { products: products.map((product) => product.id) },
+              },
+              { idempotencyKey: `checkout-coupon:${orderId}` },
+            )).id,
           }]
         : undefined;
 
@@ -88,6 +98,10 @@ export function createStripeCheckoutGateway(): CheckoutGateway {
     async expireSession(sessionId) {
       const session = await stripe.checkout.sessions.expire(sessionId);
       if (session.status !== "expired") throw new Error("Checkout session expiration was not confirmed");
+    },
+    async retrieveSession(sessionId) {
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      return { id: session.id, url: session.url, status: session.status };
     },
     isDefinitiveCreationError(error) {
       return error instanceof Stripe.errors.StripeInvalidRequestError;

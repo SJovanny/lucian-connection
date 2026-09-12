@@ -14,6 +14,8 @@ type ProductRow = {
   price: number;
   discounted_price: number | null;
   translations: Record<string, { name?: string }>;
+  stock: number;
+  track_stock: boolean;
 };
 
 type CartItemInput = {
@@ -218,7 +220,7 @@ export async function getPricingQuote(
   ] = await Promise.all([
     supabase
       .from("products_with_discount")
-      .select("id, price, discounted_price, translations")
+      .select("id, price, discounted_price, translations, stock, track_stock")
       .in("id", ids)
       .eq("is_active", true),
     supabase
@@ -244,6 +246,9 @@ export async function getPricingQuote(
   const quoteItems: PricingQuoteItem[] = items.map((item) => {
     const product = productById.get(item.id);
     if (!product) {
+      throw new PricingError("PRODUCT_UNAVAILABLE", "One or more products are unavailable");
+    }
+    if (product.track_stock === true && product.stock < item.quantity) {
       throw new PricingError("PRODUCT_UNAVAILABLE", "One or more products are unavailable");
     }
 

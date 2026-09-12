@@ -1,19 +1,23 @@
 import { NextRequest } from "next/server";
+import { createHash } from "node:crypto";
 import Stripe from "stripe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
+  createAdminClient: vi.fn(),
   getPricingQuote: vi.fn(),
   validatePickupAt: vi.fn(),
   stripeConstructor: vi.fn(),
   productCreate: vi.fn(),
   couponCreate: vi.fn(),
   sessionCreate: vi.fn(),
+  sessionRetrieve: vi.fn(),
   sessionExpire: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.createAdminClient }));
 vi.mock("@/lib/pricing", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/pricing")>(),
   getPricingQuote: mocks.getPricingQuote,
@@ -26,7 +30,7 @@ vi.mock("stripe", async (importOriginal) => {
     constructor() { mocks.stripeConstructor(); }
     products = { create: mocks.productCreate };
     coupons = { create: mocks.couponCreate };
-    checkout = { sessions: { create: mocks.sessionCreate, expire: mocks.sessionExpire } };
+    checkout = { sessions: { create: mocks.sessionCreate, retrieve: mocks.sessionRetrieve, expire: mocks.sessionExpire } };
   } };
 });
 
@@ -56,46 +60,82 @@ const quote = {
   coupon: null,
 };
 
-function request(body: unknown = payload) {
+function request(body: unknown = payload, headers: Record<string, string> = {}) {
   return new NextRequest("https://shop.example/api/payments/create-checkout-session", {
     method: "POST",
-    headers: { "content-type": "application/json", "user-agent": "checkout-test" },
+    headers: { "content-type": "application/json", "user-agent": "checkout-test", ...headers },
     body: JSON.stringify(body),
   });
 }
 
 function setupDatabase() {
-  const orderInsert = vi.fn().mockResolvedValue({ data: { id: "order-1" }, error: null });
-  const referenceWrite = vi.fn().mockResolvedValue({ data: { id: "order-1" }, error: null });
-  const cancelWrite = vi.fn().mockResolvedValue({ data: { id: "order-1" }, error: null });
-  const legalInsert = vi.fn().mockResolvedValue({ error: null });
-  const itemsInsert = vi.fn().mockResolvedValue({ error: null });
-  const products = vi.fn().mockResolvedValue({ data: [{ id: productId, is_alcoholic: false }], error: null });
-  const release = vi.fn().mockResolvedValue({ data: false, error: null });
-  const rpc = vi.fn((name: string) => name === "release_coupon_reservation"
-    ? release()
-    : Promise.resolve({ data: name === "reserve_coupon" ? true : [], error: null }));
-  const update = vi.fn((values: Record<string, unknown>) => {
-    const builder = {
-      eq: vi.fn(() => builder),
-      select: vi.fn(() => builder),
-      single: "payment_reference" in values ? referenceWrite : cancelWrite,
-    };
-    return builder;
+  const prepare = vi.fn().mockResolvedValue({
+    data: [{ order_id: "order-1", session_id: null, session_url: null, is_existing: false }],
+    error: null,
   });
+  const link = vi.fn().mockResolvedValue({ data: true, error: null });
+  const cancel = vi.fn().mockResolvedValue({ data: true, error: null });
+  const checkoutAttempt = vi.fn().mockResolvedValue({ data: null, error: null });
+  const checkoutOrder = vi.fn().mockResolvedValue({
+    data: {
+      id: "order-1",
+      status: "pending",
+      payment_status: "pending_payment",
+      subtotal: 10,
+      delivery_fee: 0,
+      total_amount: 10,
+      discount_amount: 0,
+      coupon_id: null,
+      contains_alcohol: false,
+    },
+    error: null,
+  });
+  const orderItems = vi.fn().mockResolvedValue({ data: [], error: null });
+  const adminRpc = vi.fn((name: string) => {
+    if (name === "prepare_checkout_order") return prepare();
+    if (name === "link_checkout_session") return link();
+    if (name === "cancel_pending_order") return cancel();
+    throw new Error(`Unexpected admin RPC ${name}`);
+  });
+  const products = vi.fn().mockResolvedValue({ data: [{ id: productId, is_alcoholic: false }], error: null });
   const from = vi.fn((table: string) => {
-    switch (table) {
-      case "orders": return { insert: () => ({ select: () => ({ single: orderInsert }) }), update };
-      case "order_items": return { insert: itemsInsert };
-      case "legal_acceptances": return { insert: legalInsert };
-      case "products": return { select: () => ({ in: () => ({ eq: products }) }) };
-      case "pickup_opening_hours": return { select: () => Promise.resolve({ data: [], error: null }) };
-      default: throw new Error(`Unexpected table ${table}`);
+    if (table === "products") return { select: () => ({ in: () => ({ eq: products }) }) };
+    if (table === "pickup_opening_hours") return { select: () => Promise.resolve({ data: [], error: null }) };
+    if (table === "checkout_attempts") {
+      return { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: checkoutAttempt }) }) }) };
     }
+    if (table === "orders") {
+      return { select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: checkoutOrder }) }) }) };
+    }
+    if (table === "order_items") return { select: () => ({ eq: orderItems }) };
+    throw new Error(`Unexpected table ${table}`);
+  });
+  const rpc = vi.fn((name: string) => {
+    if (name === "get_pickup_closed_dates") return Promise.resolve({ data: [], error: null });
+    throw new Error(`Unexpected user RPC ${name}`);
   });
   const getUser = vi.fn().mockResolvedValue({ data: { user: { id: "user-1", email: "account@example.com" } } });
   mocks.createClient.mockResolvedValue({ auth: { getUser }, from, rpc });
-  return { orderInsert, referenceWrite, cancelWrite, legalInsert, itemsInsert, products, release, rpc, update, from, getUser };
+  mocks.createAdminClient.mockReturnValue({ rpc: adminRpc, from });
+  return { prepare, link, cancel, adminRpc, products, from, rpc, getUser, checkoutAttempt, checkoutOrder, orderItems };
+}
+
+function requestFingerprint(overrides: Partial<typeof payload> = {}) {
+  const input = { ...payload, ...overrides };
+  return createHash("sha256").update(JSON.stringify({
+    user_id: "user-1",
+    items: [...input.items].sort((left, right) => left.id.localeCompare(right.id)),
+    phone: input.phone,
+    full_name: input.full_name,
+    email: input.email,
+    notes: input.notes || null,
+    locale: input.locale,
+    pickup_at: input.pickup_at,
+    coupon_id: input.coupon_id,
+    quote_total_cents: input.quote_total_cents,
+    age_confirmed: input.age_confirmed === true,
+    terms_version: "1.0",
+  })).digest("hex");
 }
 
 describe("checkout route", () => {
@@ -108,7 +148,9 @@ describe("checkout route", () => {
     mocks.validatePickupAt.mockReturnValue(true);
     mocks.getPricingQuote.mockResolvedValue(quote);
     mocks.productCreate.mockResolvedValue({ id: "prod-1" });
+    mocks.couponCreate.mockResolvedValue({ id: "stripe-coupon" });
     mocks.sessionCreate.mockResolvedValue({ id: "session-1", url: "https://checkout.stripe.test/session-1" });
+    mocks.sessionRetrieve.mockResolvedValue({ id: "session-1", url: "https://checkout.stripe.test/session-1", status: "open" });
     mocks.sessionExpire.mockResolvedValue({ id: "session-1", status: "expired" });
   });
   afterEach(() => {
@@ -116,147 +158,145 @@ describe("checkout route", () => {
     vi.unstubAllEnvs();
   });
 
-  it("accepts the current client payload, records legal documents, and saves the session before returning its URL", async () => {
+  it("prepares the order atomically and links the Stripe session", async () => {
     const response = await POST(request());
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ url: "https://checkout.stripe.test/session-1", session_id: "session-1", quote });
-    expect(mocks.getPricingQuote).toHaveBeenCalledWith(expect.anything(), payload.items, { couponId: null, userId: "user-1", locale: "fr" });
-    expect(db.legalInsert).toHaveBeenCalledWith(["terms", "pickup_refunds"].map((document_type) => ({
-      user_id: "user-1", order_id: "order-1", document_type, document_version: "1.0", user_agent: "checkout-test",
-    })));
-    expect(db.legalInsert.mock.invocationCallOrder[0]).toBeLessThan(mocks.stripeConstructor.mock.invocationCallOrder[0]);
-    expect(db.update).toHaveBeenCalledWith({ payment_reference: "session-1" });
-    expect(db.referenceWrite).toHaveBeenCalledOnce();
+    expect(db.adminRpc).toHaveBeenCalledWith("prepare_checkout_order", expect.objectContaining({
+      p_user_id: "user-1",
+      p_request_fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+      p_items: quote.items,
+      p_terms_version: "1.0",
+    }));
+    expect(db.adminRpc).toHaveBeenCalledWith("link_checkout_session", expect.objectContaining({
+      p_order_id: "order-1",
+      p_session_id: "session-1",
+    }));
     expect(mocks.sessionCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ customer_email: "account@example.com" }),
+      expect.objectContaining({ customer_email: "form@example.com" }),
       { idempotencyKey: "checkout-session:order-1" },
     );
-    expect(mocks.sessionExpire).not.toHaveBeenCalled();
-    expect(db.cancelWrite).not.toHaveBeenCalled();
+    expect(db.cancel).not.toHaveBeenCalled();
   });
 
-  it.each([false, true])("stops before all Stripe calls when legal recording fails (alcohol=%s)", async (alcohol) => {
-    db.products.mockResolvedValue({ data: [{ id: productId, is_alcoholic: alcohol }], error: null });
-    db.legalInsert.mockResolvedValue({ error: { code: "LEGAL_FAILURE" } });
-    const response = await POST(request({ ...payload, age_confirmed: alcohol }));
-    expect(response.status).toBe(500);
+  it("returns the stored session without calling Stripe again on an idempotent retry", async () => {
+    db.checkoutAttempt.mockResolvedValue({
+      data: {
+        request_fingerprint: requestFingerprint(),
+        order_id: "order-1",
+        stripe_session_id: "cs_test_existing123",
+        stripe_session_url: "https://checkout.stripe.test/existing",
+      },
+      error: null,
+    });
+    mocks.getPricingQuote.mockRejectedValue(new Error("stock is now reserved"));
+    const response = await POST(request(payload, { "Idempotency-Key": "checkout-request-key-123456" }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      url: "https://checkout.stripe.test/existing",
+      session_id: "cs_test_existing123",
+    });
     expect(mocks.stripeConstructor).not.toHaveBeenCalled();
-    expect(mocks.productCreate).not.toHaveBeenCalled();
-    expect(mocks.couponCreate).not.toHaveBeenCalled();
+    expect(db.link).not.toHaveBeenCalled();
+  });
+
+  it("recovers a session linked by the webhook before the checkout request saved its URL", async () => {
+    db.prepare.mockResolvedValue({
+      data: [{ order_id: "order-1", session_id: "cs_test_recovered123", session_url: null, is_existing: true }],
+      error: null,
+    });
+    mocks.sessionRetrieve.mockResolvedValue({
+      id: "cs_test_recovered123",
+      url: "https://checkout.stripe.test/recovered",
+      status: "complete",
+    });
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      url: "https://checkout.stripe.test/recovered",
+      session_id: "cs_test_recovered123",
+      quote,
+    });
     expect(mocks.sessionCreate).not.toHaveBeenCalled();
-    expect(db.rpc).toHaveBeenCalledWith("release_coupon_reservation", { p_order_id: "order-1", p_user_id: "user-1" });
-    expect(db.cancelWrite).toHaveBeenCalledOnce();
-    if (alcohol) expect(db.legalInsert).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ document_type: "alcohol_age" })]));
+    expect(db.adminRpc).toHaveBeenCalledWith("link_checkout_session", expect.objectContaining({
+      p_session_id: "cs_test_recovered123",
+      p_session_url: "https://checkout.stripe.test/recovered",
+    }));
   });
 
   it.each([
-    { data: null, error: { code: "WRITE_FAILURE" } },
-    { data: null, error: null },
-  ])("expires the created session when its reference is not saved: %j", async (result) => {
-    db.referenceWrite.mockResolvedValue(result);
+    [{ code: "P0001", message: "checkout quote is stale" }, 409, "PRICE_CHANGED"],
+    [{ code: "P0001", message: "coupon reservation unavailable" }, 400, "COUPON_UNAVAILABLE"],
+    [{ code: "P0001", message: "product is unavailable" }, 409, "PRODUCT_UNAVAILABLE"],
+  ])("maps domain RPC errors by message: %j", async (error, status, errorCode) => {
+    db.prepare.mockResolvedValue({ data: null, error });
+    const response = await POST(request());
+    expect(response.status).toBe(status);
+    expect(await response.json()).toEqual({ error: errorCode });
+  });
+
+  it("rejects reuse of an idempotency key with different request data", async () => {
+    db.checkoutAttempt.mockResolvedValue({
+      data: {
+        request_fingerprint: "a".repeat(64),
+        order_id: "order-1",
+        stripe_session_id: null,
+        stripe_session_url: null,
+      },
+      error: null,
+    });
+    db.prepare.mockResolvedValue({
+      data: null,
+      error: { code: "P0001", message: "checkout request key was reused with different data" },
+    });
+    const response = await POST(request(payload, { "Idempotency-Key": "checkout-request-key-123456" }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "IDEMPOTENCY_KEY_REUSED" });
+  });
+
+  it("cancels the prepared order when Stripe session creation definitively fails", async () => {
+    mocks.sessionCreate.mockRejectedValue(new Stripe.errors.StripeInvalidRequestError({ message: "Invalid parameter" }));
     const response = await POST(request());
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: "Unable to start payment" });
-    expect(mocks.sessionExpire).toHaveBeenCalledWith("session-1");
-    expect(mocks.sessionExpire.mock.invocationCallOrder[0]).toBeLessThan(db.release.mock.invocationCallOrder[0]);
-    expect(db.cancelWrite).toHaveBeenCalledOnce();
-  });
-
-  it("reports returned compensation errors and still attempts cancellation after release failure", async () => {
-    db.referenceWrite.mockResolvedValue({ data: null, error: { code: "WRITE_FAILURE" } });
-    db.release.mockResolvedValue({ data: null, error: { code: "RELEASE_FAILURE" } });
-    db.cancelWrite.mockResolvedValue({ data: null, error: { code: "CANCEL_FAILURE" } });
-    expect((await POST(request())).status).toBe(500);
-    expect(db.cancelWrite).toHaveBeenCalledOnce();
-    expect(mocks.sessionExpire).toHaveBeenCalledWith("session-1");
-    expect(console.error).toHaveBeenCalledWith("Unable to release failed payment coupon reservation", { code: "RELEASE_FAILURE" });
-    expect(console.error).toHaveBeenCalledWith("Unable to cancel failed payment order", { code: "CANCEL_FAILURE" });
-  });
-
-  it("attempts cancellation even when the release RPC throws", async () => {
-    db.itemsInsert.mockResolvedValue({ error: { code: "ITEM_FAILURE" } });
-    db.release.mockRejectedValue(new Error("network failure"));
-    expect((await POST(request())).status).toBe(500);
-    expect(db.cancelWrite).toHaveBeenCalledOnce();
-    expect(mocks.stripeConstructor).not.toHaveBeenCalled();
-  });
-
-  it("reports a cancellation that affected no order", async () => {
-    db.legalInsert.mockResolvedValue({ error: { code: "LEGAL_FAILURE" } });
-    db.cancelWrite.mockResolvedValue({ data: null, error: null });
-    expect((await POST(request())).status).toBe(500);
-    expect(console.error).toHaveBeenCalledWith("Unable to cancel failed payment order", { name: "Error" });
-  });
-
-  it("expires a session with no checkout URL", async () => {
-    mocks.sessionCreate.mockResolvedValue({ id: "session-1", url: null });
-    expect((await POST(request())).status).toBe(500);
-    expect(mocks.sessionExpire).toHaveBeenCalledWith("session-1");
-  });
-
-  it("compensates when Stripe definitively rejects session creation", async () => {
-    mocks.sessionCreate.mockRejectedValue(new Stripe.errors.StripeInvalidRequestError({ message: "Invalid parameter" }));
-    expect((await POST(request())).status).toBe(500);
-    expect(db.cancelWrite).toHaveBeenCalledOnce();
-    expect(db.release).toHaveBeenCalledOnce();
+    expect(db.cancel).toHaveBeenCalledOnce();
     expect(mocks.sessionExpire).not.toHaveBeenCalled();
   });
 
-  it.each([
-    new Stripe.errors.StripeConnectionError({ message: "Request timed out" }),
-    new Stripe.errors.StripeAPIError({ message: "Internal API error" }),
-    new Error("Unknown transport failure"),
-  ])("retains the pending order and reservation on ambiguous session creation: %s", async (error) => {
-    mocks.getPricingQuote.mockResolvedValue({ ...quote, coupon: { id: couponId } });
-    mocks.sessionCreate.mockRejectedValue(error);
-    const response = await POST(request({ ...payload, coupon_id: couponId }));
+  it("retains the prepared order on an ambiguous Stripe failure", async () => {
+    mocks.sessionCreate.mockRejectedValue(new Stripe.errors.StripeConnectionError({ message: "Request timed out" }));
+    const response = await POST(request());
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: "Unable to start payment" });
-    expect(db.rpc).toHaveBeenCalledWith("reserve_coupon", expect.objectContaining({ p_order_id: "order-1" }));
-    expect(mocks.sessionCreate).toHaveBeenCalledWith(expect.anything(), { idempotencyKey: "checkout-session:order-1" });
-    expect(db.release).not.toHaveBeenCalled();
-    expect(db.update).not.toHaveBeenCalled();
-    expect(mocks.sessionExpire).not.toHaveBeenCalled();
-    expect(console.error).toHaveBeenCalledWith("Checkout reconciliation required", {
-      order_id: "order-1", session_id: null, idempotency_key: "checkout-session:order-1",
-    });
+    expect(db.cancel).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledWith("Checkout reconciliation required", expect.objectContaining({ order_id: "order-1" }));
   });
 
-  it.each(["throw", "unconfirmed"])("retains the pending order and reservation when expiration fails: %s", async (failure) => {
-    mocks.getPricingQuote.mockResolvedValue({ ...quote, coupon: { id: couponId } });
-    db.referenceWrite.mockResolvedValue({ data: null, error: { code: "WRITE_FAILURE" } });
-    if (failure === "throw") mocks.sessionExpire.mockRejectedValue(new Error("Stripe unavailable"));
-    else mocks.sessionExpire.mockResolvedValue({ id: "session-1", status: "complete" });
-    const response = await POST(request({ ...payload, coupon_id: couponId }));
+  it("expires a created session before cancelling when linking fails", async () => {
+    db.link.mockResolvedValue({ data: null, error: { code: "WRITE_FAILURE" } });
+    const response = await POST(request());
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: "Unable to start payment" });
     expect(mocks.sessionExpire).toHaveBeenCalledWith("session-1");
-    expect(db.release).not.toHaveBeenCalled();
-    expect(db.cancelWrite).not.toHaveBeenCalled();
-    expect(db.update).not.toHaveBeenCalledWith(expect.objectContaining({ status: "cancelled" }));
-    expect(console.error).toHaveBeenCalledWith("Unable to expire failed checkout session", expect.anything());
-    expect(console.error).toHaveBeenCalledWith("Checkout reconciliation required", {
-      order_id: "order-1", session_id: "session-1", idempotency_key: "checkout-session:order-1",
-    });
+    expect(db.cancel).toHaveBeenCalledOnce();
   });
 
-  it("compensates a Stripe product failure before session creation is attempted", async () => {
-    mocks.productCreate.mockRejectedValue(new Stripe.errors.StripeConnectionError({ message: "Timed out" }));
-    expect((await POST(request())).status).toBe(500);
-    expect(mocks.sessionCreate).not.toHaveBeenCalled();
-    expect(db.release).toHaveBeenCalledOnce();
-    expect(db.cancelWrite).toHaveBeenCalledOnce();
+  it("keeps the order pending if session expiration is not confirmed", async () => {
+    db.link.mockResolvedValue({ data: null, error: { code: "WRITE_FAILURE" } });
+    mocks.sessionExpire.mockResolvedValue({ id: "session-1", status: "complete" });
+    const response = await POST(request());
+    expect(response.status).toBe(500);
+    expect(db.cancel).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledWith("Checkout reconciliation required", expect.objectContaining({ session_id: "session-1" }));
   });
 
-  it("keeps coupon reservation and price-change checks", async () => {
-    mocks.getPricingQuote.mockResolvedValue({ ...quote, coupon: { id: couponId } });
-    expect((await POST(request({ ...payload, coupon_id: couponId }))).status).toBe(200);
-    expect(db.rpc).toHaveBeenCalledWith("reserve_coupon", { p_coupon_id: couponId, p_order_id: "order-1", p_user_id: "user-1" });
-    db.orderInsert.mockClear();
-    const response = await POST(request({ ...payload, quote_total_cents: 999 }));
-    expect(response.status).toBe(409);
-    expect((await response.json()).error).toBe("PRICE_CHANGED");
-    expect(db.orderInsert).not.toHaveBeenCalled();
+  it("passes the coupon through the atomic preparation RPC", async () => {
+    mocks.getPricingQuote.mockResolvedValue({ ...quote, coupon: { id: couponId, code: "SAVE" } });
+    const response = await POST(request({ ...payload, coupon_id: couponId }));
+    expect(response.status).toBe(200);
+    expect(db.adminRpc).toHaveBeenCalledWith("prepare_checkout_order", expect.objectContaining({ p_coupon_id: couponId }));
+  });
+
+  it("returns PRICE_CHANGED before preparing an order", async () => {
+    expect((await POST(request({ ...payload, quote_total_cents: 999 }))).status).toBe(409);
+    expect(db.adminRpc).not.toHaveBeenCalledWith("prepare_checkout_order", expect.anything());
   });
 
   it("requires age confirmation for alcoholic products", async () => {
@@ -264,10 +304,10 @@ describe("checkout route", () => {
     const response = await POST(request());
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "ALCOHOL_AGE_REQUIRED" });
-    expect(db.orderInsert).not.toHaveBeenCalled();
+    expect(db.adminRpc).not.toHaveBeenCalledWith("prepare_checkout_order", expect.anything());
   });
 
-  it.each(["", "{", "undefined"])("returns INVALID_JSON for malformed JSON %j", async (body) => {
+  it.each(["", "{", "undefined"]) ("returns INVALID_JSON for malformed JSON %j", async (body) => {
     const response = await POST(new NextRequest("https://shop.example/api", { method: "POST", body }));
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "INVALID_JSON" });
@@ -293,17 +333,24 @@ describe("checkout route", () => {
     { ...payload, coupon_id: 123 }, { ...payload, coupon_id: "invalid" },
     { ...payload, terms_accepted: "true" }, { ...payload, terms_accepted: false },
     { ...payload, age_confirmed: "true" }, { ...payload, extra: true },
-  ])("rejects invalid payload %# before database work", async (body) => {
+  ]) ("rejects invalid payload %# before database work", async (body) => {
     const response = await POST(request(body));
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "INVALID_REQUEST" });
     expect(db.from).not.toHaveBeenCalled();
-    expect(db.rpc).not.toHaveBeenCalled();
+    expect(db.adminRpc).not.toHaveBeenCalled();
     expect(mocks.getPricingQuote).not.toHaveBeenCalled();
     expect(mocks.stripeConstructor).not.toHaveBeenCalled();
   });
 
-  it.each([false, true])("bounds the request body with declared length=%s", async (declared) => {
+  it("rejects an invalid idempotency key before database work", async () => {
+    const response = await POST(request(payload, { "Idempotency-Key": "bad key" }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "INVALID_REQUEST" });
+    expect(db.from).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true]) ("bounds the request body with declared length=%s", async (declared) => {
     const response = await POST(new NextRequest("https://shop.example/api", {
       method: "POST",
       headers: declared ? { "content-length": "70000" } : {},

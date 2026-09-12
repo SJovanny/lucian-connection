@@ -78,6 +78,7 @@ export type Order = {
   payment_status: "pending_payment" | "paid" | "payment_failed" | "cancelled" | "refunded" | "partially_refunded";
   payment_provider: string | null;
   payment_reference: string | null;
+  payment_session_id: string | null;
   paid_at: string | null;
   refunded_at: string | null;
   fulfillment_status_before_refund: OrderStatus | null;
@@ -241,6 +242,59 @@ export type OrderRefund = {
   updated_at: string;
 };
 
+export type StockReservation = {
+  id: string;
+  order_id: string;
+  order_item_id: string;
+  product_id: string;
+  quantity: number;
+  stock_tracked: boolean;
+  status: "reserved" | "consumed" | "released";
+  expires_at: string;
+  released_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type StockMovement = {
+  id: string;
+  product_id: string;
+  order_id: string | null;
+  order_item_id: string | null;
+  reservation_id: string | null;
+  refund_id: string | null;
+  quantity_delta: number;
+  movement_type: "reserve" | "release" | "refund" | "adjustment";
+  reason: string | null;
+  created_at: string;
+};
+
+export type CheckoutAttempt = {
+  id: string;
+  user_id: string;
+  request_key: string;
+  request_fingerprint: string;
+  order_id: string | null;
+  stripe_session_id: string | null;
+  stripe_session_url: string | null;
+  status: "prepared" | "session_created";
+  created_at: string;
+  updated_at: string;
+};
+
+export type StripeWebhookEvent = {
+  id: string;
+  stripe_event_id: string;
+  event_type: string;
+  status: "processing" | "processed" | "failed";
+  attempts: number;
+  last_error_code: string | null;
+  locked_until: string | null;
+  received_at: string;
+  processed_at: string | null;
+  updated_at: string;
+};
+
 export type PickupClosure = {
   id: string;
   closed_on: string;
@@ -283,7 +337,7 @@ export type AuditLog = {
   actor_id: string | null;
   actor_name: string | null;
   actor_email: string | null;
-  actor_role: "admin" | "employee";
+  actor_role: "admin" | "employee" | "system";
   action: string;
   entity_type: AuditEntityType;
   entity_id: string | null;
@@ -311,6 +365,10 @@ export type Database = {
       loyalty_ledger: { Row: LoyaltyLedgerEntry; Insert: Partial<LoyaltyLedgerEntry> & { user_id: string; type: LoyaltyLedgerEntry["type"]; points: number; balance_after: number; description: string }; Update: Partial<LoyaltyLedgerEntry>; Relationships: [] };
       loyalty_redemptions: { Row: LoyaltyRedemption; Insert: Partial<LoyaltyRedemption> & { user_id: string; reward_id: string; coupon_id: string; points_spent: number }; Update: Partial<LoyaltyRedemption>; Relationships: [] };
       order_refunds: { Row: OrderRefund; Insert: Partial<OrderRefund> & { order_id: string; user_id: string; amount: number; product_amount: number }; Update: Partial<OrderRefund>; Relationships: [] };
+      stock_reservations: { Row: StockReservation; Insert: Partial<StockReservation> & { order_id: string; order_item_id: string; product_id: string; quantity: number }; Update: Partial<StockReservation>; Relationships: [] };
+      stock_movements: { Row: StockMovement; Insert: Partial<StockMovement> & { product_id: string; quantity_delta: number; movement_type: StockMovement["movement_type"] }; Update: Partial<StockMovement>; Relationships: [] };
+      checkout_attempts: { Row: CheckoutAttempt; Insert: Partial<CheckoutAttempt> & { user_id: string; request_key: string; request_fingerprint: string }; Update: Partial<CheckoutAttempt>; Relationships: [] };
+      stripe_webhook_events: { Row: StripeWebhookEvent; Insert: Partial<StripeWebhookEvent> & { stripe_event_id: string; event_type: string }; Update: Partial<StripeWebhookEvent>; Relationships: [] };
       coupon_usages: { Row: CouponUsage; Insert: Partial<CouponUsage> & { coupon_id: string; order_id: string }; Update: Partial<CouponUsage>; Relationships: [] };
       coupon_reservations: { Row: CouponReservation; Insert: Partial<CouponReservation> & { coupon_id: string; order_id: string }; Update: Partial<CouponReservation>; Relationships: [] };
       pickup_closures: { Row: PickupClosure; Insert: Partial<PickupClosure> & { closed_on: string }; Update: Partial<PickupClosure>; Relationships: [] };
@@ -333,7 +391,42 @@ export type Database = {
       reserve_coupon: { Args: { p_coupon_id: string; p_order_id: string; p_user_id: string }; Returns: boolean };
       release_coupon_reservation: { Args: { p_order_id: string; p_user_id: string | null }; Returns: boolean };
       record_audit_event: { Args: { p_action: string; p_entity_type: AuditEntityType; p_entity_id?: string | null; p_summary?: string | null; p_changes?: AuditChange[]; p_metadata?: Record<string, unknown>; p_ip_address?: string | null; p_user_agent?: string | null }; Returns: string };
+      record_system_audit_event: { Args: { p_action: string; p_entity_type: AuditEntityType; p_entity_id?: string | null; p_summary?: string | null; p_metadata?: Record<string, unknown> }; Returns: string };
       purge_audit_logs: { Args: { p_retention_days?: number }; Returns: number };
+      prepare_checkout_order: { Args: {
+        p_user_id: string; p_request_key: string; p_request_fingerprint: string;
+        p_phone: string; p_full_name: string; p_email: string; p_notes: string | null;
+        p_locale: string; p_pickup_at: string; p_coupon_id: string | null;
+        p_subtotal_cents: number; p_preparation_fee_cents: number; p_discount_cents: number;
+        p_total_cents: number; p_items: unknown[]; p_contains_alcohol: boolean;
+        p_age_confirmed: boolean; p_terms_version: string; p_user_agent: string | null;
+        p_ip_address?: string | null;
+      }; Returns: { order_id: string; session_id: string | null; session_url: string | null; is_existing: boolean }[] };
+      link_checkout_session: { Args: { p_user_id: string; p_request_key: string; p_order_id: string; p_session_id: string; p_session_url: string }; Returns: boolean };
+      claim_stripe_webhook_event: { Args: { p_event_id: string; p_event_type: string }; Returns: boolean };
+      complete_stripe_webhook_event: { Args: { p_event_id: string }; Returns: boolean };
+      fail_stripe_webhook_event: { Args: { p_event_id: string; p_error_code: string | null }; Returns: boolean };
+      finalize_paid_order: { Args: { p_order_id: string; p_session_id: string; p_payment_intent: string; p_event_id?: string | null }; Returns: { payment_status: string; processed: boolean }[] };
+      cancel_pending_order: { Args: { p_order_id: string }; Returns: boolean };
+      cancel_abandoned_orders: { Args: { p_max_age?: string }; Returns: number };
+      reserve_order_stock: { Args: { p_order_id: string }; Returns: number };
+      consume_order_stock: { Args: { p_order_id: string }; Returns: number };
+      release_order_stock: { Args: { p_order_id: string }; Returns: number };
+      restock_stock_for_refund: { Args: { p_refund_id: string }; Returns: number };
+      create_refund_reservation: { Args: { p_order_id: string; p_user_id: string; p_request_key: string; p_full_order: boolean; p_item_ids: string[]; p_created_by?: string | null }; Returns: { id: string; request_key: string; stripe_refund_id: string | null; amount: number; product_amount: number; status: string; items: OrderRefundItem[] }[] };
+      mark_refund_failed: { Args: { p_refund_id: string; p_reason?: string | null }; Returns: boolean };
+      sync_stripe_refund: { Args: {
+        p_local_refund_id: string | null; p_order_id: string; p_user_id: string;
+        p_stripe_refund_id: string; p_payment_intent: string; p_stripe_status: string | null;
+        p_failure_reason: string | null; p_pending_reason: string | null;
+        p_stripe_reference: string | null; p_stripe_reference_status: string | null;
+        p_stripe_reference_type: string | null; p_amount: number; p_product_amount: number;
+        p_items: OrderRefundItem[]; p_status: string;
+      }; Returns: {
+        refund_id: string; refund_order_id: string; refund_status: string; stripe_status: string | null;
+        refund_amount: number; refund_product_amount: number; refund_items: OrderRefundItem[];
+        payment_status: string; order_status: string; refunded_at: string | null; points_adjustment: number;
+      }[] };
     };
     Enums: { role: "customer" | "admin" | "employee" };
     CompositeTypes: Record<string, never>;

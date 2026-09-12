@@ -2,6 +2,7 @@
 const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
+const { getDatabaseConfig, getLibpqEnvironment } = require("./db_connection");
 
 const envArg = process.argv[2] || "prod";
 if (!["prod", "local"].includes(envArg)) {
@@ -9,22 +10,7 @@ if (!["prod", "local"].includes(envArg)) {
 }
 const envFile = envArg === "local" ? ".env.local" : ".env.prod";
 
-const envPath = path.join(process.cwd(), envFile);
-if (!fs.existsSync(envPath)) {
-  throw new Error(`${envFile} introuvable à la racine du projet.`);
-}
-const env = fs.readFileSync(envPath, "utf8");
-const getEnvValue = (name) => {
-  const match = env.match(new RegExp(`^${name}=(.+)$`, "m"));
-  if (!match) return null;
-
-  return match[1].trim().replace(/^("|')(.*)\1$/, "$2");
-};
-
-const connectionString = getEnvValue("DIRECT_URL") || getEnvValue("DATABASE_URL");
-if (!connectionString) {
-  throw new Error(`DIRECT_URL ou DATABASE_URL introuvable dans ${envFile}`);
-}
+const { connectionString, caPath } = getDatabaseConfig(envFile);
 
 // pg_dump n'est pas toujours dans le PATH (ex: libpq installé via Homebrew
 // est "keg-only" et n'est pas symlinké automatiquement). On cherche dans le
@@ -71,7 +57,7 @@ execFileSync(
     "--file",
     outFile,
   ],
-  { stdio: "inherit" }
+  { stdio: "inherit", env: getLibpqEnvironment(caPath) }
 );
 
 const { size } = fs.statSync(outFile);

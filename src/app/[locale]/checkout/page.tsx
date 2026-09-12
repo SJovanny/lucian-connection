@@ -21,7 +21,7 @@ import { useCheckoutQuote } from "@/lib/client/useCheckoutQuote";
 import { useCheckoutCoupon } from "@/lib/client/useCheckoutCoupon";
 import { useCheckoutAgeRequirement } from "@/lib/client/useCheckoutAgeRequirement";
 import { Link, useRouter } from "@/i18n/routing";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Locale } from "@/i18n/routing";
 import { PickupSlotPicker } from "@/components/pickup/PickupSlotPicker";
@@ -41,6 +41,7 @@ export default function CheckoutPage() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [availabilityReloadToken, setAvailabilityReloadToken] = useState(0);
+  const checkoutAttemptRef = useRef<{ signature: string; key: string } | null>(null);
   const coupon = useCheckoutCoupon(items, locale);
   const { appliedCoupon } = coupon;
   const { quoteKey, setQuoteState, displayQuote, currentQuoteError } = useCheckoutQuote(items, appliedCoupon?.id || null, locale);
@@ -123,15 +124,28 @@ export default function CheckoutPage() {
         age_confirmed: ageConfirmed,
         pickup_at: pickupAt,
       };
+      const requestSignature = JSON.stringify(payload);
+      if (checkoutAttemptRef.current?.signature !== requestSignature) {
+        const randomPart = globalThis.crypto?.randomUUID?.()
+          || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        checkoutAttemptRef.current = {
+          signature: requestSignature,
+          key: `checkout:${randomPart}`,
+        };
+      }
 
       const res = await fetch("/api/payments/create-checkout-session", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": checkoutAttemptRef.current.key,
+        },
         body: JSON.stringify(payload),
       });
 
       const data = await res.json();
       if (!res.ok) {
+        if (res.status < 500) checkoutAttemptRef.current = null;
         console.error("[checkout] Payment session creation failed:", data);
         if (data?.error === "PRICE_CHANGED" || data?.error === "COUPON_UNAVAILABLE") {
           if (data.quote) setQuoteState({ key: quoteKey, quote: data.quote });
@@ -160,9 +174,10 @@ export default function CheckoutPage() {
          && /^cs_(?:test_|live_)?[A-Za-z0-9]+$/.test(data.session_id)) {
          try {
            sessionStorage.setItem(`checkout-cart-snapshot:${data.session_id}`, checkoutCartSnapshot);
-         } catch { /* Without a snapshot, the success page preserves the cart. */ }
-       }
-       window.location.assign(data.url);
+          } catch { /* Without a snapshot, the success page preserves the cart. */ }
+        }
+        checkoutAttemptRef.current = null;
+        window.location.assign(data.url);
     } catch (error) {
       console.error("[checkout] unexpected error:", error);
       setFormError(error instanceof PricingQuoteRequestError
