@@ -17,9 +17,9 @@ export function HeroBanner() {
           className="h-full w-full object-cover"
         />
       </picture>
-      <div className="absolute inset-0 -z-0 bg-gradient-to-r from-primary-950/90 via-primary-950/55 to-transparent md:via-primary-950/35" aria-hidden="true" />
+      <div className="absolute inset-0 z-0 bg-gradient-to-r from-primary-900/55 via-primary-900/5 to-transparent" aria-hidden="true" />
       <div className="relative z-10 mx-auto flex min-h-[440px] w-full max-w-7xl items-center px-5 py-10 sm:min-h-[520px] sm:px-8 sm:py-12 lg:min-h-[480px] lg:items-end lg:px-12 lg:py-14">
-        <div className="flex max-w-[500px] flex-col items-start text-left text-white">
+        <div className="flex max-w-[500px] flex-col items-start text-left text-white drop-shadow-[0_2px_4px_rgba(0,21,51,0.55)]">
           <div className="border-l-2 border-accent pl-4">
             <p className="font-mono text-[11px] font-semibold tracking-[0.18em] text-accent uppercase">
               {t("eyebrow")}
